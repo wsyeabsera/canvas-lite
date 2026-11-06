@@ -9,6 +9,7 @@
     "dev": "wrangler dev",
     "test": "node --test \"test/*.test.ts\"",
     "typecheck": "tsc --noEmit",
+    "watch": "node cli/watch.ts",
     "types": "wrangler types src/worker-configuration.d.ts"
   },
   "dependencies": {
