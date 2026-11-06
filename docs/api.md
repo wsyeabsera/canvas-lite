@@ -31,6 +31,21 @@ Every response is `Content-Type: application/json` with `Cache-Control: no-store
 
 `<id>` matches `^[a-z0-9][a-z0-9-]*$`, at most 40 characters. `HEAD` works like `GET`.
 
+`GET /api/projects/<id>/canvases` returns 200 (removed canvases are left out; see [Canvas and screens](canvas.md)):
+
+```json
+{ "canvases": [{ "id": "main", "name": "Main", "screens": 2, "updated_at": 1767225600000 }] }
+```
+
+`GET /api/projects/<id>/canvases/<canvas>` returns 200, with each screen's `html` included (the `read_canvas` tool leaves it out by default):
+
+```json
+{ "canvas": { "id": "main", "name": "Main", "screens": 1, "created_at": 1767225500000, "updated_at": 1767225600000 },
+  "screens": [{ "id": "home", "name": "Home", "width": 400, "height": 300, "x": null, "y": null, "updated_at": 1767225600000, "html": "<p>hi</p>" }] }
+```
+
+`<canvas>` follows the same id rule. Any other path below `/api/projects/<id>` is 400.
+
 ## Errors
 
 Body is `{ "error": "<message>" }`.
@@ -39,6 +54,6 @@ Body is `{ "error": "<message>" }`.
 |---|---|
 | 400 | invalid id, or extra path segments |
 | 401 | missing or wrong token (`WWW-Authenticate: Bearer`) |
-| 404 | unknown project (`unknown project "<id>"`) or unknown `/api/` path |
+| 404 | unknown project (`unknown project "<id>"`), unknown or removed canvas (`unknown canvas "<id>"`) or unknown `/api/` path |
 | 405 | method other than GET or HEAD (`Allow: GET, HEAD`) |
 | 503 | server has no token configured |

@@ -3,6 +3,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { tokenOk } from "./auth.ts";
 import { parseHello, replay } from "./events.ts";
+import { createCanvas, listCanvases, readCanvas, removeCanvas, removeScreen, setScreen, type ScreenInput } from "./canvases.ts";
 import { listProjects, openProject, readProject, removeProject, type OpenInput, type ProjectSummary } from "./projects.ts";
 import { appendEvent,migrate, type LiteEvent, type Sql } from "./store.ts";
 
@@ -55,6 +56,38 @@ export class Hub extends DurableObject<Env> {
 
   readProject(id: string, includeManifest = false) {
     return readProject(this.sql, id, includeManifest);
+  }
+
+  createCanvas(project: string, input: { name: string; id?: string }) {
+    const { event, ...result } = createCanvas(this.sql, project, input);
+    if (event) this.broadcast(event);
+    return result;
+  }
+
+  listCanvases(project: string) {
+    return listCanvases(this.sql, project);
+  }
+
+  readCanvas(project: string, canvas: string, includeHtml = false) {
+    return readCanvas(this.sql, project, canvas, includeHtml);
+  }
+
+  setScreen(project: string, input: ScreenInput) {
+    const { event, ...result } = setScreen(this.sql, project, input);
+    this.broadcast(event);
+    return result;
+  }
+
+  removeScreen(project: string, canvas: string, id: string) {
+    const { event, ...result } = removeScreen(this.sql, project, canvas, id);
+    if (event) this.broadcast(event);
+    return result;
+  }
+
+  removeCanvas(project: string, canvas: string) {
+    const { event, ...result } = removeCanvas(this.sql, project, canvas);
+    if (event) this.broadcast(event);
+    return result;
   }
 
   ping(note?: string): LiteEvent {

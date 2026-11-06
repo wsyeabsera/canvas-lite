@@ -4,6 +4,7 @@ import { createMcpHandler } from "agents/mcp/server";
 import { env } from "cloudflare:workers";
 import { z } from "zod";
 import { hub } from "./hub.ts";
+import { CANVAS_TEXT, MAX_SIZE, MIN_SIZE } from "./canvases.ts";
 import { OPEN_PROJECT_TEXT } from "./projects.ts";
 
 function createServer(): McpServer {
@@ -77,6 +78,68 @@ function createServer(): McpServer {
       inputSchema: z.object({ id: z.string().describe("Project id from list_projects.") }),
     },
     ({ id }) => guard(() => hub(env).removeProject(id)),
+  );
+  const project = z.string().describe("Project id from list_projects (an existing, not removed project).");
+  const canvas = z.string().describe("Canvas id from list_canvases.");
+  server.registerTool(
+    "create_canvas",
+    {
+      title: "Create a canvas",
+      description: CANVAS_TEXT.create_canvas,
+      inputSchema: z.object({
+        project,
+        name: z.string().min(1).max(100).describe("Canvas name."),
+        id: z.string().optional().describe("Slug: lowercase letters, digits, -, at most 40. Defaults to the slugified name."),
+      }),
+    },
+    ({ project, ...input }) => guard(async () => hub(env).createCanvas(project, input)),
+  );
+  server.registerTool(
+    "list_canvases",
+    { title: "List canvases", description: CANVAS_TEXT.list_canvases, inputSchema: z.object({ project }) },
+    ({ project }) => guard(async () => hub(env).listCanvases(project)),
+  );
+  server.registerTool(
+    "read_canvas",
+    {
+      title: "Read a canvas",
+      description: CANVAS_TEXT.read_canvas,
+      inputSchema: z.object({ project, canvas, include_html: z.boolean().optional().describe("Also return each screen's html. Default false.") }),
+    },
+    ({ project, canvas, include_html }) => guard(async () => hub(env).readCanvas(project, canvas, include_html ?? false)),
+  );
+  server.registerTool(
+    "set_screen",
+    {
+      title: "Set a screen",
+      description: CANVAS_TEXT.set_screen,
+      inputSchema: z.object({
+        project,
+        canvas,
+        name: z.string().min(1).max(100).describe("Screen name."),
+        width: z.number().int().min(MIN_SIZE).max(MAX_SIZE).describe(`Width in CSS pixels, ${MIN_SIZE} to ${MAX_SIZE}.`),
+        height: z.number().int().min(MIN_SIZE).max(MAX_SIZE).describe(`Height in CSS pixels, ${MIN_SIZE} to ${MAX_SIZE}.`),
+        html: z.string().describe("One self-contained HTML document: inline CSS, no scripts, root sized to width x height."),
+        id: z.string().optional().describe("Slug: lowercase letters, digits, -, at most 40. Defaults to the slugified name; an existing id is replaced."),
+        x: z.number().int().optional().describe("Canvas x position in pixels. Leave out for automatic layout."),
+        y: z.number().int().optional().describe("Canvas y position in pixels. Leave out for automatic layout."),
+      }),
+    },
+    ({ project, ...input }) => guard(async () => hub(env).setScreen(project, input)),
+  );
+  server.registerTool(
+    "remove_screen",
+    {
+      title: "Remove a screen",
+      description: CANVAS_TEXT.remove_screen,
+      inputSchema: z.object({ project, canvas, id: z.string().describe("Screen id from read_canvas.") }),
+    },
+    ({ project, canvas, id }) => guard(async () => hub(env).removeScreen(project, canvas, id)),
+  );
+  server.registerTool(
+    "remove_canvas",
+    { title: "Remove a canvas", description: CANVAS_TEXT.remove_canvas, inputSchema: z.object({ project, canvas }) },
+    ({ project, canvas }) => guard(async () => hub(env).removeCanvas(project, canvas)),
   );
   return server;
 }

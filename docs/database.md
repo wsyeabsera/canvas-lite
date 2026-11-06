@@ -14,6 +14,8 @@ queries over a tiny `Sql` interface; `src/hub.ts` adapts Durable Object storage 
 | Table | Columns |
 |---|---|
 | `projects` | `id` (lowercase letters, digits, `-`, at most 40), `name`, `kind`, `repo` (nullable URL), `manifest` (nullable JSON text, at most 65536 bytes), `opened_at` (ms), `archived_at` (nullable ms; set by `remove_project`) |
+| `canvases` | `project`, `id` (primary key together), `name`, `created_at`, `updated_at`, `archived_at` (nullable ms; set by `remove_canvas`) |
+| `screens` | `project`, `canvas`, `id` (primary key together), `name`, `width`, `height`, `html`, `x`, `y` (nullable), `updated_at` |
 | `events` | `seq` (autoincrement), `project` (nullable, references `projects`), `kind`, `payload` (JSON), `ts` (ms) |
 
 ## Event model
