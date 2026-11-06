@@ -5,7 +5,7 @@ import { tokenOk } from "./auth.ts";
 import { parseHello, replay } from "./events.ts";
 import { createCanvas, listCanvases, listCanvasesForPage, readCanvas, removeCanvas, removeScreen, setFlow, setScreen, setScreens, type ScreenFields, type ScreenInput } from "./canvases.ts";
 import { canvasAt, canvasTimeline } from "./timeline.ts";
-import { patchScreen, readCanvasForPage, readFlow, setTour, validateFlow, type PatchEdit } from "./flow.ts";
+import { patchScreen, readCanvasForPage, readFlow, reviewFlow, setTour, validateFlow, type PatchEdit } from "./flow.ts";
 import { goto, present, stopPresent } from "./present.ts";
 import { listProjects, openProject, readProject, removeProject, type OpenInput, type ProjectSummary } from "./projects.ts";
 import { appendEvent,migrate, type LiteEvent, type Sql } from "./store.ts";
@@ -117,6 +117,10 @@ export class Hub extends DurableObject<Env> {
 
   validateFlow(project: string, canvas: string) {
     return validateFlow(this.sql, project, canvas);
+  }
+
+  reviewPrototype(project: string, canvas: string) {
+    return reviewFlow(this.sql, project, canvas);
   }
 
   /** The canvas as the watch page loads it: html, plus its tour and the project's presenter session. */
