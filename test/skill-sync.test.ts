@@ -8,6 +8,24 @@ test("the repo skill is a byte copy of the plugin skill (run node scripts/sync-s
   assert.equal(read(".agents/skills/lite-prototyping/SKILL.md"), read("plugin/lite-prototyping/skills/prototyping/SKILL.md"));
 });
 
+test("the repo scenes skill is a byte copy of the plugin scenes skill (run node scripts/sync-skill.mjs)", () => {
+  assert.equal(read(".agents/skills/lite-scenes/SKILL.md"), read("plugin/lite-prototyping/skills/scenes/SKILL.md"));
+});
+
+test("the sync script covers both skills", () => {
+  const script = read("scripts/sync-skill.mjs");
+  for (const p of ["skills/prototyping/SKILL.md", "skills/scenes/SKILL.md", ".agents/skills/lite-prototyping/SKILL.md", ".agents/skills/lite-scenes/SKILL.md"]) assert.ok(script.includes(p), p);
+});
+
+test("scenes skill frontmatter is valid and the process names the tools and anti-patterns", () => {
+  const skill = read("plugin/lite-prototyping/skills/scenes/SKILL.md");
+  assert.ok(/^---\nname: lite-scenes\ndescription: .+\n---\n/.exec(skill), "frontmatter");
+  for (const w of ["set_scene", "set_films", "validate_scene", "review_scene", "score >= 90", "Anti-patterns", "Grey boxes", "No lighting", "single shot", "Camera inside geometry", "Walkable", "Brief and shot list"]) assert.ok(skill.toLowerCase().includes(w.toLowerCase()), w);
+  const cmd = read("plugin/lite-prototyping/commands/scene.md");
+  assert.match(cmd, /^---\ndescription: .+\nargument-hint: <what to build>\n---\n/);
+  assert.ok(cmd.includes("$ARGUMENTS") && cmd.includes("lite-scenes") && cmd.includes("review_scene"));
+});
+
 test("skill frontmatter is valid and the process names the tools", () => {
   const skill = read("plugin/lite-prototyping/skills/prototyping/SKILL.md");
   const fm = /^---\nname: lite-prototyping\ndescription: .+\n---\n/.exec(skill);

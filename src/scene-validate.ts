@@ -11,7 +11,7 @@ export const FILM_MIN_MS = 3000;
 type Box = { id: string; min: Vec3; max: Vec3 };
 
 /** Half extents of a solid, ignoring rotation; size layout per kind is SIZE_LAYOUT in scene.ts (docs/scenes.md). Others are not solid. Missing size = 1. */
-function halfExtents(o: SceneObject): Vec3 | null {
+export function halfExtents(o: SceneObject): Vec3 | null {
   const s = o.size ?? [];
   const k = o.scale ?? [1, 1, 1];
   let h: Vec3;
@@ -24,7 +24,7 @@ function halfExtents(o: SceneObject): Vec3 | null {
 }
 
 /** Boxes of the expanded scene; a group's pos is added to its children (summed, rotation and scale ignored). */
-function boxes(objects: SceneObject[], off: Vec3 = [0, 0, 0], out: Box[] = []): Box[] {
+export function boxes(objects: SceneObject[], off: Vec3 = [0, 0, 0], out: Box[] = []): Box[] {
   for (const o of objects) {
     const p = o.pos ?? [0, 0, 0];
     const at: Vec3 = [off[0] + p[0], off[1] + p[1], off[2] + p[2]];
@@ -37,7 +37,7 @@ function boxes(objects: SceneObject[], off: Vec3 = [0, 0, 0], out: Box[] = []): 
   return out;
 }
 
-const inside = (p: Vec3, b: Box) => p.every((v, i) => v > b.min[i] && v < b.max[i]);
+export const inside =(p: Vec3, b: Box) => p.every((v, i) => v > b.min[i] && v < b.max[i]);
 
 /** Pure: errors block showing the scene; warnings and info do not. `ok` means no errors. */
 export function validateScene(scene: Scene, films: Film[]): { ok: boolean; issues: SceneIssue[] } {

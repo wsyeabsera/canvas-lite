@@ -7,7 +7,7 @@ slug: /prototype-tools
 
 How Claude drives the prototype player (see [Prototype](prototype.md) for the link model). Everything here is built; the tools live in `src/flow.ts` and `src/present.ts` (pure, unit tested) with thin Hub and MCP wiring. For how to write a prototype, read the [Prototyping guide](prototyping-guide.md).
 
-> **3D scenes** have their own tools: `create_scene`, `set_scene`, `patch_scene`, `read_scene`, `list_scenes`, `set_films`, `set_page` and `validate_scene`. They follow the same pattern (pure modules, thin wiring, an event per write with no body) but store a scene in a table, not events. See [3D scenes and films](scenes.md).
+> **3D scenes** have their own tools: `create_scene`, `set_scene`, `patch_scene`, `read_scene`, `list_scenes`, `set_films`, `set_page`, `validate_scene` and `review_scene` (a completeness score like `review_prototype`). They follow the same pattern (pure modules, thin wiring, an event per write with no body) but store a scene in a table, not events. See [3D scenes and films](scenes.md).
 
 ## Decisions
 
