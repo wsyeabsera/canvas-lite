@@ -26,6 +26,7 @@ Then ask Claude to call the `ping` tool: it appends an event in the Hub and retu
 - [Database](database.md): tables, the event model and migrations.
 - [Prototype](prototype.md): links between screens, transitions, start screen (spec).
 - [Prototype tools](prototype-tools.md): `read_flow`, `validate_flow`, `review_prototype`, `patch_screen`, `set_tour`, `present`, `goto` and the live-play events.
+- [3D scenes](scenes.md): scene, shot and film JSON, limits, events, storage and a worked example (model and tools; no viewer yet).
 - [Plugin](plugin.md): the `lite-prototyping` Claude Code plugin (process skill, `/prototype`, MCP config) and how its skill stays in one place.
 - [Prototyping guide](prototyping-guide.md): how Claude writes screens, links, flows and tours, with a worked example.
 
