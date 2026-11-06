@@ -49,6 +49,32 @@ export const MIGRATIONS = [
   // 3: remove_project archives instead of deleting (events are append-only and reference projects). Plain ADD COLUMN:
   // no rebuild, no pragma, rows, events and triggers are untouched.
   `ALTER TABLE projects ADD COLUMN archived_at INTEGER;`,
+  // 4: canvases and screens (docs/canvas.md). New tables only: projects, events and triggers are untouched. Screen html
+  // size (a byte limit; SQLite length() counts characters) is checked in src/canvases.ts. Screen order is rowid order,
+  // which an upsert keeps.
+  `CREATE TABLE canvases (
+     project     TEXT NOT NULL REFERENCES projects(id),
+     id          TEXT NOT NULL CHECK (id GLOB '[a-z0-9]*' AND id NOT GLOB '*[^a-z0-9-]*' AND length(id) <= 40),
+     name        TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 100),
+     created_at  INTEGER NOT NULL,
+     updated_at  INTEGER NOT NULL,
+     archived_at INTEGER,
+     PRIMARY KEY (project, id)
+   );
+   CREATE TABLE screens (
+     project    TEXT NOT NULL,
+     canvas     TEXT NOT NULL,
+     id         TEXT NOT NULL CHECK (id GLOB '[a-z0-9]*' AND id NOT GLOB '*[^a-z0-9-]*' AND length(id) <= 40),
+     name       TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 100),
+     width      INTEGER NOT NULL CHECK (typeof(width) = 'integer' AND width BETWEEN 100 AND 8000),
+     height     INTEGER NOT NULL CHECK (typeof(height) = 'integer' AND height BETWEEN 100 AND 8000),
+     html       TEXT NOT NULL,
+     x          INTEGER CHECK (x IS NULL OR typeof(x) = 'integer'),
+     y          INTEGER CHECK (y IS NULL OR typeof(y) = 'integer'),
+     updated_at INTEGER NOT NULL,
+     PRIMARY KEY (project, canvas, id),
+     FOREIGN KEY (project, canvas) REFERENCES canvases(project, id)
+   );`,
 ];
 
 /** Runs pending migrations, each in its own transaction. Refuses a database written by a newer build. */

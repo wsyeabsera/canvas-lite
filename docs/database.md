@@ -38,3 +38,9 @@ the migration transaction. Durable Object SQL cannot change `foreign_keys`, so `
 
 Migration 3 is a plain `ALTER TABLE projects ADD COLUMN archived_at INTEGER` (nullable): no rebuild and no pragma, so rows,
 events and triggers are untouched. A project is archived, never deleted, because events reference it and are append-only.
+
+Migration 4 adds `canvases` and `screens` (see [Canvas and screens](canvas.md)). New tables only: rows, events and triggers are
+untouched. `canvases` is keyed by `(project, id)` with `project` referencing `projects`; `screens` is keyed by
+`(project, canvas, id)` and references `canvases`. Ids use the project slug rule and sizes are checked in SQL (width and height 100 to 8000,
+names 1 to 100 characters). The html byte limit (200,000) is checked in `src/canvases.ts`, because SQLite `length()` counts characters.
+A removed canvas keeps its row (`archived_at`) and its screens. Screens are listed in rowid order, which an upsert keeps.
