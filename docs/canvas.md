@@ -98,6 +98,10 @@ Live: a `canvas.created`, `screen.set`, `screen.removed` or `canvas.removed` eve
 
 Code: `web/canvas.ts` (shaping the API, ordering, "updated X ago", iframe spec, the frame diff, arrow-key stepping), `web/layout.ts` (auto layout), `web/viewport.ts` (fit, zoom at a point, pan), all unit-tested (`test/canvas.test.ts`, `test/layout.test.ts`, `test/viewport.test.ts`); `web/canvas-view.ts` draws them. The Activity stream shows these events as `set <name> in <canvas>`, `removed <name> from <canvas>`, `created canvas <name>`, `removed canvas <name>`.
 
+## Play
+
+The watch page can play a canvas (route `#/project/<id>/canvas/<cid>/play[/<screen>]`, the Play pill or key `P`; see [the watch page](ui.md)). `GET .../canvases/<cid>` carries `start_screen` and `transition` on `canvas`; the page reads them with defaults (`null`, `none`) and refetches on `flow.set` like on `screen.set`. Because Play must read `[data-to]` from the rendered screen, it shows screens in `sandbox="allow-same-origin"` frames, which is the one exception to the empty sandbox above; `allow-scripts` is never added (a unit test pins the string) and the CSP is unchanged. The canvas surface itself keeps `sandbox=""`.
+
 ## Flow
 
 A canvas has a start screen and a default transition (stored by migration 5, see [Database](database.md)). The `set_flow` tool (`project`, `canvas`, `start_screen?` a screen id or null, `transition?` one of `none`, `fade`, `slide-left`, `slide-right`, `push`; at least one) answers `{flow:{canvas,start_screen,transition}}` and appends `flow.set` with that same payload (no event when nothing changes). Errors: `unknown screen "<id>" on canvas "<canvas>"`, `invalid transition "<t>": use none, fade, slide-left, slide-right, push`, `invalid flow: give start_screen or transition`. `read_canvas` returns `start_screen` and `transition` on `canvas`. Removing the start screen clears `start_screen`.

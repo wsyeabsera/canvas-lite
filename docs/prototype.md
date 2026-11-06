@@ -39,7 +39,7 @@ Rules:
 - `data-to` wins over `data-back` on the same element. An unknown `data-transition` value falls back to the canvas default.
 - A link to a screen id that does not exist is dead: it does nothing, and `set_screen` does not reject it (screens are written in any order). `set_screen` and `set_screens` add a warning for each id that is not a screen of the canvas yet, e.g. `data-to "checkout" is not a screen of this canvas`; warnings never reject, like the existing ones. Ids are checked against the canvas at write time only, so a later `remove_screen` can leave a dead link.
 - Only the nearest ancestor-or-self element with `data-to` or `data-back` counts for a click. No `href`, no `onclick`, no `<form>`: the sandbox allows none of them (see [Canvas](canvas.md)).
-- Because screens run in an empty sandbox, the page cannot listen inside the frame. How it finds the links (reading the html it already holds, and laying a hit area over the frame at the element's position) is the open question of the spike; this spec only fixes the html contract and the behavior below.
+- The page cannot listen inside a frame. Play (built, see [the watch page](ui.md)) shows screens in `sandbox="allow-same-origin"` frames, reads `[data-to]`, `data-transition` and `data-back` from `frame.contentDocument` and lays a hit area over each element's box in the parent. A link's own valid `data-transition` is used, else the canvas default.
 
 ## Transitions
 
@@ -60,7 +60,7 @@ Details to keep it small:
 
 ## Play and history
 
-The watch page gets a play mode on a canvas: it shows one screen at a time, starting at the start screen, and clicking a link moves. The history is a stack in the browser, never stored and never sent to the Hub; reloading starts again at the start screen. Entering and leaving play mode, and its controls, are a UI task and not part of this spec beyond that.
+The watch page gets a play mode on a canvas: it shows one screen at a time, starting at the start screen, and clicking a link moves. The history is a stack in the browser, never stored and never sent to the Hub; reloading starts again at the start screen. Entering and leaving play mode, and its controls, are described in [the watch page](ui.md). Built details: a slide moves the old screen only a quarter of the width while the new one slides over it (a push moves both the full width), and a fade keeps the old screen opaque underneath so it never dips to the dark stage.
 
 ## Tool and events
 
