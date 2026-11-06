@@ -1,3 +1,8 @@
+---
+sidebar_position: 2
+slug: /architecture
+---
+
 # Lite architecture (phase 1)
 
 Goal of phase 1: Claude, from the terminal, opens a project; a second terminal watches it happen. Nothing else.
