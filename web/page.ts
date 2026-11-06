@@ -1,7 +1,7 @@
 // The read-only watch page: the CLI's Watcher and formatter, drawn into views. It only reads; the one message it sends is the Watcher's hello.
 import { clock, detail as eventDetail, type WatchRow } from "../cli/format.ts";
 import { Watcher, normalizeUrl } from "../cli/watch-core.ts";
-import { addRow, describeProject, hrefActivity, hrefCanvas, hrefLanding, hrefPlay, hrefProject, hrefWalk, hrefWatch, hrefScreen, initialState, MAX_ROWS, parseRoute, routeCanvas, routeProject, sortedProjects, visibleRows, type Route, type State } from "./state.ts";
+import { addRow, describeProject, hrefActivity, hrefCanvas, hrefLanding, hrefPlay, hrefProject, hrefWalk, hrefWatch, hrefScreen, initialState, MAX_ROWS, parseRoute, routeCanvas, routeProject, sceneEventHits, sortedProjects, visibleRows, type Route, type State } from "./state.ts";
 import { agoText, canvasEvent, describeCanvasDetail, describeCanvasList, dropCanvas, refetchPlan, screensLabel, type CanvasDetail, type CanvasSummary, type Pending } from "./canvas.ts";
 import { createCanvasView } from "./canvas-view.ts";
 import { createPlayView } from "./play-view.ts";
@@ -24,6 +24,7 @@ const viewActivity = $("view-activity");
 const viewLanding = $("view-landing");
 const viewProject = $("view-project");
 const viewCanvas = $("view-canvas");
+const viewScene = $("view-scene");
 const eventsEl = $("events");
 const projectEventsEl = $("project-events");
 const topBar = $("top-bar");
@@ -407,7 +408,7 @@ const watchView = createWatchView({
 });
 
 function renderCanvas() {
-  if (route.view === "activity" || route.view === "landing" || route.view === "project") return;
+  if (route.view === "activity" || route.view === "landing" || route.view === "project" || route.view === "scene") return;
   const pid = route.id;
   const cid = route.canvas;
   canvasView.render({
@@ -436,6 +437,20 @@ setInterval(() => {
 // The landing page (web/landing-view.ts): `#/`, the gallery. Declared before the play view because `moved` remembers the screen.
 const landing = createLandingView({ headers, projects: () => sortedProjects(state), locked: () => setLocked(true) });
 
+// A 3D scene in Orbit mode (web/scene-view.ts, imported lazily; it imports Three.js lazily in turn): `#/project/<id>/scene/<sid>`.
+let sceneScreen: import("./scene-view.ts").SceneScreen | null = null;
+let sceneLoad: Promise<unknown> | null = null;
+function openScene(pid: string, sid: string) {
+  sceneLoad ??= import("./scene-view.ts").then((m) => {
+    sceneScreen = m.createSceneScreen(viewScene, { headers, exit: () => (location.hash = hrefLanding), locked: () => setLocked(true) });
+  });
+  sceneLoad.then(() => {
+    if (route.view === "scene" && route.id === pid && route.scene === sid) sceneScreen?.open(pid, sid);
+  }).catch(() => {
+    sceneLoad = null; // a failed chunk load is retried on the next visit
+  });
+}
+
 function showRoute() {
   const wasProject = route.view === "project";
   const prevProject = routeProject(route);
@@ -450,9 +465,13 @@ function showRoute() {
   viewActivity.hidden = route.view !== "activity";
   viewProject.hidden = route.view !== "project";
   const inCanvas = routeCanvas(route) !== null;
+  const inScene = route.view === "scene";
   viewCanvas.hidden = !inCanvas;
-  app.classList.toggle("canvas-mode", inCanvas); // hides the top bar, sidebar and main panel
-  if (!inCanvas) startBackdrop(); // never started (no GPU cost) while only the canvas has been shown
+  viewScene.hidden = !inScene;
+  app.classList.toggle("canvas-mode", inCanvas || inScene); // hides the top bar, sidebar and main panel (and pauses the backdrop)
+  if (!inCanvas && !inScene) startBackdrop(); // never started (no GPU cost) while only the canvas or a scene has been shown
+  if (route.view === "scene") openScene(route.id, route.scene);
+  else sceneScreen?.close();
   (inCanvas ? cvTools : route.view === "landing" ? landing.toolsSlot : topBar).append(barTools);
   const pid = routeProject(route);
   if (pid && pid !== prevProject) {
@@ -557,6 +576,7 @@ const watcher = new Watcher({
       append(projectEventsEl, row);
       if (row.kind === "project.opened") void loadProject(route.id);
     }
+    if (sceneEventHits(route, row)) sceneScreen?.refetch();
     const ce = canvasEvent(row);
     if (ce && row.project) {
       if (ce.kind === "canvas.removed") canvasLists[row.project] = dropCanvas(canvasLists[row.project] ?? [], ce.canvas);

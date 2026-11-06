@@ -23,10 +23,12 @@
     "@modelcontextprotocol/server": "2.3.1",
     "agents": "0.31.0",
     "shaders": "4.0.6",
+    "three": "0.187.0",
     "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
+    "@types/three": "0.187.0",
     "typescript": "7.0.2",
     "wrangler": "4.154.0"
   },
