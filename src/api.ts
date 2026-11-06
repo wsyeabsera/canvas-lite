@@ -6,6 +6,8 @@ export type ApiRoute =
   | { kind: "read"; id: string }
   | { kind: "canvases"; id: string }
   | { kind: "canvas"; id: string; canvas: string }
+  | { kind: "timeline"; id: string; canvas: string }
+  | { kind: "at"; id: string; canvas: string; seq: number }
   | { kind: "error"; status: 400 | 404 | 405; message: string; headers?: Record<string, string> };
 
 const ID_RE = /^[a-z0-9][a-z0-9-]*$/;
@@ -20,8 +22,12 @@ export function isApiPath(pathname: string): boolean {
 export function routeApi(method: string, pathname: string): ApiRoute {
   const parts = pathname.slice("/api/".length).split("/");
   if (parts[0] !== "projects") return { kind: "error", status: 404, message: "not found" };
-  if (parts.length > 4 || (parts.length > 2 && parts[2] !== "canvases") || parts.length === 4 && parts[3] === "")
-    return { kind: "error", status: 400, message: "invalid path: expected /api/projects/<id>[/canvases[/<canvas>]]" };
+  const sub = parts[4];
+  if (
+    parts.length > 6 || (parts.length > 2 && parts[2] !== "canvases") || (parts.length >= 4 && parts[3] === "") ||
+    (parts.length === 5 && sub !== "timeline") || (parts.length === 6 && sub !== "at")
+  )
+    return { kind: "error", status: 400, message: "invalid path: expected /api/projects/<id>[/canvases[/<canvas>[/timeline | /at/<seq>]]]" };
   if (method !== "GET" && method !== "HEAD") return { kind: "error", status: 405, message: "method not allowed", headers: { Allow: "GET, HEAD" } };
   if (parts.length === 1) return { kind: "list" };
   const id = parts[1];
@@ -30,6 +36,12 @@ export function routeApi(method: string, pathname: string): ApiRoute {
   if (parts.length === 3) return { kind: "canvases", id };
   const canvas = parts[3];
   if (canvas.length > 40 || !ID_RE.test(canvas)) return { kind: "error", status: 400, message: `invalid canvas id "${canvas}": use lowercase letters, digits and -, at most 40` };
+  if (parts.length === 5) return { kind: "timeline", id, canvas };
+  if (parts.length === 6) {
+    const seq = Number(parts[5]);
+    if (!/^\d{1,15}$/.test(parts[5]) || !Number.isSafeInteger(seq)) return { kind: "error", status: 400, message: `invalid seq "${parts[5]}": use a non-negative integer` };
+    return { kind: "at", id, canvas, seq };
+  }
   return { kind: "canvas", id, canvas };
 }
 

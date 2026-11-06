@@ -80,6 +80,33 @@ export const MIGRATIONS = [
   // when that screen is removed. Existing canvases get no start screen and transition 'none'.
   `ALTER TABLE canvases ADD COLUMN start_screen TEXT;
    ALTER TABLE canvases ADD COLUMN transition TEXT NOT NULL DEFAULT 'none' CHECK (transition IN ('none', 'fade', 'slide-left', 'slide-right', 'push'));`,
+  // 6: screen versions (docs/database.md), so a canvas can be replayed at any recorded event. New table + index only: rows,
+  // events and triggers are untouched. One row per screen.set / screen.removed, keyed by the seq of that event and written
+  // in the same transaction (src/timeline.ts). `removed` = 1 marks a removal (html is ''). Existing screens are backfilled
+  // with their current html at the seq of their latest screen.set event (0 if none), so replay works from there on.
+  `CREATE TABLE screen_versions (
+     project TEXT NOT NULL,
+     canvas  TEXT NOT NULL,
+     screen  TEXT NOT NULL,
+     seq     INTEGER NOT NULL,
+     name    TEXT NOT NULL,
+     width   INTEGER NOT NULL,
+     height  INTEGER NOT NULL,
+     html    TEXT NOT NULL,
+     x       INTEGER,
+     y       INTEGER,
+     removed INTEGER NOT NULL DEFAULT 0 CHECK (removed IN (0, 1)),
+     PRIMARY KEY (project, canvas, screen, seq),
+     FOREIGN KEY (project, canvas) REFERENCES canvases(project, id)
+   );
+   CREATE INDEX screen_versions_canvas_seq ON screen_versions (project, canvas, seq);
+   INSERT INTO screen_versions (project, canvas, screen, seq, name, width, height, html, x, y, removed)
+     SELECT s.project, s.canvas, s.id,
+            COALESCE((SELECT max(e.seq) FROM events e
+                      WHERE e.project = s.project AND e.kind = 'screen.set'
+                        AND json_extract(e.payload, '$.canvas') = s.canvas AND json_extract(e.payload, '$.id') = s.id), 0),
+            s.name, s.width, s.height, s.html, s.x, s.y, 0
+     FROM screens s ORDER BY s.rowid;`,
 ];
 
 /** Runs pending migrations, each in its own transaction. Refuses a database written by a newer build. */

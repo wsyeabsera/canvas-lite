@@ -66,7 +66,7 @@ test("migration 2 on a populated v1 database keeps projects, events, triggers an
   const a = appendEvent(sql, { project: "tvdash", kind: "x", payload: { n: 1 } }, 7);
   const b = appendEvent(sql, { kind: "ping" }, 8);
   migrate(sql);
-  assert.deepEqual(sql.all<{ version: number }>("SELECT version FROM _migrations ORDER BY version").map((r) => ({ ...r })), [{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }]);
+  assert.deepEqual(sql.all<{ version: number }>("SELECT version FROM _migrations ORDER BY version").map((r) => ({ ...r })), [{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }]);
   assert.deepEqual(sql.all("SELECT id, name, kind, repo, manifest, opened_at, archived_at FROM projects ORDER BY id").map((r) => ({ ...r })), [
     { id: "lite", name: "Lite", kind: "cli", repo: null, manifest: null, opened_at: 6, archived_at: null },
     { id: "tvdash", name: "TV", kind: "web", repo: null, manifest: null, opened_at: 5, archived_at: null },
@@ -97,7 +97,7 @@ test("migration 3 on a populated v2 database keeps rows, events and triggers and
   sql.run("INSERT INTO projects (id, name, kind, repo, manifest, opened_at) VALUES ('tvdash', 'TV', 'web', 'https://x/y', '{\"tree\":[\"a\"],\"files\":{}}', 5)");
   const a = appendEvent(sql, { project: "tvdash", kind: "x", payload: { n: 1 } }, 7);
   migrate(sql);
-  assert.deepEqual(sql.all<{ version: number }>("SELECT version FROM _migrations ORDER BY version").map((r) => r.version), [1, 2, 3, 4, 5]);
+  assert.deepEqual(sql.all<{ version: number }>("SELECT version FROM _migrations ORDER BY version").map((r) => r.version), [1, 2, 3, 4, 5, 6]);
   assert.deepEqual({ ...sql.all("SELECT id, name, kind, repo, manifest, opened_at, archived_at FROM projects")[0] }, {
     id: "tvdash", name: "TV", kind: "web", repo: "https://x/y", manifest: '{"tree":["a"],"files":{}}', opened_at: 5, archived_at: null,
   });

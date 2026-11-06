@@ -16,6 +16,7 @@ queries over a tiny `Sql` interface; `src/hub.ts` adapts Durable Object storage 
 | `projects` | `id` (lowercase letters, digits, `-`, at most 40), `name`, `kind`, `repo` (nullable URL), `manifest` (nullable JSON text, at most 65536 bytes), `opened_at` (ms), `archived_at` (nullable ms; set by `remove_project`) |
 | `canvases` | `project`, `id` (primary key together), `name`, `created_at`, `updated_at`, `archived_at` (nullable ms; set by `remove_canvas`) |
 | `screens` | `project`, `canvas`, `id` (primary key together), `name`, `width`, `height`, `html`, `x`, `y` (nullable), `updated_at` |
+| `screen_versions` | `project`, `canvas`, `screen`, `seq` (primary key together), `name`, `width`, `height`, `html`, `x`, `y` (nullable), `removed` (0 or 1) |
 | `events` | `seq` (autoincrement), `project` (nullable, references `projects`), `kind`, `payload` (JSON), `ts` (ms) |
 
 ## Event model
@@ -53,3 +54,11 @@ Two plain `ADD COLUMN`s: no rebuild, rows, events and triggers are untouched, an
 `none`. `start_screen` has no foreign key: `setFlow` in `src/canvases.ts` checks the screen exists on the canvas, and
 `removeScreen` clears it when that screen is removed. Links are not stored: they live in screen html as `data-to`,
 `data-transition` and `data-back`, read by the pure `extractLinks(html)`; there is no link table.
+
+Migration 6 adds `screen_versions`, so a canvas can be replayed at any recorded event (events never carry html). New table and an
+index on `(project, canvas, seq)` only: rows, events and triggers are untouched. Every `screen.set` and `screen.removed` writes one
+row keyed by the seq of its event, in the same transaction as the event (`recordVersion` in `src/timeline.ts`, called from
+`src/canvases.ts`); a removal row has `removed = 1` and empty html. `flow.set` writes none: flow state is rebuilt from the events
+(their payload has the start screen and transition). Existing screens are backfilled with their current html at the seq of their
+latest `screen.set` event (seq 0 if there is none), so replay works from the migration on; earlier states of old screens were never
+stored and show as absent. No pruning yet: every version is kept (html is at most 200,000 bytes each).

@@ -4,6 +4,7 @@ import { DurableObject } from "cloudflare:workers";
 import { tokenOk } from "./auth.ts";
 import { parseHello, replay } from "./events.ts";
 import { createCanvas, listCanvases, readCanvas, removeCanvas, removeScreen, setFlow, setScreen, setScreens, type ScreenFields, type ScreenInput } from "./canvases.ts";
+import { canvasAt, canvasTimeline } from "./timeline.ts";
 import { listProjects, openProject, readProject, removeProject, type OpenInput, type ProjectSummary } from "./projects.ts";
 import { appendEvent,migrate, type LiteEvent, type Sql } from "./store.ts";
 
@@ -70,6 +71,14 @@ export class Hub extends DurableObject<Env> {
 
   readCanvas(project: string, canvas: string, includeHtml = false) {
     return readCanvas(this.sql, project, canvas, includeHtml);
+  }
+
+  canvasTimeline(project: string, canvas: string) {
+    return canvasTimeline(this.sql, project, canvas);
+  }
+
+  canvasAt(project: string, canvas: string, seq: number) {
+    return canvasAt(this.sql, project, canvas, seq);
   }
 
   setScreen(project: string, input: ScreenInput) {
