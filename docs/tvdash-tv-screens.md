@@ -5,6 +5,11 @@ slug: /tvdash-tv-screens
 
 # tvdash: the real TV screens
 
+:::caution Design caveat
+The Lite canvases for tvdash were designed from this inventory by parallel Claude sessions. Those sessions sometimes read shortened code (the owner's compression layer elides parts of files), so a screen may contain example values the session invented: hostnames, ids, timestamps, error codes and sample copy. The owner accepted the designs as they are (2026-11-06). Check any such value against the real code before relying on it.
+:::
+
+
 An inventory of every screen, overlay and state the tvdash TV app (Compose for TV, `/Users/yab/Hobby/tvdash/tv`) can draw today, read from its source. Paths below are relative to `tvdash/tv/app/src/main/kotlin/dev/tvdash/` unless they start with `tvdash/`. Line numbers are where the composable or function starts.
 
 Sources read: `tvdash/README.md`, `tvdash/PROTOCOL.md`, `tvdash/protocol/scene.schema.json` and `tvdash/protocol/fixtures/`, every Kotlin file under `tv/app/src/main/kotlin`, `res/values/strings.xml` (it holds only `app_name` = "tvdash": every on-screen string is hard-coded in Kotlin), `res/font/` and `AndroidManifest.xml`.

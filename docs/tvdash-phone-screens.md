@@ -5,6 +5,11 @@ slug: /tvdash-phone-screens
 
 # tvdash: the phone and browser pages, as built
 
+:::caution Design caveat
+The Lite canvases for tvdash were designed from this inventory by parallel Claude sessions. Those sessions sometimes read shortened code (the owner's compression layer elides parts of files), so a screen may contain example values the session invented: hostnames, ids, timestamps, error codes and sample copy. The owner accepted the designs as they are (2026-11-06). Check any such value against the real code before relying on it.
+:::
+
+
 This is an inventory of every page and state that tvdash draws for a person who is not looking at the TV: the phone remote, the Claude sign-in page, the browser extension (popup, options, home page and the UI it puts into pages), the iPhone Shortcut, and the CLI's terminal output. It describes what the code in `/Users/yab/Hobby/tvdash` does today. It is not a design. Each item gives the source as `path:line`, relative to that checkout.
 
 Facts that apply throughout:

@@ -10,6 +10,10 @@ Only unit tests (node:test, plain Node). Never add Playwright, e2e or smoke test
 
 Desktop browsers only. Phones and tablets are out of scope for now: do not design, test, or spend time on narrow widths. (Existing responsive CSS stays; just don't extend or verify it.)
 
+## Shaders
+
+The `shaders` agent skill is in `.agents/skills/shaders`. Use only the MIT `shaders` npm package (plain `npm install`). Never run `npx shaders connect|install|update` or sign in: the owner does not want a Shaders account, so ignore the skill's CLI and account steps.
+
 ## The loop
 
 | Command | What it does | Time |
