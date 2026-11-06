@@ -5,6 +5,7 @@ import { addRow, describeProject, hrefCanvas, hrefPlay, hrefProject, hrefScreen,
 import { agoText, canvasEvent, describeCanvasDetail, describeCanvasList, dropCanvas, refetchPlan, screensLabel, type CanvasDetail, type CanvasSummary, type Pending } from "./canvas.ts";
 import { createCanvasView } from "./canvas-view.ts";
 import { createPlayView } from "./play-view.ts";
+import { createReplayView } from "./replay-view.ts";
 import { initTheme } from "./theme.ts";
 import { hasWebGPU, parseTheme, shouldRun, shouldShow, themeColors } from "./backdrop.ts";
 import { tokenFromHash } from "./token.ts";
@@ -287,6 +288,11 @@ const playView = createPlayView({
   },
 });
 
+const replay = createReplayView(headers);
+$("cv-replay").addEventListener("click", () => {
+  if (route.view === "canvas" || route.view === "screen") void replay.open(route.id, route.canvas);
+});
+
 function renderCanvas() {
   if (route.view === "activity" || route.view === "project") return;
   const pid = route.id;
@@ -325,6 +331,7 @@ function showRoute() {
   if (route.view === "canvas" || route.view === "screen" || route.view === "play") {
     const same = route.canvas === prevCanvas && pid === prevProject;
     if (!same) {
+      replay.close();
       detail = null;
       detailState = "loading";
       pending.clear();
@@ -349,6 +356,7 @@ function showRoute() {
     pending.clear();
     playView.close();
     canvasView.leave();
+    replay.close();
   }
   if (route.view === "project") {
     const p = state.projects[route.id];

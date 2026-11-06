@@ -61,4 +61,5 @@ On the Activity and project pages, browsers with WebGPU draw a slow, calm mesh g
 - `web/backdrop.ts` is the pure backdrop logic (WebGPU check, when to run, theme colours), unit tested; `web/backdrop-view.ts` mounts the shader and is loaded with `import()` only when WebGPU exists.
 - `web/canvas.ts`, `web/layout.ts` and `web/viewport.ts` are the pure canvas logic, `web/canvas-view.ts` draws the canvas surface; `public/_headers` sets the Content-Security-Policy (see [Canvas and screens](canvas.md)).
 - `web/play.ts` is the pure Play logic (back stack, next screen, transition resolution and planning, spatial focus, stage fit, dots, key intents, the sandbox string), unit tested in `test/play.test.ts`; `web/play-view.ts` draws it and exposes `goto(screenId, transition?)` for remote control.
+- `web/replay.ts` is the pure replay logic (event index, stepping, playback timing, ticks, labels, keys), unit tested (`test/replay.test.ts`); `web/replay-view.ts` draws the replay layer and bar (see [Canvas and screens](canvas.md)).
 - Project details come from `GET /api/projects/<id>` (see [the API](api.md)).
