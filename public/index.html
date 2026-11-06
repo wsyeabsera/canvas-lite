@@ -386,6 +386,16 @@
   .ld-empty { color: var(--mu); text-align: center; margin: 60px 0; font-size: 15px; }
   .ld-foot { text-align: center; font-size: 12.5px; }
   .ld-foot a { color: var(--mu); }
+  /* scene cards (3D): sky gradient, then a rendered poster; chips for films and page */
+  .ld-sthumb { background: linear-gradient(#2c4a7a, #0d1220); display: flex; align-items: flex-end; }
+  .ld-sname { position: relative; z-index: 0; margin: 10px 14px; color: #fff; font-weight: 650; font-size: 15px; text-shadow: 0 2px 8px rgba(0,0,0,.5); }
+  .ld-sthumb.ready .ld-sname { display: none; }
+  .ld-poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .ld-srow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+  .ld-srow .ld-badge { margin-top: 0; }
+  .ld-schips { display: contents; }
+  .ld-schip { font-size: 12px; font-weight: 500; padding: 1px 10px; border-radius: 999px; color: var(--mu); background: var(--chip); }
+  .ld-offscreen { position: fixed; left: -10000px; top: 0; width: 480px; height: 270px; pointer-events: none; }
   /* ==== end landing page ==== */
 
   #locked { max-width: 460px; margin: 18vh auto 0; padding: 28px; text-align: center; width: calc(100% - 32px); }
@@ -543,7 +553,41 @@
   .sc-poster { position: relative; width: min(720px, 100%); aspect-ratio: 16 / 9; border-radius: 16px; overflow: hidden; border: 1px solid rgba(255,255,255,.14); box-shadow: 0 16px 40px rgba(0,0,0,.5); display: flex; align-items: flex-end; }
   .sc-poster img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   .sc-poster-n { margin: 16px 20px; font-size: 22px; font-weight: 650; text-shadow: 0 2px 10px rgba(0,0,0,.5); }
+  .sc-modes { display: inline-flex; gap: 2px; padding: 2px; border-radius: 999px; background: rgba(255,255,255,.08); }
+  .sc-mode { padding: 4px 12px; border-radius: 999px; color: #a7aec2; font-weight: 500; text-decoration: none; }
+  .sc-mode:hover { color: #f3f5fa; text-decoration: none; }
+  .sc-mode[aria-current] { background: rgba(255,255,255,.16); color: #f3f5fa; }
   /* <<< 3D scene */
+  /* >>> 3D scene, Page mode (web/scene-page-view.ts): #/project/<id>/scene/<sid>/page. Overlays are sandbox="" frames, never scripted. */
+  .pg { position: fixed; inset: 0; z-index: 4; overflow: hidden; background: #05060a; color: #f3f5fa; font-size: 13px; }
+  .pg-stage, .pg-backdrop { position: absolute; inset: 0; pointer-events: none; }
+  .pg-backdrop img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .pg-scroll { position: absolute; inset: 0; z-index: 1; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; outline: none; scroll-behavior: auto; scrollbar-width: none; }
+  .pg-scroll::-webkit-scrollbar { display: none; }
+  .pg-track { position: relative; width: 100%; pointer-events: none; }
+  .pg-sec { position: absolute; left: 0; right: 0; pointer-events: none; }
+  .pg-sticky { position: sticky; top: 0; height: 100vh; display: flex; align-items: center; padding: 0 96px 0 6vw; box-sizing: border-box; }
+  .pg-sec.right .pg-sticky { justify-content: flex-end; padding: 0 96px 0 6vw; }
+  .pg-sec.center .pg-sticky { justify-content: center; padding: 0 96px; }
+  .pg-card { width: min(460px, 100%); border-radius: 20px; overflow: hidden; pointer-events: auto; }
+  .pg-sec.center .pg-card { width: min(620px, 100%); }
+  .pg-card iframe { display: block; width: 100%; height: 100%; border: 0; background: transparent; color-scheme: dark; }
+  .pg-rail { position: absolute; right: 24px; top: 50%; z-index: 3; height: 46vh; width: 20px; transform: translateY(-50%); }
+  .pg-rail-line { position: absolute; left: 9px; top: 0; bottom: 0; width: 2px; border-radius: 2px; background: rgba(255,255,255,.18); overflow: hidden; }
+  .pg-rail-fill { position: absolute; inset: 0; background: #7d9bff; transform-origin: top; transform: scaleY(0); }
+  .pg-dot { position: absolute; left: 3px; width: 14px; height: 14px; margin-top: -7px; padding: 0; border-radius: 50%; border: 2px solid rgba(255,255,255,.7); background: #10131e; cursor: pointer; }
+  .pg-dot.on { background: #7d9bff; border-color: #fff; box-shadow: 0 0 0 4px rgba(125,155,255,.25); }
+  .pg-dot-l { position: absolute; right: 22px; top: 50%; transform: translateY(-50%); padding: 4px 10px; border-radius: 999px; background: rgba(16,19,30,.85); color: #f3f5fa; font-size: 12px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .12s ease; }
+  .pg-dot:hover .pg-dot-l, .pg-dot:focus-visible .pg-dot-l { opacity: 1; }
+  .pg-note { z-index: 3; }
+  .pg-msg { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; padding: 48px; }
+  .pg-msg-card { max-width: 440px; padding: 28px 30px; border-radius: 20px; text-align: center; }
+  .pg-msg-card h2 { margin: 0 0 8px; font-size: 20px; }
+  .pg-msg-card p { margin: 0 0 18px; color: #c9cfe0; font-size: 14.5px; line-height: 1.5; }
+  .pg-msg-btn { display: inline-flex; height: 34px; align-items: center; padding: 0 16px; border-radius: 999px; background: #3d6bff; color: #fff; font-weight: 600; }
+  .pg-msg-btn:hover { background: #5280ff; text-decoration: none; }
+  @media (prefers-reduced-motion: reduce) { .pg-dot-l { transition: none; } }
+  /* <<< 3D scene, Page mode */
 </style>
 </head>
 <body>
@@ -627,6 +671,7 @@
   </section>
   <!-- 3D scene, Orbit mode (web/scene-view.ts fills it; Three.js draws into a canvas inside) -->
   <section id="view-scene" class="sc" hidden aria-label="3D scene"></section>
+  <section id="view-scene-page" class="pg" hidden aria-label="3D scene page"></section>
 </div>
 <section id="locked" class="glass" hidden>
   <h1>Open Lite with your token</h1>

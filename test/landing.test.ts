@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   applyFilter, badgeOf, bannerModel, continueModel, describeEntries, filterCounts, filterByProject, foldSession, metaLine, parseLast, projectOptions, rememberRoute, rememberScreen, resolveProject,
   searchEntries, showProjectPicker, sortEntries, startScreenOf, thumbFit, type Entry, type Sessions,
+  describeSceneEntries, isScene, POSTER_CONCURRENCY, posterFresh, sceneActions, sceneChips, scenePosterAtKey, scenePosterKey,
 } from "../web/landing.ts";
 
 const e = (o: Partial<Entry> = {}): Entry => ({ pid: "tv", project: "TV", id: "main", name: "Main", screens: 3, updated_at: 1000, start_screen: null, dangling: 0, unlinked: 0, ...o });
@@ -124,4 +125,58 @@ test("presenter sessions fold across projects and drive the banner", () => {
   assert.equal(bannerModel(s, list), null);
   assert.equal(foldSession(s, row("canvas.created", "tv", {}, 6)), s);
   assert.equal(bannerModel({ tv: { active: true, canvas: "gone", screen: "a", visited: ["a"], ts: 1 } }, list), null);
+});
+
+test("scene entries: shaped from the scene list, always Playable, never Needs links, badge and meta", () => {
+  const s = describeSceneEntries("tv", "TV", { scenes: [{ id: "town", name: "Small town", objects: 6, drawables: 28, films: 2, updated_at: 7 }, { id: "x" }, { nope: 1 }] });
+  assert.equal(s.length, 2);
+  assert.deepEqual([s[0].kind, s[0].films, s[0].drawables, s[0].screens, s[0].updated_at], ["scene", 2, 28, 0, 7]);
+  assert.equal(s[1].name, "x");
+  assert.deepEqual(describeSceneEntries("tv", "TV", null), []);
+  assert.equal(isScene(s[0]), true);
+  assert.equal(isScene(e()), false);
+  const list = [e({ id: "a" }), e({ id: "b", unlinked: 1 }), ...s];
+  assert.deepEqual(filterCounts(list), { all: 4, playable: 3, needs: 1 });
+  assert.deepEqual(applyFilter(list, "needs").map((x) => x.id), ["b"]);
+  assert.deepEqual(badgeOf(s[0]), { kind: "playable", text: "3D scene" });
+  assert.match(metaLine(s[0], 7), /^28 objects · updated /);
+  assert.match(metaLine({ ...s[0], drawables: 1 }, 7), /^1 object · updated /);
+});
+
+test("scene entries sort with designs by update, filter by project and match search", () => {
+  const s = describeSceneEntries("tv", "TV", { scenes: [{ id: "town", name: "Small town", films: 1, updated_at: 1500 }] });
+  const list = [e({ id: "old", updated_at: 1000 }), e({ id: "new", updated_at: 2000 }), ...s, e({ pid: "o", project: "Other", id: "z", updated_at: 1700 })];
+  assert.deepEqual(sortEntries(list).map((x) => x.id), ["new", "z", "town", "old"]);
+  assert.deepEqual(filterByProject(list, "tv").map((x) => x.id), ["old", "new", "town"]);
+  assert.deepEqual(searchEntries(list, "town").map((x) => x.id), ["town"]);
+  assert.deepEqual(searchEntries(list, "3d").map((x) => x.id), ["town"]);
+  assert.deepEqual(projectOptions(list).map((o) => o.label), ["All projects", "Other (1)", "TV (3)"]);
+});
+
+test("scene cards: chips, hover actions and the poster key", () => {
+  assert.deepEqual(sceneChips({ films: 2 }, false), ["2 films"]);
+  assert.deepEqual(sceneChips({ films: 1 }, true), ["1 film", "Page"]);
+  assert.deepEqual(sceneChips({ films: 0 }, false), []);
+  const x = { pid: "tv", id: "town", films: 1 };
+  assert.deepEqual(sceneActions(x, true), [
+    { label: "Watch", href: "#/project/tv/scene/town/watch" },
+    { label: "Page", href: "#/project/tv/scene/town/page" },
+    { label: "Orbit", href: "#/project/tv/scene/town" },
+  ]);
+  assert.deepEqual(sceneActions({ ...x, films: 0 }, false).map((a) => a.label), ["Orbit"]);
+  assert.equal(scenePosterKey("tv", "town"), "lite.scene.poster.tv/town");
+  assert.equal(scenePosterAtKey("tv", "town"), "lite.scene.posterAt.tv/town");
+  assert.equal(posterFresh(null, null, 5), false);
+  assert.equal(posterFresh("data:x", null, 5), true); // written by Orbit: no stamp, accepted
+  assert.equal(posterFresh("data:x", "5", 5), true);
+  assert.equal(posterFresh("data:x", "4", 5), false);
+  assert.equal(posterFresh("data:x", "junk", 5), false);
+  assert.equal(POSTER_CONCURRENCY, 2);
+});
+
+test("Continue and the presenter banner ignore a scene with a canvas's id", () => {
+  const s = describeSceneEntries("tv", "TV", { scenes: [{ id: "main", name: "Scene main", updated_at: 1 }] });
+  assert.equal(continueModel({ project: "tv", canvas: "main", screen: null, ts: 0 }, s, () => null, 0), null);
+  const sess: Sessions = { tv: { active: true, canvas: "main", screen: "a", visited: ["a"], ts: 1 } };
+  assert.equal(bannerModel(sess, s), null);
 });

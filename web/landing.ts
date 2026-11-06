@@ -13,9 +13,65 @@ export type Entry = {
   start_screen: string | null;
   dangling: number; // links to screens that do not exist
   unlinked: number; // controls that go nowhere
+  /** Set on 3D scene cards (from `GET /api/projects/<id>/scenes`); absent on designs (canvases). */
+  kind?: "scene";
+  films?: number; // scenes: number of films
+  drawables?: number; // scenes: objects after repeaters expand
 };
 
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : 0);
+
+export const isScene = (e: Pick<Entry, "kind">) => e.kind === "scene";
+
+/** Shapes a scene list answer (`{scenes: [{id, name, objects, drawables, films, updated_at}]}`) into gallery entries of one project.
+ *  A scene has no screens and no links: it always counts as Playable and never as Needs links. */
+export function describeSceneEntries(pid: string, project: string, api: unknown): Entry[] {
+  const raw = (api as { scenes?: unknown } | null)?.scenes;
+  if (!Array.isArray(raw)) return [];
+  const out: Entry[] = [];
+  for (const c of raw) {
+    if (!c || typeof c.id !== "string") continue;
+    out.push({
+      pid, project, id: c.id, name: typeof c.name === "string" && c.name ? c.name : c.id, screens: 0, updated_at: num(c.updated_at),
+      start_screen: null, dangling: 0, unlinked: 0, kind: "scene", films: num(c.films), drawables: num(c.drawables),
+    });
+  }
+  return out;
+}
+
+/** The chips of a scene card: `N films` (when it has any) and `Page` once its detail shows a page. */
+export function sceneChips(e: Pick<Entry, "films">, hasPage: boolean): string[] {
+  const n = e.films ?? 0;
+  const out = n > 0 ? [`${n} film${n === 1 ? "" : "s"}`] : [];
+  if (hasPage) out.push("Page");
+  return out;
+}
+
+/** The hover buttons of a scene card, in order: Watch (only with films), Page (only with a page), Orbit (always). */
+export function sceneActions(e: Pick<Entry, "pid" | "id" | "films">, hasPage: boolean): { label: "Watch" | "Page" | "Orbit"; href: string }[] {
+  const base = `#/project/${e.pid}/scene/${e.id}`; // the scene routes of web/state.ts: Orbit, `/page`, and `/watch` (film player)
+  const out: { label: "Watch" | "Page" | "Orbit"; href: string }[] = [];
+  if ((e.films ?? 0) > 0) out.push({ label: "Watch", href: `${base}/watch` });
+  if (hasPage) out.push({ label: "Page", href: `${base}/page` });
+  out.push({ label: "Orbit", href: base });
+  return out;
+}
+
+/** The local storage key of a scene's still poster; the Orbit view (web/scene-view.ts) writes the same key. */
+export const scenePosterKey = (project: string, scene: string) => `lite.scene.poster.${project}/${scene}`;
+/** The scene version (`updated_at`) a poster written by the landing page was drawn from. */
+export const scenePosterAtKey = (project: string, scene: string) => `lite.scene.posterAt.${project}/${scene}`;
+
+/** Whether a cached poster can be shown for a scene version: a poster without a stamp (written by Orbit) is accepted; a stamped one must not be older. */
+export function posterFresh(poster: string | null | undefined, stamp: string | null | undefined, updatedAt: number): boolean {
+  if (!poster) return false;
+  if (stamp === null || stamp === undefined || stamp === "") return true;
+  const n = Number(stamp);
+  return Number.isFinite(n) && n >= updatedAt;
+}
+
+/** At most this many scene posters are rendered at the same time. */
+export const POSTER_CONCURRENCY = 2;
 
 /** Shapes a canvas list answer into entries of one project; tolerant of gaps (older servers send no link counts: 0). */
 export function describeEntries(pid: string, project: string, api: unknown): Entry[] {
@@ -34,11 +90,12 @@ export function describeEntries(pid: string, project: string, api: unknown): Ent
 
 export const missingLinks = (e: Pick<Entry, "dangling" | "unlinked">) => e.dangling + e.unlinked;
 /** Playable: at least one screen and every link and control is wired. An empty canvas is neither playable nor missing links. */
-export const isPlayable = (e: Pick<Entry, "screens" | "dangling" | "unlinked">) => e.screens > 0 && missingLinks(e) === 0;
-export const needsLinks = (e: Pick<Entry, "dangling" | "unlinked">) => missingLinks(e) > 0;
+export const isPlayable = (e: Pick<Entry, "screens" | "dangling" | "unlinked" | "kind">) => e.kind === "scene" || (e.screens > 0 && missingLinks(e) === 0);
+export const needsLinks = (e: Pick<Entry, "dangling" | "unlinked" | "kind">) => e.kind !== "scene" && missingLinks(e) > 0;
 
 export type Badge = { kind: "playable" | "missing" | "empty"; text: string };
-export function badgeOf(e: Pick<Entry, "screens" | "dangling" | "unlinked">): Badge {
+export function badgeOf(e: Pick<Entry, "screens" | "dangling" | "unlinked" | "kind">): Badge {
+  if (e.kind === "scene") return { kind: "playable", text: "3D scene" };
   const n = missingLinks(e);
   if (n > 0) return { kind: "missing", text: `${n} missing link${n === 1 ? "" : "s"}` };
   if (e.screens === 0) return { kind: "empty", text: "No screens" };
@@ -57,12 +114,12 @@ export function applyFilter(entries: readonly Entry[], f: Filter): Entry[] {
   return entries.filter(f === "playable" ? isPlayable : f === "needs" ? needsLinks : () => true);
 }
 
-/** Every word of the query must appear in the design name or its project's name (case-insensitive). Empty query keeps all. */
+/** Every word of the query must appear in the design or scene name or its project's name (case-insensitive; scenes also match "3d" and "scene"). Empty query keeps all. */
 export function searchEntries(entries: readonly Entry[], query: string): Entry[] {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (words.length === 0) return entries.slice();
   return entries.filter((e) => {
-    const hay = `${e.name} ${e.project}`.toLowerCase();
+    const hay = `${e.name} ${e.project}${e.kind === "scene" ? " 3d scene" : ""}`.toLowerCase();
     return words.every((w) => hay.includes(w));
   });
 }
@@ -98,8 +155,9 @@ export const resolveProject = (saved: string | null | undefined, options: readon
 /** Keeps only the designs of one project; "" keeps all. */
 export const filterByProject = (entries: readonly Entry[], pid: string): Entry[] => (pid ? entries.filter((e) => e.pid === pid) : entries.slice());
 
-/** `12 screens · updated 1 h ago` */
-export const metaLine = (e: Pick<Entry, "screens" | "updated_at">, now: number) => `${screensLabel(e.screens)} · updated ${agoText(e.updated_at, now)}`;
+/** `12 screens · updated 1 h ago`; a scene: `28 objects · updated 1 h ago` (objects after repeaters expand). */
+export const metaLine = (e: Pick<Entry, "screens" | "updated_at" | "kind" | "drawables">, now: number) =>
+  `${e.kind === "scene" ? `${e.drawables ?? 0} object${e.drawables === 1 ? "" : "s"}` : screensLabel(e.screens)} · updated ${agoText(e.updated_at, now)}`;
 
 /** Scale and offset that fit a `w` x `h` screen inside a `bw` x `bh` box (contain, centred); the iframe is `w` x `h`, scaled with a CSS transform from the top left. */
 export function thumbFit(w: number, h: number, bw: number, bh: number): { scale: number; left: number; top: number } {
@@ -152,7 +210,7 @@ export type Continue = { entry: Entry; text: string };
 /** The Continue strip: the entry of the last-opened canvas (null when it no longer exists) and `12 screens · you stopped at X · 5 min ago`. */
 export function continueModel(last: Last | null, entries: readonly Entry[], screenName: (screenId: string) => string | null, now: number): Continue | null {
   if (!last) return null;
-  const entry = entries.find((e) => e.pid === last.project && e.id === last.canvas);
+  const entry = entries.find((e) => !isScene(e) && e.pid === last.project && e.id === last.canvas);
   if (!entry) return null;
   const parts = [screensLabel(entry.screens)];
   if (last.screen) parts.push(`you stopped at ${screenName(last.screen) ?? last.screen}`);
@@ -188,7 +246,7 @@ export function bannerModel(s: Sessions, entries: readonly Entry[]): Banner | nu
   let best: { pid: string; sess: Session; entry: Entry } | null = null;
   for (const [pid, sess] of Object.entries(s)) {
     if (!sess.active) continue;
-    const entry = entries.find((e) => e.pid === pid && e.id === sess.canvas);
+    const entry = entries.find((e) => !isScene(e) && e.pid === pid && e.id === sess.canvas);
     if (!entry) continue;
     if (!best || sess.ts > best.sess.ts) best = { pid, sess, entry };
   }

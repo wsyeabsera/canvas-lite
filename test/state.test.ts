@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addRow, initialState, parseRoute, routeProject, visibleRows, describeProject, readmeLine, MAX_ROWS, sortedProjects, hrefScene, routeScene, sceneEventHits, routeCanvas, type State } from "../web/state.ts";
+import { addRow, initialState, parseRoute, routeProject, visibleRows, describeProject, readmeLine, MAX_ROWS, sortedProjects, hrefScene, hrefScenePage, routeScene, sceneEventHits, routeCanvas, type State } from "../web/state.ts";
 import type { WatchRow } from "../cli/format.ts";
 
 const row = (seq: number, project: string | null, kind = "ping", payload: unknown = {}): WatchRow => ({ seq, project, kind, payload, ts: seq });
@@ -112,4 +112,19 @@ test("parseRoute: the scene route (Orbit mode) and its helpers", () => {
   assert.equal(sceneEventHits(r, row(1, "other", "scene.set", { scene: "town" })), false);
   assert.equal(sceneEventHits(r, row(1, "lite", "screen.set", { scene: "town" })), false);
   assert.equal(sceneEventHits(parseRoute("#/"), row(1, "lite", "scene.set", { scene: "town" })), false);
+});
+
+test("parseRoute: the scene page route and its live events", () => {
+  assert.deepEqual(parseRoute("#/project/lite/scene/town/page"), { view: "scene-page", id: "lite", scene: "town" });
+  assert.equal(hrefScenePage("lite", "town"), "#/project/lite/scene/town/page");
+  for (const h of ["#/project/lite/scene/Town/page", "#/project/lite/scene/town/page/x", "#/project/lite/scene//page"]) assert.deepEqual(parseRoute(h), { view: "activity" }, h);
+  const r = parseRoute("#/project/lite/scene/town/page");
+  assert.equal(routeScene(r), "town");
+  assert.equal(routeProject(r), "lite");
+  assert.equal(routeCanvas(r), null);
+  const ev = (kind: string, payload: unknown) => ({ project: "lite", kind, payload });
+  assert.equal(sceneEventHits(r, ev("page.set", { scene: "town", sections: 3 })), true);
+  assert.equal(sceneEventHits(r, ev("films.set", { scene: "town", count: 1 })), true);
+  assert.equal(sceneEventHits(r, ev("page.set", { scene: "other", sections: 3 })), false);
+  assert.equal(sceneEventHits(parseRoute("#/project/lite/scene/town"), ev("page.set", { scene: "town", sections: 3 })), false); // Orbit ignores the page
 });
