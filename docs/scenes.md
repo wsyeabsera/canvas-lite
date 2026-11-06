@@ -3,9 +3,9 @@ sidebar_position: 11
 slug: /scenes
 ---
 
-# 3D scenes and films (model, store and tools; no viewer yet)
+# 3D scenes and films (model, store, tools and the Orbit viewer)
 
-A project holds **scenes**; a scene holds objects, lights, a sky and a default camera, plus up to eight **films** (shot lists that move a camera through it). Claude writes scenes as plain JSON with MCP tools. A scene is **data only**: no Claude-written code runs anywhere, and there is no game logic, physics, external model or texture in this version. The viewer comes in a later plan; this page is the contract it builds on.
+A project holds **scenes**; a scene holds objects, lights, a sky and a default camera, plus up to eight **films** (shot lists that move a camera through it). Claude writes scenes as plain JSON with MCP tools. A scene is **data only**: no Claude-written code runs anywhere, and there is no game logic, physics, external model or texture in this version. The watch page draws a scene with its own bundled renderer (see [Renderer](#renderer)) and lets you orbit it at `#/project/<id>/scene/<sid>` (see [The watch page](ui.md#scenes)); film playback (Watch) and Page mode come later and build on the same renderer.
 
 The code is `src/scene.ts` (model, `checkScene`, repeaters), `src/shots.ts` (films, `checkFilms`), `src/scene-validate.ts` (`validateScene`) and `src/scene-store.ts` (the only code that touches the table), with thin Hub, MCP and API wiring.
 
@@ -44,7 +44,7 @@ type Scene = { name: string; objects: SceneObject[]; lights: Light[]; sky: Sky; 
 - Every number must be finite and sane (no NaN, Infinity or 1e12). The error names the path, for example `objects[0].pos[1]`.
 - A **group** places `children` under its own `pos`, `rot` and `scale`; the renderer applies group transforms.
 - A **repeater** (`kind: "repeat"`) copies `repeat.of` by `mode`: `grid`, `ring` (around `radius`) or `scatter` (seeded, so the same `seed` always gives the same layout; no `Math.random`). Copies get ids `<id>#<n>` (`tower#0` to `tower#8`), and children of a copied group get the same suffix. A repeater inside a repeater adds one `#<n>` per level, outermost first: outer copy 1, inner copy 0 of template `c` is `c#1#0`, so every expanded id is unique and the same for the same scene. `expandObjects` returns the expanded tree (groups stay as nodes) and refuses, before building anything, input that would pass the object limit. Expanded copies are not declared ids: a shot cannot look at `tower#3`, only at `tower`.
-- **terrain** and **text** objects are validated now and drawn by the viewer plan.
+- **terrain** is a grid of about one vertex per world unit (16 to 128 segments a side) whose height is `height` times fractal value noise (`octaves` layers, each twice as fine and half as strong, seeded by `seed`); `scale` is the size of the largest hills in world units. **text** is a flat label that always faces the camera, `size[0]` units per letter, in the material colour.
 - A scene with zero objects is valid (a sky and lights alone). `validate_scene` reports it as an info note, never an error.
 - `look` as a string must be the id of a declared object (`objectIds`: every id in the scene, including nested children and `repeat.of`, not expanded copies).
 
@@ -64,6 +64,45 @@ type FilmRead = Film & { duration_ms: number; missing: number[] };
 ```
 
 A shot moves the camera from `from` to `to` (through `waypoints`, if any) over `duration_ms`. `focus` and any string `look` must name an object that exists when the films are set (`checkFilms` throws `film "<id>" shot <n>: ...`). `FilmRead` adds the total `duration_ms` and `missing`: the indexes of shots whose `focus` or look-at object has since been removed or renamed. Removing an object a shot points at is allowed (`patch_scene` succeeds, nothing throws); `read_scene` lists the shot under `missing` and `validate_scene` reports `shot_looks_at_nothing` (a look-at) or `focus_missing` (a focus).
+
+## Renderer
+
+The watch page draws scenes with **Three.js** (MIT, `three@0.187.0`, the one runtime dependency added for 3D), bundled by `npm run build:web` and loaded only when a scene route opens. Decided by the spike (task #2008) on 2026-11-06: **keep Three.js**.
+
+| Check | Result |
+|---|---|
+| CSP (`script-src 'self'`, no eval, no remote scripts) | Passes. The chunk contains no `eval` or `new Function`; the scene route logs no CSP violation (the only eval refusal on the page is the shader backdrop's, on other routes, as before). Shaders are compiled by WebGL, not by `eval`. |
+| Lazy chunk size (minified, the `npm run deploy` build) | Three.js plus `web/scene-render.ts`: 550 KB, **141 KB gzipped** (budget about 600 KB gzipped). The Orbit DOM (`web/scene-view.ts`) is 4.3 KB (2.1 KB gzipped) and the shared pure code (`src/scene.ts`, `web/scene-math.ts`) 11 KB (4.4 KB gzipped). `page.js` imports none of it: other routes never download it. Imports come from `three` only (no examples or addons). |
+| Idle GPU | Frames are drawn only on change (camera moved, resize, live edit): 0 draw calls while idle, measured by counting WebGL draw calls in Chrome. |
+| Hidden tab | No frames while `document.hidden`: 0 draw calls while hidden even with the camera moving; one catch-up frame when the tab shows again. |
+| No WebGL | `web/webgl.ts` checks for WebGL 2 before Three.js is downloaded; without it the view shows a message and a still poster (the last rendered still, cached in this browser, else the sky gradient with the scene name). Forced by hand with local storage `lite.scene.nowebgl = "1"`. |
+
+How the data is drawn (`web/scene-render.ts`; the maths is pure in `web/scene-math.ts`, unit tested in `test/scene-math.test.ts`):
+
+- **Primitives** share one geometry per kind and size and one `MeshStandardMaterial` per material (colour, roughness default 0.8, metalness default 0, emissive, opacity: below 1 is transparent). Planes lie in the XY plane and are double-sided (`rot: [-90, 0, 0]` lays one flat); a capsule's height is its whole length. Without a material an object is light grey.
+- **Groups** are Three.js groups with their `pos`, `rot` (degrees, XYZ order) and `scale`.
+- **Repeaters** are expanded with `expandObjects`. A repeater whose template is one primitive is a single instanced mesh (one draw call for all copies); other repeaters (of a group, text or terrain) are plain meshes that share geometry and materials. The repeater's own `pos`, `rot` and `scale` wrap its copies.
+- **Lights**: `sun` is a directional light from `pos` towards `target` with soft shadows (a 2048 shadow map fitted to the scene's bounds); `ambient` lights everything evenly; `point` and `spot` (a cone 30 degrees off its axis, soft edge) fall off with distance, `intensity` 1 lighting roughly 10 units around. Every opaque solid casts and receives shadows.
+- **Sky** is a large gradient dome around the camera: `bottom` at and below the horizon easing to `top` overhead, shown as written (not tone mapped). **Fog** is linear from `near` to `far`. Colours are sRGB, output is ACES tone mapped.
+- **Camera**: `fov` is vertical, in degrees; a string `look` aims at the centre of that object's bounds (a repeater template id aims at the whole repeater).
+- Frames are drawn on demand only, never while paused or while the tab is hidden; `poster()` draws one frame and returns a JPEG data URL.
+
+The API other modes build on:
+
+```ts
+// web/scene-render.ts (import it with import(); check hasWebGL2() from web/webgl.ts first)
+type CameraView = View & { fov?: number };
+function createSceneView(container: HTMLElement, scene: Scene): SceneView; // throws without WebGL 2
+interface SceneView {
+  readonly canvas: HTMLCanvasElement;
+  setCamera(view: CameraView): void;         // schedules one frame
+  camera(): { pos: Vec3; look: Vec3; fov: number };
+  lookPoint(look: Vec3 | string): Vec3;       // an object id -> the centre of its bounds
+  render(): void; resize(): void; pause(): void; resume(): void;
+  poster(): string;                            // JPEG data URL of a frame drawn now
+  dispose(): void;
+}
+```
 
 ## Limits
 

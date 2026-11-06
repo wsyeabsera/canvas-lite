@@ -21,6 +21,7 @@ slug: /ui
 | `#/project/<id>/canvas/<cid>/play[/<sid>]` | **Play** (present mode) over the canvas: one screen at a time, fitted to the window. Starts at `<sid>`, else the canvas start screen (first screen when unset). Linkable; the address follows the screen on show without adding history entries. See below. |
 | `#/project/<id>/canvas/<cid>/walk` | **Walkthrough**, a mode of Play: the same fitted stage with a step rail on the right (see [Walkthrough](#walkthrough)). |
 | `#/project/<id>/canvas/<cid>/watch[/<scenarioId>]` | **Watch**, the scenario video player: without an id the picker, with an id the player (see [Watch](#watch)). |
+| `#/project/<id>/scene/<sid>` | A 3D **scene** in Orbit mode (see [Scenes](#scenes)). |
 
 The project page also has a **Canvases** card, but nothing in the UI links to it any more: the page shows designs only. There is no sidebar on any view. The activity and project pages are full-width under the top bar (a **Designs** back arrow to `#/`, the wordmark, status, the docs link and the theme pill); the canvas's top-left pill shows the design name with a back arrow to `#/`.
 
@@ -75,6 +76,18 @@ Claude can store **scenarios** on a canvas (`scenarios` in `GET /api/projects/<i
 
 All timing lives in `web/watch.ts` (timeline of per-step travel and dwell, `positionAt`, step seeking, chapter fractions, labels, the link-finding predicate, play-all sequencing, the end card countdown; `test/watch.test.ts`); `web/watch-view.ts` is the DOM.
 
+## Scenes
+
+`#/project/<id>/scene/<sid>` (`{view: "scene", id, scene}` in `web/state.ts`, `hrefScene`, `routeScene`) shows a 3D scene (see [3D scenes](scenes.md)) full window, read only, in **Orbit** mode. Nothing links to it yet (the landing card and the Watch and Page modes come later); open it by its address.
+
+- The scene comes from `GET /api/projects/<id>/scenes/<sid>` with the page's token and is drawn by Lite's renderer (Three.js, loaded only on this route).
+- **Orbit.** Drag to orbit around the point the camera looks at (dragging never takes the camera below that point's level), scroll to zoom, `Shift`-drag or right-drag to pan. `R` goes back to the scene's own camera. A glass hint at the bottom lists these.
+- A glass chip top left shows the scene name, `Orbit` and **Exit** (`Esc` too), which goes back to the landing page `#/`.
+- **Live.** A `scene.set` or `films.set` event for the scene on show refetches it and redraws; a camera you moved stays where it is.
+- Frames are drawn only when something changes and never while the tab is hidden; the shader backdrop is paused while a scene is open.
+- **No WebGL.** Without WebGL 2 the page says so and shows a still poster: the last still this browser rendered of the scene (cached in local storage as `lite.scene.poster.<project>/<scene>`), else the scene's sky gradient with its name. Setting local storage `lite.scene.nowebgl` to `"1"` forces this, to check it by hand.
+- An unknown scene shows `No scene "<id>" in this project.`
+
 ## Opening it with the token
 
 The deployed Worker needs its token. Open the page once with the token in the fragment:
@@ -105,5 +118,6 @@ On the Activity and project pages, browsers with WebGPU draw a slow, calm mesh g
 - `web/landing.ts` is the pure landing logic (entries, badges, filters, search, flat sorting, project dropdown, relative meta line, thumbnail fit, last-opened store, presenter sessions and banner), unit tested in `test/landing.test.ts`; `web/landing-view.ts` draws it (lazy thumbnails, banner, Continue strip, gallery). Its CSS is the delimited "landing page" block in `public/index.html`.
 - `web/walk.ts` is the pure walkthrough logic (steps from the tour or the screens, header, stepping, auto-advance on the tour clock of `web/follow.ts`, spotlight target and callout placement), unit tested in `test/walk.test.ts`; `web/walk-view.ts` draws the rail, pill, spotlight and callout over the play view (`setInset` keeps room for the rail, `links` gives the link boxes).
 - `web/watch.ts` is the pure scenario-player logic (timeline, positions, seeking, chapters, labels, link picking, play all, end card), unit tested (`test/watch.test.ts`); `web/watch-view.ts` draws the picker and the player.
+- `web/scene-math.ts` is the pure 3D maths (colours, default sizes, terrain noise, orbit camera), unit tested (`test/scene-math.test.ts`); `web/scene-render.ts` is the Three.js renderer and `web/scene-view.ts` the Orbit DOM, both loaded with `import()` only on a scene route (`web/webgl.ts` checks WebGL 2 before Three.js is fetched). Their CSS is the delimited "3D scene" block in `public/index.html`.
 - `web/replay.ts` is the pure replay logic (event index, stepping, playback timing, ticks, labels, keys), unit tested (`test/replay.test.ts`); `web/replay-view.ts` draws the replay layer and bar (see [Canvas and screens](canvas.md)).
 - Project details come from `GET /api/projects/<id>` (see [the API](api.md)).

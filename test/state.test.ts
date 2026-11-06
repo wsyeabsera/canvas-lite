@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addRow, initialState, parseRoute, routeProject, visibleRows, describeProject, readmeLine, MAX_ROWS, sortedProjects, type State } from "../web/state.ts";
+import { addRow, initialState, parseRoute, routeProject, visibleRows, describeProject, readmeLine, MAX_ROWS, sortedProjects, hrefScene, routeScene, sceneEventHits, routeCanvas, type State } from "../web/state.ts";
 import type { WatchRow } from "../cli/format.ts";
 
 const row = (seq: number, project: string | null, kind = "ping", payload: unknown = {}): WatchRow => ({ seq, project, kind, payload, ts: seq });
@@ -94,4 +94,22 @@ test("project.removed drops the project from the sidebar, and a later project.op
   assert.equal(s.counts.tvdash, 2, "its events stay in the log and the counts");
   s = addRow(s, row(3, "tvdash", "project.opened", { name: "tvdash", kind: "hobby", repo: null, files: 2, bytes: 9 }));
   assert.deepEqual(Object.keys(s.projects), ["tvdash"]);
+});
+
+test("parseRoute: the scene route (Orbit mode) and its helpers", () => {
+  assert.deepEqual(parseRoute("#/project/lite/scene/town"), { view: "scene", id: "lite", scene: "town" });
+  assert.equal(hrefScene("lite", "town"), "#/project/lite/scene/town");
+  assert.deepEqual(parseRoute(hrefScene("a-1", "b-2")), { view: "scene", id: "a-1", scene: "b-2" });
+  for (const h of ["#/project/lite/scene/Town", "#/project/lite/scene/", "#/project/BAD/scene/town", "#/project/lite/scene/town/x"]) assert.deepEqual(parseRoute(h), { view: "activity" }, h);
+  const r = parseRoute("#/project/lite/scene/town");
+  assert.equal(routeProject(r), "lite");
+  assert.equal(routeScene(r), "town");
+  assert.equal(routeCanvas(r), null);
+  assert.equal(routeScene(parseRoute("#/project/lite")), null);
+  assert.equal(sceneEventHits(r, row(1, "lite", "scene.set", { scene: "town" })), true);
+  assert.equal(sceneEventHits(r, row(1, "lite", "films.set", { scene: "town", count: 1 })), true);
+  assert.equal(sceneEventHits(r, row(1, "lite", "scene.set", { scene: "other" })), false);
+  assert.equal(sceneEventHits(r, row(1, "other", "scene.set", { scene: "town" })), false);
+  assert.equal(sceneEventHits(r, row(1, "lite", "screen.set", { scene: "town" })), false);
+  assert.equal(sceneEventHits(parseRoute("#/"), row(1, "lite", "scene.set", { scene: "town" })), false);
 });
