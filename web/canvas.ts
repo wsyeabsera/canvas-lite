@@ -110,7 +110,7 @@ export function diffScreens(shown: ReadonlyMap<string, Shown>, next: Screen[]): 
   return d;
 }
 
-export const CANVAS_KINDS = ["canvas.created", "screen.set", "screen.removed", "canvas.removed"];
+export const CANVAS_KINDS = ["canvas.created", "screen.set", "screen.removed", "canvas.removed", "flow.set"];
 
 /** Event payload fields the page reads: canvas id, screen id, name. */
 export function canvasEvent(row: Pick<WatchRow, "kind" | "payload">): { kind: string; canvas: string; id: string | null; name: string; width: number; height: number } | null {

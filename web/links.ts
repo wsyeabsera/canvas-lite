@@ -2,7 +2,7 @@
 // Pure, no DOM. Chosen approach (spike #1973): the page shows screens in `sandbox="allow-same-origin"` frames (still no scripts),
 // reads the `[data-to]` elements from `frame.contentDocument` and calls `readLink` on each; `extractLinks` is the string-side twin
 // (no DOM, no layout) used where only the targets matter, e.g. warning about dangling links.
-export const TRANSITIONS = ["none", "fade", "slide-left", "slide-right", "slide-up", "slide-down"] as const;
+export const TRANSITIONS = ["none", "fade", "slide-left", "slide-right", "push"] as const;
 export type Transition = (typeof TRANSITIONS)[number];
 export type Link = { to: string; transition: Transition; back: boolean };
 
