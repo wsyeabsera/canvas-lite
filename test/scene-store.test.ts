@@ -43,14 +43,14 @@ test("migration 7 on a populated v6 database keeps all data and adds the scenes 
   sql.run("INSERT INTO screens (project, canvas, id, name, width, height, html, updated_at) VALUES ('tvdash', 'main', 'home', 'Home', 400, 300, '<p>x</p>', 3)");
   const ev = appendEvent(sql, { project: "tvdash", kind: "x", payload: { n: 1 } }, 4);
   migrate(sql);
-  assert.equal(sql.all("SELECT max(version) AS v FROM _migrations")[0].v, 7);
+  assert.equal(sql.all("SELECT max(version) AS v FROM _migrations")[0].v, 8);
   assert.equal(sql.all("SELECT 1 FROM projects").length, 1);
   assert.equal(sql.all("SELECT 1 FROM screens").length, 1);
   assert.deepEqual(eventsAfter(sql).map((e) => [e.seq, e.payload]), [[ev.seq, { n: 1 }]]);
   assert.throws(() => sql.run("DELETE FROM events WHERE seq = ?", ev.seq), /append-only/);
   assert.deepEqual(
     sql.all<{ name: string }>("SELECT name FROM pragma_table_info('scenes') ORDER BY cid").map((c) => c.name),
-    ["project", "id", "name", "data", "films", "updated_at", "removed"],
+    ["project", "id", "name", "data", "films", "updated_at", "removed", "page"],
   );
   assert.deepEqual(sql.all("SELECT count(*) AS n FROM scenes")[0].n, 0);
 });

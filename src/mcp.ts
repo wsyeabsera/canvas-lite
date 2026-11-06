@@ -326,6 +326,15 @@ function createServer(): McpServer {
     ({ project, scene, films }) => guard(async () => hub(env).setFilms(project, scene, films)),
   );
   server.registerTool(
+    "set_page",
+    {
+      title: "Set the scene page",
+      description: SCENE_TEXT.set_page,
+      inputSchema: z.object({ project, scene, page: z.record(z.string(), z.unknown()).nullable().describe("{sections: [{id, title?, html, shot, align?, height_vh?, gap_vh?}]}, 1 to 12 sections; null or {} clears the page.") }),
+    },
+    ({ project, scene, page }) => guard(async () => hub(env).setPage(project, scene, page)),
+  );
+  server.registerTool(
     "read_scene",
     { title: "Read a scene", description: SCENE_TEXT.read_scene, inputSchema: z.object({ project, scene }) },
     ({ project, scene }) => guard(async () => hub(env).readScene(project, scene)),
