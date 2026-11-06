@@ -18,6 +18,7 @@ export type Route =
   | { view: "canvas"; id: string; canvas: string }
   | { view: "screen"; id: string; canvas: string; screen: string }
   | { view: "walk"; id: string; canvas: string } // walkthrough mode of play: `#/project/<id>/canvas/<cid>/walk`
+  | { view: "watch"; id: string; canvas: string; scenario: string | null } // scenario video player: `#/project/<id>/canvas/<cid>/watch[/<scenarioId>]` (null: the picker)
   | { view: "play"; id: string; canvas: string; screen: string | null }; // present mode; `screen` = where to start (null: the start screen)
 
 export const initialState = (): State => ({ rows: [], projects: {}, counts: {}, total: 0 });
@@ -59,6 +60,8 @@ export const validId = (id: string) => id.length <= 40 && ID_RE.test(id);
 export function parseRoute(hash: string): Route {
   if (hash === "" || hash === "#" || hash === "#/") return { view: "landing" };
   if (hash === "#/activity") return { view: "activity" };
+  const vw = /^#\/project\/([^/?#]+)\/canvas\/([^/?#]+)\/watch(?:\/([^/?#]+))?$/.exec(hash);
+  if (vw) return validId(vw[1]) && validId(vw[2]) && (vw[3] === undefined || validId(vw[3])) ? { view: "watch", id: vw[1], canvas: vw[2], scenario: vw[3] ?? null } : { view: "activity" };
   const w = /^#\/project\/([^/?#]+)\/canvas\/([^/?#]+)\/walk$/.exec(hash);
   if (w) return validId(w[1]) && validId(w[2]) ? { view: "walk", id: w[1], canvas: w[2] } : { view: "activity" };
   const p = /^#\/project\/([^/?#]+)\/canvas\/([^/?#]+)\/play(?:\/([^/?#]+))?$/.exec(hash);
@@ -76,7 +79,7 @@ export function parseRoute(hash: string): Route {
 export const routeProject = (route: Route): string | null => (route.view === "activity" || route.view === "landing" ? null : route.id);
 
 /** The canvas a route shows (canvas, screen or play), else null. */
-export const routeCanvas = (route: Route): string | null => (route.view === "canvas" || route.view === "screen" || route.view === "play" || route.view === "walk" ? route.canvas : null);
+export const routeCanvas = (route: Route): string | null => (route.view === "canvas" || route.view === "screen" || route.view === "play" || route.view === "walk" || route.view === "watch" ? route.canvas : null);
 
 export const hrefLanding = "#/";
 export const hrefActivity = "#/activity";
@@ -132,3 +135,5 @@ export function describeProject(api: unknown): ProjectView {
 }
 
 export const hrefPlay = (id: string, canvas: string, screen?: string | null) => `#/project/${id}/canvas/${canvas}/play${screen ? `/${screen}` : ""}`;
+
+export const hrefWatch = (id: string, canvas: string, scenario?: string | null) => `#/project/${id}/canvas/${canvas}/watch${scenario ? `/${scenario}` : ""}`;

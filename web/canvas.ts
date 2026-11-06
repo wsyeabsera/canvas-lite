@@ -3,11 +3,12 @@ import type { WatchRow } from "../cli/format.ts";
 import { routeCanvas, type Route } from "./state.ts";
 import { TRANSITIONS, type Transition } from "./links.ts";
 import { parsePresenter, parseTour, type Presenter, type TourStep } from "./follow.ts";
+import { parseScenarios, type Scenario } from "./watch.ts";
 
 export type CanvasSummary = { id: string; name: string; screens: number; updated_at: number };
 export type Screen = { id: string; name: string; width: number; height: number; x: number | null; y: number | null; updated_at: number; html: string };
 /** `start_screen` (null: the first screen) and `transition` (the default of links without their own) are the canvas flow. */
-export type CanvasDetail = { canvas: { id: string; name: string; screens: number; created_at: number; updated_at: number; start_screen: string | null; transition: Transition }; screens: Screen[]; tour: TourStep[]; presenter: Presenter | null };
+export type CanvasDetail = { canvas: { id: string; name: string; screens: number; created_at: number; updated_at: number; start_screen: string | null; transition: Transition }; screens: Screen[]; tour: TourStep[]; presenter: Presenter | null; scenarios: Scenario[] };
 
 const num = (v: unknown, d = 0) => (typeof v === "number" && Number.isFinite(v) ? v : d);
 const str = (v: unknown, d = "") => (typeof v === "string" ? v : d);
@@ -32,7 +33,7 @@ export function describeCanvasList(api: unknown): CanvasSummary[] {
 
 /** Shapes `GET /api/projects/<id>/canvases/<cid>`; screens keep the API order. Null when there is no canvas in it. */
 export function describeCanvasDetail(api: unknown): CanvasDetail | null {
-  const a = api as { canvas?: any; screens?: unknown; tour?: unknown; presenter?: unknown } | null;
+  const a = api as { canvas?: any; screens?: unknown; tour?: unknown; presenter?: unknown; scenarios?: unknown } | null;
   const c = a?.canvas;
   if (!c || typeof c.id !== "string") return null;
   const screens: Screen[] = [];
@@ -44,7 +45,7 @@ export function describeCanvasDetail(api: unknown): CanvasDetail | null {
       screens.push({ id: s.id, name: str(s.name, s.id), width, height, x: pos(s.x), y: pos(s.y), updated_at: num(s.updated_at), html: str(s.html) });
     }
   }
-  return { canvas: { id: c.id, name: str(c.name, c.id), screens: screens.length, created_at: num(c.created_at), updated_at: num(c.updated_at), start_screen: typeof c.start_screen === "string" ? c.start_screen : null, transition: (TRANSITIONS as readonly string[]).includes(c.transition) ? c.transition : "none" }, screens, tour: parseTour(a?.tour), presenter: parsePresenter(a?.presenter) };
+  return { canvas: { id: c.id, name: str(c.name, c.id), screens: screens.length, created_at: num(c.created_at), updated_at: num(c.updated_at), start_screen: typeof c.start_screen === "string" ? c.start_screen : null, transition: (TRANSITIONS as readonly string[]).includes(c.transition) ? c.transition : "none" }, screens, tour: parseTour(a?.tour), presenter: parsePresenter(a?.presenter), scenarios: parseScenarios(a?.scenarios) };
 }
 
 /** "just now", "2 min ago", "3 h ago", "yesterday", "5 days ago". `now` is injected. */
@@ -113,7 +114,7 @@ export function diffScreens(shown: ReadonlyMap<string, Shown>, next: Screen[]): 
   return d;
 }
 
-export const CANVAS_KINDS = ["canvas.created", "screen.set", "screen.removed", "canvas.removed", "flow.set", "tour.set"];
+export const CANVAS_KINDS = ["canvas.created", "screen.set", "screen.removed", "canvas.removed", "flow.set", "tour.set", "scenarios.set"];
 
 /** Event payload fields the page reads: canvas id, screen id, name. */
 export function canvasEvent(row: Pick<WatchRow, "kind" | "payload">): { kind: string; canvas: string; id: string | null; name: string; width: number; height: number } | null {

@@ -7,7 +7,7 @@ import {
   applyFilter, badgeOf, bannerModel, continueModel, describeEntries, FILTER_LABEL, FILTERS, filterCounts, filterByProject, foldSession, LAST_KEY, metaLine, parseLast, PROJECT_KEY, projectOptions,
   rememberRoute, rememberScreen, resolveProject, searchEntries, showProjectPicker, sortEntries, startScreenOf, thumbFit, type Entry, type Filter, type Last, type Sessions,
 } from "./landing.ts";
-import { hrefActivity, hrefCanvas, hrefPlay, hrefWalk, type ProjectInfo } from "./state.ts";
+import { hrefActivity, hrefCanvas, hrefPlay, hrefWalk, hrefWatch, type ProjectInfo } from "./state.ts";
 
 export type LandingDeps = {
   headers: () => Record<string, string>;
@@ -101,6 +101,14 @@ export function createLandingView(deps: LandingDeps) {
     return p;
   }
 
+  /** Hover Watch on a card: only once the canvas detail (fetched for the thumbnail) shows it has scenarios. */
+  function addWatch(box: HTMLElement, e: Entry, d: CanvasDetail | null) {
+    const scrim = box.parentElement?.querySelector(".ld-scrim");
+    if (!d || d.scenarios.length === 0 || !scrim || scrim.querySelector(".ld-watch")) return;
+    const a = link(hrefWatch(e.pid, e.id), "ld-btn glassy ld-watch", "Watch", `Watch a scenario of ${e.name}`);
+    scrim.append(a);
+  }
+
   function mountThumb(box: HTMLElement, d: CanvasDetail | null) {
     const s = d ? startScreenOf(d.screens, d.canvas.start_screen) : null;
     if (!s) return box.classList.add("empty");
@@ -134,7 +142,7 @@ export function createLandingView(deps: LandingDeps) {
             io!.unobserve(it.target);
             const box = it.target as HTMLElement;
             const e = (box as HTMLElement & { _entry?: Entry })._entry;
-            if (e) void loadDetail(e).then((d) => mountThumb(box, d));
+            if (e) void loadDetail(e).then((d) => { mountThumb(box, d); addWatch(box, e, d); });
           }
         }, { rootMargin: "200px" })
       : null;
@@ -143,7 +151,7 @@ export function createLandingView(deps: LandingDeps) {
     const box = el("div", "ld-thumb") as HTMLElement & { _entry?: Entry };
     box._entry = e;
     if (e.screens === 0) box.classList.add("empty");
-    else if (eager || !io) void loadDetail(e).then((d) => mountThumb(box, d));
+    else if (eager || !io) void loadDetail(e).then((d) => { mountThumb(box, d); addWatch(box, e, d); });
     else io.observe(box);
     return box;
   }
