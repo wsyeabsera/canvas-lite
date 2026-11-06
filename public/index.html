@@ -75,6 +75,13 @@
     border-radius: 22px;
   }
 
+  /* WebGPU backdrop (web/backdrop-view.ts): a fixed canvas behind the glass; fades in only once it has drawn, so the CSS gradient above stays the fallback */
+  #backdrop { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0; }
+  #backdrop.on { opacity: 1; }
+  #backdrop canvas { display: block; width: 100%; height: 100%; }
+  @media (prefers-reduced-motion: no-preference) { #backdrop { transition: opacity .9s ease; } }
+  body:has(#app.canvas-mode:not([hidden])) #backdrop { visibility: hidden; }
+  #app, #locked { position: relative; z-index: 1; }
   #app { display: flex; flex-direction: column; gap: 16px; max-width: 1280px; margin: 0 auto; padding: 16px; min-height: 100dvh; }
   .bar { display: flex; align-items: center; gap: 14px; padding: 8px 10px 8px 20px; border-radius: 999px; flex-wrap: wrap; }
   .brand { font-weight: 600; font-size: 16px; letter-spacing: -.02em; }
@@ -220,6 +227,7 @@
 </style>
 </head>
 <body>
+<div id="backdrop" aria-hidden="true"></div>
 <div id="app">
   <header class="bar glass" id="top-bar">
     <span class="brand">Lite</span>

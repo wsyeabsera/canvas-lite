@@ -5,6 +5,7 @@ import { addRow, describeProject, hrefCanvas, hrefProject, hrefScreen, initialSt
 import { agoText, canvasEvent, describeCanvasDetail, describeCanvasList, dropCanvas, refetchPlan, screensLabel, type CanvasDetail, type CanvasSummary, type Pending } from "./canvas.ts";
 import { createCanvasView } from "./canvas-view.ts";
 import { initTheme } from "./theme.ts";
+import { hasWebGPU, parseTheme, shouldRun, shouldShow, themeColors } from "./backdrop.ts";
 import { tokenFromHash } from "./token.ts";
 
 const KEY = "lite.token";
@@ -296,6 +297,7 @@ function showRoute() {
   const inCanvas = route.view === "canvas" || route.view === "screen";
   viewCanvas.hidden = !inCanvas;
   app.classList.toggle("canvas-mode", inCanvas); // hides the top bar, sidebar and main panel
+  if (!inCanvas) startBackdrop(); // never started (no GPU cost) while only the canvas has been shown
   (inCanvas ? cvTools : topBar).append(barTools);
   const pid = routeProject(route);
   if (pid && pid !== prevProject) void loadList(pid);
@@ -328,6 +330,16 @@ function showRoute() {
     fetchSeq++;
   }
   renderSidebar();
+}
+
+// --- backdrop -----------------------------------------------------------
+// The WebGPU backdrop (web/backdrop-view.ts) loads on the first non-canvas route, and only when WebGPU exists; it then
+// follows canvas mode, the theme and tab visibility itself. Any failure keeps the CSS gradient (never throws).
+let backdropStarted = false;
+function startBackdrop() {
+  if (backdropStarted || !hasWebGPU(navigator)) return;
+  backdropStarted = true;
+  import("./backdrop-view.ts").then((m) => m.startBackdrop($("backdrop"), app, { parseTheme, shouldRun, shouldShow, themeColors })).catch(() => {});
 }
 
 // --- wiring -------------------------------------------------------------

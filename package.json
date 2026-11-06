@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "wrangler dev",
-    "build:web": "esbuild web/page.ts --bundle --format=esm --target=es2022 --outfile=public/page.js",
+    "build:web": "rm -f public/page.js public/chunk-*.js && esbuild web/page.ts --bundle --splitting --format=esm --target=es2022 --outdir=public --entry-names=[name] --chunk-names=chunk-[hash]",
     "build:docs": "npm --prefix site run build",
     "deploy": "npm run build:web && npm run build:docs && wrangler deploy",
     "test": "node scripts/run-unit.ts",
@@ -22,6 +22,7 @@
   "dependencies": {
     "@modelcontextprotocol/server": "2.3.1",
     "agents": "0.31.0",
+    "shaders": "4.0.6",
     "zod": "4.6.7"
   },
   "devDependencies": {
