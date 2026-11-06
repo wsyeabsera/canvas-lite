@@ -5,6 +5,9 @@ import { diffScreens, iframeSpec, stepScreen, writingText, type CanvasDetail, ty
 import { layoutScreens, type Box } from "./layout.ts";
 import { boundsOf, fitRect, panBy, pct, wheelZoomFactor, zoomAt, zoomTo, ZOOM_STEP, type View } from "./viewport.ts";
 
+/** Fit padding in px: leaves room for the floating islands and the label row above the first screens. */
+const FIT_PADDING = 120;
+
 export type CanvasInput = {
   pid: string;
   projectName: string;
@@ -67,7 +70,7 @@ export function createCanvasView(select: (id: string | null) => void) {
     const one = id ? boxes.find((b) => b.id === id) : undefined;
     const b = one ?? boundsOf(boxes);
     if (!b) return;
-    view = fitRect(b, { w: surface.clientWidth, h: surface.clientHeight });
+    view = fitRect(b, { w: surface.clientWidth, h: surface.clientHeight }, FIT_PADDING); // room for the islands and the label row
     apply(animate);
   }
 
