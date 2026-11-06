@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseHello, replay } from "../src/events.ts";
-import { safeEqual, tokenOk } from "../src/auth.ts";
+import { bearerToken, misconfigured, safeEqual, tokenOk } from "../src/auth.ts";
 import { appendEvent, migrate } from "../src/store.ts";
 import { nodeSql } from "./node-sql.ts";
 
@@ -29,4 +29,18 @@ test("token comparison", () => {
   assert.ok(tokenOk("s", "s"));
   assert.ok(!tokenOk(undefined, "s"));
   assert.ok(!tokenOk("x", "s"));
+});
+
+test("bearer header parsing", () => {
+  assert.equal(bearerToken("Bearer abc123"), "abc123");
+  for (const bad of [null, "", "abc", "Bearer", "Bearer  x", "bearer abc", "Basic abc", "Bearer a b"]) assert.equal(bearerToken(bad), undefined, String(bad));
+});
+
+test("a deployed Worker without a token fails closed; only localhost may run open", () => {
+  assert.ok(misconfigured(new URL("https://lite.example.workers.dev/mcp"), undefined));
+  assert.ok(misconfigured(new URL("https://lite.example.workers.dev/mcp"), ""));
+  assert.ok(!misconfigured(new URL("http://127.0.0.1:8790/mcp"), undefined));
+  assert.ok(!misconfigured(new URL("http://localhost:8790/mcp"), undefined));
+  assert.ok(!misconfigured(new URL("https://lite.example.workers.dev/mcp"), "secret"));
+  assert.ok(misconfigured(new URL("https://localhost.evil.com/mcp"), undefined), "a hostname that merely starts with localhost is not local");
 });

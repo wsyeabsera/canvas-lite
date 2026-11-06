@@ -7,6 +7,7 @@
   },
   "scripts": {
     "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
     "test": "node --test \"test/*.test.ts\"",
     "typecheck": "tsc --noEmit",
     "watch": "node cli/watch.ts",

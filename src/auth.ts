@@ -11,3 +11,15 @@ export function safeEqual(a: string, b: string): boolean {
 export function tokenOk(supplied: string | undefined | null, expected: string | undefined): boolean {
   return !expected || safeEqual(supplied ?? "", expected);
 }
+
+/** The token from an `Authorization: Bearer <token>` header, or undefined. */
+export function bearerToken(header: string | null): string | undefined {
+  const m = /^Bearer (\S+)$/.exec(header ?? "");
+  return m?.[1];
+}
+
+/** A deployed Worker with no LITE_TOKEN must refuse everything (fail closed); only localhost (wrangler dev) may run open. */
+export function misconfigured(url: URL, token: string | undefined): boolean {
+  const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+  return !token && !local;
+}
