@@ -1,0 +1,29 @@
+# Lite
+
+Read `docs/ARCHITECTURE.md` first (the "Fast loop" section covers this file's rules).
+
+## Testing
+
+Only unit tests (node:test, plain Node). Never add Playwright, e2e or smoke tests. Anything that needs workerd or a browser is verified by hand once and its logic is kept in pure functions that unit tests cover.
+
+## The loop
+
+| Command | What it does | Time |
+| --- | --- | --- |
+| `npm run check` | typecheck + all unit tests, prints elapsed time | about 0.5 s, target under 10 s |
+| `npm run test:changed` | typecheck + inventory guard + only unit files that (transitively) import what changed vs main (committed, uncommitted, untracked) | under 1 s, cached files skipped |
+| `npm run test:changed -- --list` | print the plan, run nothing | instant |
+| `npm run test:changed -- --no-cache` | ignore the input-hash cache | |
+| `npm test -- <word>` | only test files whose name contains the word | |
+| `npm run test:inventory` | fail if the unit test count is below `test/inventory.json` | instant |
+| `npm run ship:local` | from a `ws/` branch: refuse if uncommitted, run test:changed, fast-forward main, push main only if `origin` exists (`-- --dry-run` to preview) | |
+
+`test:changed` runs all tests when a test file, `package.json` or a tsconfig changed, or when a file nothing imports changed (a wrong guess must never skip a test). The cache lives in `.lite-cache/unit.json` (gitignored): a test file whose content, every transitive import, the node version and `package-lock.json` are unchanged since its last green run is reported as "N from the cache". A failure is never cached. The merge gate (`ship:local`) never reads it.
+
+## Rules
+
+- Never delete a test to save time. If the count must drop, `npm run test:inventory -- --reason "<why>"` records it.
+- Unit tests use their own in-memory or temp database (`test/node-sql.ts`), never a shared one.
+- Wait for conditions, never sleeps.
+- Docs change in the same commit as code. When `docs/` or `site/` changed, `cd site && npm run build` must pass.
+- Do not edit `src/` just to make the scripts easier; the import graph is scanned from `import ... from "<relative path>"` statements in every top-level code folder (`src/`, `test/`, `cli/`, `scripts/`).

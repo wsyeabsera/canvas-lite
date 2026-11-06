@@ -64,7 +64,8 @@ Dropped: the helper-to-app relay, browser tokens and origins, op batches, undo, 
 
 - `npm run check` = typecheck + all unit tests, under 10 s. `npm test -- <word>` runs one module.
 - `npm run test:changed` = typecheck + unit files that import what changed, with an input-hash cache; the pre-merge gate.
-- Only unit tests. No Playwright, no e2e, no smoke tests. Code that needs workerd or a browser keeps its logic in pure functions covered by unit tests and is checked by hand once.
+- Only unit tests (node:test, plain Node). No Playwright, e2e or smoke tests; the full suite is all the unit tests. Anything that needs workerd or a browser is verified by hand once, and its logic lives in pure functions the unit tests cover.
+- `npm run test:inventory` fails if the unit test count drops below `test/inventory.json`; `npm run ship:local` runs the gate and fast-forwards main from a `ws/` branch.
 - Unit tests use their own in-memory or temp database. No test is deleted to save time; wait for conditions, never sleeps.
 
 ## Not in phase 1

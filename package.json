@@ -8,9 +8,13 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "test": "node --test \"test/*.test.ts\"",
+    "test": "node scripts/run-unit.ts",
     "typecheck": "tsc --noEmit",
     "watch": "node cli/watch.ts",
+    "check": "node scripts/check.ts",
+    "test:changed": "node scripts/changed.ts",
+    "test:inventory": "node scripts/inventory.ts",
+    "ship:local": "node scripts/ship-local.mjs",
     "types": "wrangler types src/worker-configuration.d.ts"
   },
   "dependencies": {
