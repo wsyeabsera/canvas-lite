@@ -31,3 +31,13 @@ Desktop browsers only. Phones and tablets are out of scope for now: do not desig
 - Wait for conditions, never sleeps.
 - Docs change in the same commit as code. When `docs/` or `site/` changed, `cd site && npm run build` must pass.
 - Do not edit `src/` just to make the scripts easier; the import graph is scanned from `import ... from "<relative path>"` statements in every top-level code folder (`src/`, `test/`, `cli/`, `scripts/`).
+
+## Debugging the watch page
+
+The project `.mcp.json` registers the Chrome DevTools MCP server (pinned `chrome-devtools-mcp@1.12.0`). The watch page is vanilla TypeScript, not React, so the React DevTools add-on (`react-devtools-cdt-mcp`) has nothing to inspect and is not installed.
+
+1. Start `npm run dev` and open http://127.0.0.1:8790/. Local dev needs no auth; the deployed Worker needs `#token=` in the URL once.
+2. Use the Chrome DevTools MCP tools: `take_snapshot`, `list_console_messages`, `list_network_requests`, `take_screenshot`, `evaluate_script` (also `performance_start_trace`).
+3. Desktop only (see Scope); do not resize to phone widths.
+
+Expected console noise, harmless: a CSP eval refusal and a TypeGPU fallback line from the shader backdrop.
