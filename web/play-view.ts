@@ -50,6 +50,7 @@ export function createPlayView(hooks: PlayHooks) {
   let mode: "mouse" | "remote" = "mouse";
   let frame: DeviceFrame | null = null; // null: by the stage size
   let stageSize = { w: 1920, h: 1080 };
+  let insetRight = 0; // walkthrough: room kept free at the right for the step rail
   let focusIdx: number | null = null;
   let hoverIdx: number | null = null;
   let lastActive = 0;
@@ -65,7 +66,7 @@ export function createPlayView(hooks: PlayHooks) {
   // --- stage -------------------------------------------------------------------
   function layout() {
     if (!isOpen) return;
-    const v = fitStage({ w: stageSize.w, h: stageSize.h }, { w: root.clientWidth, h: root.clientHeight });
+    const v = fitStage({ w: stageSize.w, h: stageSize.h }, { w: Math.max(1, root.clientWidth - insetRight), h: root.clientHeight });
     stage.style.width = `${stageSize.w}px`;
     stage.style.height = `${stageSize.h}px`;
     stage.style.transform = `translate(${v.x}px, ${v.y}px) scale(${v.k})`;
@@ -397,6 +398,13 @@ export function createPlayView(hooks: PlayHooks) {
       if (!isOpen || !st) return "closed";
       return apply(gotoScreen(st, screenId, transition ?? null, ids(), flow().transition, reduced()));
     },
+    /** Walkthrough: keeps `px` free at the right of the stage (0 = full width) and refits. */
+    setInset(px: number) {
+      insetRight = px;
+      layout();
+    },
+    /** The link boxes (screen pixels) of the screen on show, in document order. */
+    links: (): Rect[] => (layer && !leaving ? layer.hots.map((h) => h.rect) : []),
     /** The screen on show, or null. */
     current: () => (st ? currentId(st) : null),
   };

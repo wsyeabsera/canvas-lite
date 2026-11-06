@@ -17,7 +17,7 @@ export type Route =
   | { view: "project"; id: string }
   | { view: "canvas"; id: string; canvas: string }
   | { view: "screen"; id: string; canvas: string; screen: string }
-  | { view: "walk"; id: string; canvas: string } // walkthrough over a canvas; the handler lives in the play layer
+  | { view: "walk"; id: string; canvas: string } // walkthrough mode of play: `#/project/<id>/canvas/<cid>/walk`
   | { view: "play"; id: string; canvas: string; screen: string | null }; // present mode; `screen` = where to start (null: the start screen)
 
 export const initialState = (): State => ({ rows: [], projects: {}, counts: {}, total: 0 });
@@ -76,7 +76,7 @@ export function parseRoute(hash: string): Route {
 export const routeProject = (route: Route): string | null => (route.view === "activity" || route.view === "landing" ? null : route.id);
 
 /** The canvas a route shows (canvas, screen or play), else null. */
-export const routeCanvas = (route: Route): string | null => (route.view === "canvas" || route.view === "screen" || route.view === "play" ? route.canvas : null);
+export const routeCanvas = (route: Route): string | null => (route.view === "canvas" || route.view === "screen" || route.view === "play" || route.view === "walk" ? route.canvas : null);
 
 export const hrefLanding = "#/";
 export const hrefActivity = "#/activity";

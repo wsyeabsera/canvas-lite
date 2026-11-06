@@ -19,6 +19,7 @@ slug: /ui
 
 | `#/project/<id>/canvas/<cid>/walk` | **Walkthrough** over the canvas. The route is parsed here; the handler belongs to the play layer. Until that lands the page redirects it to Play. |
 | `#/project/<id>/canvas/<cid>/play[/<sid>]` | **Play** (present mode) over the canvas: one screen at a time, fitted to the window. Starts at `<sid>`, else the canvas start screen (first screen when unset). Linkable; the address follows the screen on show without adding history entries. See below. |
+| `#/project/<id>/canvas/<cid>/walk` | **Walkthrough**, a mode of Play: the same fitted stage with a step rail on the right (see [Walkthrough](#walkthrough)). |
 
 The project page also has a **Canvases** card. The **Projects** sidebar lists every project Lite has been told about (from `project.opened` events), each with its event count; the open project's canvases appear indented under it.
 
@@ -48,6 +49,19 @@ A blue **Play** pill in the canvas's top-right island (key `P`) opens present mo
 
 Screens in Play are `<iframe sandbox="allow-same-origin" srcdoc>`, **never `allow-scripts`**, so they still run no code; the page reads `[data-to]` from `frame.contentDocument` and lays the hotspots over the frame from the elements' boxes. The canvas keeps its empty sandbox. The CSP is unchanged.
 
+## Walkthrough
+
+The canvas's Play pill is a split control, **Play | Walkthrough** (Play stays blue and primary; Walkthrough is the neutral segment beside it). Key `W` on a canvas opens the same thing. The route is `#/project/<id>/canvas/<cid>/walk` (`{view: "walk", id, canvas}` in `web/state.ts`, `hrefWalk`).
+
+It is Play with a guided layout: the screen on the left in the usual fitted stage and device frame, a 344 px glass **step rail** on the right, and a glass pill at the top left (`Walkthrough  <canvas name>  [Exit Esc]`). The rail has a header (`5 steps · about 13 s` from the tour's total duration; `N screens` without a tour), the numbered steps (the current one highlighted blue with a filled number circle), an **Auto-advance** switch, and **Previous** and **Next** buttons.
+
+- **Steps.** The canvas tour when it has one (`set_tour`: screen, `dwell_ms`, `note`; steps for missing screens are dropped). Without a tour: the screens in walk order from the effective start, following the first outgoing `data-to` of each screen (`data-back` links skipped) until a repeat or a dead end; titled by screen name, no notes, 2500 ms each.
+- **Spotlight and callout.** Each step shows its screen with the canvas default transition. The first link of the screen (top, then left) gets a blue ring and the rest of the screen is dimmed (`rgba(5,6,10,.55)`). A step with a note also gets a glass callout with a blue 1 px border (`Step n · <screen name>` in blue, the note, a muted hint) below the link, or above it when there is no room. Without a note there is no callout; the spotlight stays. A screen with no links has neither. Both wait for the transition to finish.
+- **Moving.** `Right`/`Left`, Next/Previous or a click on a step. `Space` toggles Auto-advance (each step's `dwell_ms`; it stops after the last step and starts again from the top if switched on there). `Esc` or Exit goes back to where the walkthrough was opened. Moving by hand restarts the auto-advance clock from the new step.
+- **Links inside the screen** still work: a link to a screen that is a step moves the rail to that step; any other screen is shown and the rail stays (no spotlight, since that screen is not the step).
+- **Claude presenting.** The pill and Follow behave as in Play. A Follow jump to a screen that is a step moves the rail to it; Auto-advance is left as the viewer set it. The Tour button is not shown in a walkthrough.
+- Reduced motion: no transitions and no fades.
+
 ## Opening it with the token
 
 The deployed Worker needs its token. Open the page once with the token in the fragment:
@@ -76,5 +90,6 @@ On the Activity and project pages, browsers with WebGPU draw a slow, calm mesh g
 - `web/canvas.ts`, `web/layout.ts` and `web/viewport.ts` are the pure canvas logic, `web/canvas-view.ts` draws the canvas surface; `public/_headers` sets the Content-Security-Policy (see [Canvas and screens](canvas.md)).
 - `web/play.ts` is the pure Play logic (back stack, next screen, transition resolution and planning, spatial focus, stage fit, dots, key intents, the sandbox string), unit tested in `test/play.test.ts`; `web/play-view.ts` draws it and exposes `goto(screenId, transition?)` for remote control and a `userAction` hook for viewer moves. `web/follow.ts` is the pure follow and tour logic (unit tested in `test/follow.test.ts`), `web/live-view.ts` draws the pill, the Follow and Tour buttons and the caption.
 - `web/landing.ts` is the pure landing logic (entries, badges, filters, search, grouping, relative meta line, thumbnail fit, last-opened store, presenter sessions and banner), unit tested in `test/landing.test.ts`; `web/landing-view.ts` draws it (lazy thumbnails, banner, Continue strip, gallery). Its CSS is the delimited "landing page" block in `public/index.html`.
+- `web/walk.ts` is the pure walkthrough logic (steps from the tour or the screens, header, stepping, auto-advance on the tour clock of `web/follow.ts`, spotlight target and callout placement), unit tested in `test/walk.test.ts`; `web/walk-view.ts` draws the rail, pill, spotlight and callout over the play view (`setInset` keeps room for the rail, `links` gives the link boxes).
 - `web/replay.ts` is the pure replay logic (event index, stepping, playback timing, ticks, labels, keys), unit tested (`test/replay.test.ts`); `web/replay-view.ts` draws the replay layer and bar (see [Canvas and screens](canvas.md)).
 - Project details come from `GET /api/projects/<id>` (see [the API](api.md)).
