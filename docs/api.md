@@ -50,17 +50,19 @@ The answer also carries `"tour"` (`{steps:[{screen,dwell_ms,note?}], duration_ms
 
 `GET /api/projects/<id>/canvases/<canvas>/timeline` returns 200: the canvas's events, oldest first (`canvas.created`, `screen.set`, `screen.removed`, `flow.set`; `screen` and `name` are null except for the two screen kinds):
 
+The answer also carries `floor`: the oldest seq whose canvas state can still be rebuilt (only the newest 20 versions of each screen are kept, see [Database](database.md)); 0 when nothing was pruned. Every event is still listed, including those below the floor.
+
 ```json
-{ "canvas": "main", "events": [
+{ "canvas": "main", "floor": 0, "events": [
   { "seq": 12, "ts": 1767225500000, "kind": "canvas.created", "screen": null, "name": null },
   { "seq": 13, "ts": 1767225600000, "kind": "screen.set", "screen": "home", "name": "Home" },
   { "seq": 14, "ts": 1767225700000, "kind": "flow.set", "screen": null, "name": null } ] }
 ```
 
-`GET /api/projects/<id>/canvases/<canvas>/at/<seq>` returns 200: the canvas as it was after event `seq` (a non-negative integer; past the end is the latest state, 0 is empty). Screens are in creation order with their html; `seq` on a screen is the event that wrote that version; `ts` is the time of the canvas event at exactly `seq`, else null; the flow is as of `seq`:
+`GET /api/projects/<id>/canvases/<canvas>/at/<seq>` returns 200: the canvas as it was after event `seq` (a non-negative integer; past the end is the latest state; 0 is empty unless history was pruned). A `seq` below the timeline `floor` is clamped up to it: the answer's `seq` is the state actually shown and `floor` is repeated on the answer, so a client can tell it was clamped. Screens are in creation order with their html; `seq` on a screen is the event that wrote that version; `ts` is the time of the canvas event at exactly `seq`, else null; the flow is as of `seq`:
 
 ```json
-{ "canvas": { "id": "main", "name": "Main" }, "seq": 13, "ts": 1767225600000,
+{ "canvas": { "id": "main", "name": "Main" }, "seq": 13, "floor": 0, "ts": 1767225600000,
   "screens": [{ "id": "home", "name": "Home", "width": 400, "height": 300, "x": null, "y": null, "seq": 13, "bytes": 9, "layout": { "x": 0, "y": 0 }, "html": "<p>hi</p>" }],
   "start_screen": null, "transition": "none" }
 ```

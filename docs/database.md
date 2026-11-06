@@ -61,4 +61,9 @@ row keyed by the seq of its event, in the same transaction as the event (`record
 `src/canvases.ts`); a removal row has `removed = 1` and empty html. `flow.set` writes none: flow state is rebuilt from the events
 (their payload has the start screen and transition). Existing screens are backfilled with their current html at the seq of their
 latest `screen.set` event (seq 0 if there is none), so replay works from the migration on; earlier states of old screens were never
-stored and show as absent. No pruning yet: every version is kept (html is at most 200,000 bytes each).
+stored and show as absent. Retention: `recordVersion` keeps only the newest 20 versions of each screen (`KEEP_VERSIONS`), deleting older rows in the same
+transaction, so growth is bounded at 20 x 200,000 bytes per screen. The newest row is always kept, so a removed screen keeps its
+removal marker and still reads as removed. No migration: it is a plain `DELETE`. Pruned states cannot be rebuilt, so `src/timeline.ts`
+computes a **timeline floor** (`timelineFloor`): the highest oldest-kept seq among screens that have events older than their oldest kept
+version (pruned screens, and old screens backfilled above), or 0 when nothing was lost. Screens created after the floor add no constraint.
+Events are never pruned.

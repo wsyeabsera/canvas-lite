@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  asScreens, clock, createdScreens, describeAt, describeTimeline, eventLabel, indexAtSeq, indexFromFraction, justAdded, MAX_GAP_MS, MIN_GAP_MS,
+  asScreens, clock, createdScreens, describeAt, describeFloor, describeTimeline, replayEvents, eventLabel, indexAtSeq, indexFromFraction, justAdded, MAX_GAP_MS, MIN_GAP_MS,
   playStart, replayKey, stepDelay, stepIndex, tickNames, tickPositions, totalDuration, type TimelineEvent,
 } from "../web/replay.ts";
 
@@ -111,4 +111,15 @@ test("replayKey maps the bar's shortcuts", () => {
   assert.equal(replayKey(" "), "toggle");
   assert.equal(replayKey("Escape"), "exit");
   assert.equal(replayKey("a"), null);
+});
+
+test("describeFloor and replayEvents: the scrubber starts at the first event at or after the floor", () => {
+  assert.equal(describeFloor(null), 0);
+  assert.equal(describeFloor({ floor: "x" }), 0);
+  assert.equal(describeFloor({ floor: -3 }), 0);
+  assert.equal(describeFloor({ floor: 14 }), 14);
+  assert.deepEqual(replayEvents(events, 0), events);
+  assert.deepEqual(replayEvents(events, 14).map((e) => e.seq), events.filter((e) => e.seq >= 14).map((e) => e.seq));
+  assert.equal(replayEvents(events, 15)[0].seq, 15, "a floor on an event starts there");
+  assert.deepEqual(replayEvents(events, 1e9), []);
 });
