@@ -18,7 +18,7 @@ How to build a clickable prototype in Lite in one pass. Specs: [Prototype](proto
 
 ## Writing screens
 
-- One self-contained HTML document per screen: inline CSS, no scripts, root sized to `width` x `height`. Images only as `https` URLs or `data:` URIs.
+- One self-contained HTML document per screen: inline CSS, no scripts, root sized to `width` x `height`. Images only as `https` URLs or `data:` URIs. Put `margin:0` on `body` (the browser's default 8px margin shows the frame's white background as a strip along the top and left edge).
 - **Ids are the links.** Give every screen a short slug id (`home`, `detail`, `pay`) and link to it by that id. Name screens for what the user sees ("Home", "Detail"); the id is for you.
 - **Links** are attributes on any element: `data-to="<screen id>"`, optional `data-transition="none|fade|slide-left|slide-right|push"`, and `data-back` for a back control. No `href`, `onclick` or `<form>`.
 - Make links look clickable (a button, a card, a row) and put `data-to` on the element the user would press. Forward in a flow: `slide-left`. Opening an overlay-like screen: `fade`. Back: `data-back`.
