@@ -65,6 +65,17 @@ type FilmRead = Film & { duration_ms: number; missing: number[] };
 
 A shot moves the camera from `from` to `to` (through `waypoints`, if any) over `duration_ms`. `focus` and any string `look` must name an object that exists when the films are set (`checkFilms` throws `film "<id>" shot <n>: ...`). `FilmRead` adds the total `duration_ms` and `missing`: the indexes of shots whose `focus` or look-at object has since been removed or renamed. Removing an object a shot points at is allowed (`patch_scene` succeeds, nothing throws); `read_scene` lists the shot under `missing` and `validate_scene` reports `shot_looks_at_nothing` (a look-at) or `focus_missing` (a focus).
 
+### Shot timeline
+
+`web/shots-play.ts` (pure, no DOM) is how the viewer plays a film:
+
+- `ease(kind, t)`: `linear`, `in-out` (cubic, 0.5 at 0.5) or `out` (0.875 at 0.5); t is clamped, NaN is 0.
+- `pathSample(from, waypoints, to, t)`: a uniform Catmull-Rom spline through from, waypoints and to; each segment gets an equal share of t, so waypoint k of n is hit exactly at t = k / (n + 1). No waypoints is a straight line.
+- `sampleShot(shot, t, objectCenter)` returns `{pos, look, fov?}`: eased path for `pos`, eased blend of the two look points. Look-at objects are resolved on every call by `resolveLook(view, objectCenter, fallback)`; a vanished object falls back to the other end's look, then to the origin. t 0 and 1 equal the views exactly.
+- `buildFilmTimeline(film)`: shots are back to back with their exact durations (no cross-hold): `{total_ms, starts}`. `filmPositionAt(film, ms)`: a boundary belongs to the next shot, at the total `done` is true; `seekToShot` gives a shot's start; `chapterFractions` sum to 1.
+- `filmLabel` ("5 shots · about 40 s"), `captionFor(shot, on)`, `playAll(films, i)` and the end card countdown (reused from `web/watch.ts`).
+- `focusRing(shot, msInShot)`: alpha fades in over the first 500 ms and out over the last 500 ms of the shot (shorter shots peak below 1); no `focus` means no ring.
+
 ## Limits
 
 | What | Limit |
