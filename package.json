@@ -1,0 +1,10 @@
+{
+  "name": "lite",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "test": "node --test \"test/*.test.ts\"",
+    "db:init": "node src/db.ts"
+  }
+}
