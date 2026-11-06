@@ -1,3 +1,4 @@
+import { gateApi, gateResponse, hubErrorResponse, isApiPath, json, routeApi } from "./api.ts";
 import { bearerToken, misconfigured, tokenOk } from "./auth.ts";
 import { hub } from "./hub.ts";
 import { mcpHandler } from "./mcp.ts";
@@ -16,6 +17,17 @@ export default {
       if (!tokenOk(bearerToken(request.headers.get("Authorization")), env.LITE_TOKEN))
         return new Response("unauthorized", { status: 401, headers: { "WWW-Authenticate": "Bearer" } });
       return mcpHandler(request, env, ctx);
+    }
+    if (isApiPath(pathname)) {
+      const gate = gateApi(request.headers.get("Authorization"), env.LITE_TOKEN, url);
+      if (gate !== "ok") return gateResponse(gate);
+      const route = routeApi(request.method, pathname);
+      if (route.kind === "error") return json(route.status, { error: route.message }, route.headers);
+      try {
+        return json(200, route.kind === "list" ? await hub(env).listProjects() : await hub(env).readProject(route.id));
+      } catch (e) {
+        return hubErrorResponse(e);
+      }
     }
     return new Response("not found", { status: 404 });
   },
