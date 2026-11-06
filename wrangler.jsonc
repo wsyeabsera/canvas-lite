@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "lite",
+  // Pinned so a deploy cannot land on another account.
+  "account_id": "3d134ec9e5eb3d05d601e9c6c2c071a5",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "dev": { "port": 8790 },
+  // The single Hub instance (getByName("default")) holds all state.
+  "durable_objects": { "bindings": [{ "name": "HUB", "class_name": "Hub" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Hub"] }]
+}

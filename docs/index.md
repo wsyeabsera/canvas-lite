@@ -11,11 +11,14 @@ view is read-only (a web page the Worker serves and a terminal watcher).
 ## Run it
 
 ```sh
-npm run db:init   # local dev database only; the deployed Hub keeps its data in the Durable Object
-npm test          # unit tests, each on its own temp database
+npm install
+npm run dev     # wrangler dev on http://127.0.0.1:8790 (MCP at /mcp, health at /health)
+npm test        # unit tests, each on its own in-memory database
+claude mcp add --transport http lite http://127.0.0.1:8790/mcp
 ```
 
-The Worker (MCP, watch page, deploy) and `lite watch` arrive in the next tasks; this page grows with them.
+Then ask Claude to call the `ping` tool: it appends an event in the Hub and returns it. Deploying, the watch page and
+`lite watch` arrive in the next tasks; this page grows with them.
 
 ## Where to read next
 

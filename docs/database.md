@@ -5,7 +5,9 @@ slug: /database
 
 # Database
 
-One SQLite database. In production it is the Hub's Durable Object storage; `src/db.ts` holds the schema and migrations (being split into store logic and adapters in the move to the Durable Object).
+One SQLite database: the Hub's Durable Object storage in production. `src/store.ts` holds the schema, migrations and
+queries over a tiny `Sql` interface; `src/hub.ts` adapts Durable Object storage to it, and unit tests adapt `node:sqlite`
+(`test/node-sql.ts`). Nothing else opens the database.
 
 ## Tables
 
@@ -19,11 +21,12 @@ One SQLite database. In production it is the Hub's Durable Object storage; `src/
 `events` is append-only: database triggers abort any `UPDATE` or `DELETE`. Progress is the log, read in `seq` order.
 
 ```ts
-const e = appendEvent(db, { project: "tvdash", kind: "project.opened", payload: { files: 42 } });
-const missed = eventsAfter(db, lastSeenSeq); // what a reconnecting watcher asks for
+const e = appendEvent(sql, { project: "tvdash", kind: "project.opened", payload: { files: 42 } });
+const missed = eventsAfter(sql, lastSeenSeq); // what a reconnecting watcher asks for
 ```
 
 ## Migrations
 
-`MIGRATIONS` in `src/db.ts` is an ordered list; `PRAGMA user_version` records how many have run, each in its own
-transaction. Append a new entry, never edit one that has shipped. A database written by a newer build is refused.
+`MIGRATIONS` in `src/store.ts` is an ordered list; the `_migrations` table records which have run, each in its own
+transaction, applied by the Hub's constructor before it serves anything. Append a new entry, never edit one that has
+shipped. A database written by a newer build is refused.

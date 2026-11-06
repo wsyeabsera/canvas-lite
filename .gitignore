@@ -3,3 +3,4 @@ node_modules/
 *.db-*
 site/build/
 site/.docusaurus/
+.wrangler/
