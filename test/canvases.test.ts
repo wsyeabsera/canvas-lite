@@ -2,8 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   CANVAS_TEXT, CANVASES_PER_PROJECT, SCREEN_HTML_LIMIT, SCREENS_PER_CANVAS,
-  createCanvas, listCanvases, readCanvas, removeCanvas, removeScreen, setScreen, type ScreenInput,
+  createCanvas, listCanvases, readCanvas, removeCanvas, removeScreen, screenWarnings, setScreen, setScreens, SCREENS_PER_CALL, type ScreenInput,
 } from "../src/canvases.ts";
+import { layoutScreens as webLayout } from "../web/layout.ts";
 import { openProject, removeProject } from "../src/projects.ts";
 import { appendEvent, eventsAfter, MIGRATIONS, migrate } from "../src/store.ts";
 import { nodeSql } from "./node-sql.ts";
@@ -147,7 +148,7 @@ test("set_screen is an upsert: created false, keeps order, replaces fields, touc
   assert.equal((r.event.payload as any).created, false);
   const read = readCanvas(sql, "tvdash", "main", true);
   assert.deepEqual(read.screens.map((s) => s.id), ["a", "b", "c"]);
-  assert.deepEqual({ ...read.screens[0] }, { id: "a", name: "A2", width: 500, height: 300, x: null, y: null, updated_at: 60, bytes: 10, html: "<b>new</b>" });
+  assert.deepEqual({ ...read.screens[0] }, { id: "a", name: "A2", width: 500, height: 300, x: null, y: null, updated_at: 60, bytes: 10, layout: { x: 0, y: 0 }, html: "<b>new</b>" });
   assert.equal(read.canvas.updated_at, 60);
   assert.equal(read.canvas.screens, 3);
 });
@@ -292,4 +293,93 @@ test("tool descriptions mention each limit and the html guidance", () => {
   for (const s of ["200000", "50", "100", "8000", "no scripts", "https URLs or data: URIs", "nothing else is loaded", "inline CSS", "width x height"]) assert.ok(d.includes(s), s);
   assert.ok(CANVAS_TEXT.create_canvas.includes("20"));
   for (const k of ["create_canvas", "list_canvases", "read_canvas", "set_screen", "remove_screen", "remove_canvas"] as const) assert.ok(CANVAS_TEXT[k].length > 20);
+});
+
+const fields = (o: Partial<ScreenInput> = {}) => {
+  const { canvas: _c, ...rest } = scr(o);
+  return rest;
+};
+
+test("screenWarnings: script (any case), large, empty; clean html has none", () => {
+  assert.deepEqual(screenWarnings("<p>ok</p>"), []);
+  assert.deepEqual(screenWarnings("<SCRIPT>x</SCRIPT>"), ["html contains <script>: scripts never run in the sandbox"]);
+  assert.deepEqual(screenWarnings("   \n"), ["html has no content"]);
+  assert.deepEqual(screenWarnings(""), ["html has no content"]);
+  assert.deepEqual(screenWarnings("a".repeat(150_000)), []);
+  assert.deepEqual(screenWarnings("a".repeat(150_001)), ["html is large: 150001 bytes (limit 200000)"]);
+  assert.equal(screenWarnings("<script>" + "a".repeat(150_000)).length, 2);
+});
+
+test("set_screen answers bytes and warnings", () => {
+  const sql = withCanvas();
+  const r = setScreen(sql, "tvdash", scr({ html: "<script>1</script>" }));
+  assert.equal(r.bytes, 18);
+  assert.equal(r.warnings.length, 1);
+  assert.deepEqual(setScreen(sql, "tvdash", scr({ name: "ok" })).warnings, []);
+});
+
+test("set_screens: writes all, answers in order with bytes, created, warnings; one event each in order", () => {
+  const sql = withCanvas();
+  setScreen(sql, "tvdash", scr({ name: "A" }), 11);
+  const r = setScreens(sql, "tvdash", "main", [fields({ name: "A", html: "<p>new</p>" }), fields({ name: "B", html: "", x: 5, y: 6 })], 30);
+  assert.deepEqual(r.screens.map((s) => [s.id, s.created, s.bytes, s.warnings.length]), [["a", false, 10, 0], ["b", true, 0, 1]]);
+  assert.deepEqual({ ...r.screens[1] }, { id: "b", name: "B", width: 400, height: 300, x: 5, y: 6, updated_at: 30, bytes: 0, created: true, warnings: ["html has no content"] });
+  assert.equal(r.events.length, 2);
+  assert.deepEqual(r.events.map((e) => (e.payload as { id: string }).id), ["a", "b"]);
+  assert.ok(r.events[0].seq < r.events[1].seq);
+  assert.deepEqual(kinds(sql).slice(-2), ["screen.set", "screen.set"]);
+});
+
+test("set_screens is atomic: a bad screen in the middle writes nothing and appends no events", () => {
+  const sql = withCanvas();
+  const before = eventsAfter(sql).length;
+  assert.throws(
+    () => setScreens(sql, "tvdash", "main", [fields({ name: "A" }), fields({ name: "Bad", width: 5 }), fields({ name: "C" })]),
+    { message: "screen 1 (Bad): invalid width: use an integer from 100 to 8000" },
+  );
+  assert.equal(readCanvas(sql, "tvdash", "main").screens.length, 0);
+  assert.equal(eventsAfter(sql).length, before);
+});
+
+test("set_screens is atomic for write-time failures too (screen limit) and prefixes them", () => {
+  const sql = withCanvas();
+  for (let i = 0; i < SCREENS_PER_CANVAS - 1; i++) setScreen(sql, "tvdash", scr({ name: `s${i}` }));
+  const before = eventsAfter(sql).length;
+  assert.throws(() => setScreens(sql, "tvdash", "main", [fields({ name: "x1" }), fields({ name: "x2" })]), { message: "screen 1 (x2): too many screens: limit 50" });
+  assert.equal(readCanvas(sql, "tvdash", "main").screens.length, SCREENS_PER_CANVAS - 1);
+  assert.equal(eventsAfter(sql).length, before);
+});
+
+test("set_screens: 1 to 20 screens, project and canvas checked", () => {
+  const sql = withCanvas();
+  assert.throws(() => setScreens(sql, "tvdash", "main", []), /use 1 to 20 screens/);
+  const many = Array.from({ length: SCREENS_PER_CALL + 1 }, (_, i) => fields({ name: `n${i}` }));
+  assert.throws(() => setScreens(sql, "tvdash", "main", many), /use 1 to 20 screens/);
+  assert.equal(setScreens(sql, "tvdash", "main", many.slice(0, 20)).screens.length, 20);
+  assert.throws(() => setScreens(sql, "tvdash", "nope", [fields()]), { message: 'unknown canvas "nope"' });
+  assert.throws(() => setScreens(sql, "ghost", "main", [fields()]), { message: 'unknown project "ghost"' });
+});
+
+test("read_canvas layout equals web/layout.ts on the same inputs; x and y stay as stored", () => {
+  const sql = withCanvas();
+  setScreen(sql, "tvdash", scr({ name: "a", width: 100, height: 100 }));
+  setScreen(sql, "tvdash", scr({ name: "b", width: 200, height: 300, x: 7, y: -9 }));
+  setScreen(sql, "tvdash", scr({ name: "c", width: 150, height: 120, x: 3 }));
+  setScreen(sql, "tvdash", scr({ name: "d", width: 100, height: 100 }));
+  setScreen(sql, "tvdash", scr({ name: "e", width: 100, height: 100 }));
+  setScreen(sql, "tvdash", scr({ name: "f", width: 100, height: 100 }));
+  const { screens } = readCanvas(sql, "tvdash", "main");
+  const boxes = webLayout(screens);
+  assert.deepEqual(screens.map((s) => s.layout), boxes.map((b) => ({ x: b.x, y: b.y })));
+  assert.deepEqual(screens.map((s) => s.layout), [{ x: 0, y: 0 }, { x: 7, y: -9 }, { x: 260, y: 0 }, { x: 570, y: 0 }, { x: 0, y: 280 }, { x: 260, y: 280 }]);
+  assert.deepEqual(screens.map((s) => [s.x, s.y]), [[null, null], [7, -9], [3, null], [null, null], [null, null], [null, null]]);
+});
+
+test("tool texts: set_screens guidance, id truncation, remove_screen keeps the log, bytes", () => {
+  const t = CANVAS_TEXT.set_screens;
+  for (const s of ["20", "ALL OR NOTHING", "screen <index> (<name>)", "truncated at 40", "explicitly"]) assert.ok(t.includes(s), s);
+  const d = CANVAS_TEXT.set_screen;
+  for (const s of ["truncated at 40", "same name replaces", "different name makes a second", "explicitly", "bytes", "warnings", "set_screens"]) assert.ok(d.includes(s), s);
+  assert.ok(CANVAS_TEXT.remove_screen.includes("log"));
+  assert.ok(CANVAS_TEXT.read_canvas.includes("layout") && CANVAS_TEXT.read_canvas.includes("bytes"));
 });
