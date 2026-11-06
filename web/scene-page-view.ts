@@ -10,7 +10,7 @@ import { checkScene, type Scene } from "../src/scene.ts";
 import type { Film } from "../src/shots.ts";
 import { cameraAt, sectionRanges } from "./page-scroll.ts";
 import { activeSection, OVERLAY_SANDBOX, overlaySrcdoc, pageLayout, pageProgress, railDots, resolveFilmLooks } from "./scene-page.ts";
-import { modeSegments } from "./scene-view.ts";
+import { modeSwitch } from "./scene-view.ts";
 import { scenePosterKey } from "./landing.ts";
 import { hrefScene } from "./state.ts";
 import { hasWebGL2 } from "./webgl.ts";
@@ -45,7 +45,7 @@ export function createScenePageScreen(host: HTMLElement, deps: Deps): ScenePageS
   rail.setAttribute("aria-label", "Sections");
   const chip = el("div", "sc-chip sc-g");
   const chipName = el("span", "sc-chip-n", "Scene");
-  let chipMode: HTMLElement = el("span", "sc-chip-m", "Page");
+  const chipMode = el("span", "sc-chip-m");
   const exitBtn = el("button", "sc-exit");
   exitBtn.type = "button";
   exitBtn.title = "Back to Orbit (Esc)";
@@ -286,9 +286,7 @@ export function createScenePageScreen(host: HTMLElement, deps: Deps): ScenePageS
       dropView();
       layout();
       chipName.textContent = s;
-      const seg = modeSegments(p, s, "page");
-      chipMode.replaceWith(seg);
-      chipMode = seg;
+      modeSwitch(chipMode, "page", p, s);
       msg.hidden = true;
       note.hidden = true;
       backdrop.hidden = true;

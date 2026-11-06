@@ -5,7 +5,7 @@ slug: /scenes
 
 # 3D scenes and films (model, store, tools and the Orbit viewer)
 
-A project holds **scenes**; a scene holds objects, lights, a sky and a default camera, plus up to eight **films** (shot lists that move a camera through it). Claude writes scenes as plain JSON with MCP tools. A scene is **data only**: no Claude-written code runs anywhere, and there is no game logic, physics, external model or texture in this version. The watch page draws a scene with its own bundled renderer (see [Renderer](#renderer)) and lets you orbit it at `#/project/<id>/scene/<sid>` (see [The watch page](ui.md#scenes)) and scroll its page at `#/project/<id>/scene/<sid>/page` (see [Page mode](ui.md#page-mode)); film playback (Watch) builds on the same renderer. The landing page shows scenes as cards beside the designs.
+A project holds **scenes**; a scene holds objects, lights, a sky and a default camera, plus up to eight **films** (shot lists that move a camera through it). Claude writes scenes as plain JSON with MCP tools. A scene is **data only**: no Claude-written code runs anywhere, and there is no game logic, physics, external model or texture in this version. The watch page draws a scene with its own bundled renderer (see [Renderer](#renderer)) and lets you orbit it at `#/project/<id>/scene/<sid>` (see [The watch page](ui.md#scenes)) and scroll its page at `#/project/<id>/scene/<sid>/page` (see [Page mode](ui.md#page-mode)); play its films at `#/project/<id>/scene/<sid>/watch` (see [Watch mode](ui.md#watch-mode-films)). The landing page shows scenes as cards beside the designs.
 
 The code is `src/scene.ts` (model, `checkScene`, repeaters), `src/shots.ts` (films, `checkFilms`), `src/scene-validate.ts` (`validateScene`) and `src/scene-store.ts` (the only code that touches the table), with thin Hub, MCP and API wiring.
 
@@ -109,6 +109,7 @@ interface SceneView {
   setCamera(view: CameraView): void;         // schedules one frame
   camera(): { pos: Vec3; look: Vec3; fov: number };
   lookPoint(look: Vec3 | string): Vec3;       // an object id -> the centre of its bounds
+  bounds(id: string): { min: Vec3; max: Vec3 } | null; // world bounding box of an object id (null: unknown); Watch's focus ring projects it
   render(): void; resize(): void; pause(): void; resume(): void;
   poster(): string;                            // JPEG data URL of a frame drawn now
   dispose(): void;

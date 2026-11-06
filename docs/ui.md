@@ -22,6 +22,7 @@ slug: /ui
 | `#/project/<id>/canvas/<cid>/walk` | **Walkthrough**, a mode of Play: the same fitted stage with a step rail on the right (see [Walkthrough](#walkthrough)). |
 | `#/project/<id>/canvas/<cid>/watch[/<scenarioId>]` | **Watch**, the scenario video player: without an id the picker, with an id the player (see [Watch](#watch)). |
 | `#/project/<id>/scene/<sid>` | A 3D **scene** in Orbit mode (see [Scenes](#scenes)). |
+| `#/project/<id>/scene/<sid>/watch[/<filmId>]` | The scene in **Watch** mode: without a film id the film picker, with one the film player (see [Watch mode](#watch-mode-films)). |
 | `#/project/<id>/scene/<sid>/page` | The scene's scrolling **page**: scroll drives the camera, text overlays on top (see [Page mode](#page-mode)). |
 
 The project page also has a **Canvases** card, but nothing in the UI links to it any more: the page shows designs only. There is no sidebar on any view. The activity and project pages are full-width under the top bar (a **Designs** back arrow to `#/`, the wordmark, status, the docs link and the theme pill); the canvas's top-left pill shows the design name with a back arrow to `#/`.
@@ -84,7 +85,7 @@ All timing lives in `web/watch.ts` (timeline of per-step travel and dwell, `posi
 
 - The scene comes from `GET /api/projects/<id>/scenes/<sid>` with the page's token and is drawn by Lite's renderer (Three.js, loaded only on this route).
 - **Orbit.** Drag to orbit around the point the camera looks at (dragging never takes the camera below that point's level), scroll to zoom, `Shift`-drag or right-drag to pan. `R` goes back to the scene's own camera. A glass hint at the bottom lists these.
-- A glass chip top left shows the scene name, the mode segments **Orbit | Page** (links to the two routes, the one on show highlighted; built from one small `MODES` array in `web/scene-view.ts` so another mode is one line) and **Exit** (`Esc` too), which goes back to the landing page `#/`.
+- A glass chip top left shows the scene name, the mode segments **Orbit | Watch | Page** (links to the three routes, the one on show highlighted; drawn from `SCENE_MODES` in `web/scene-modes.ts` in `web/scene-view.ts` so another mode is one line) and **Exit** (`Esc` too), which goes back to the landing page `#/`.
 - **Live.** A `scene.set` or `films.set` event for the scene on show refetches it and redraws; a camera you moved stays where it is.
 - Frames are drawn only when something changes and never while the tab is hidden; the shader backdrop is paused while a scene is open.
 - **No WebGL.** Without WebGL 2 the page says so and shows a still poster: the last still this browser rendered of the scene (cached in local storage as `lite.scene.poster.<project>/<scene>`), else the scene's sky gradient with its name. Setting local storage `lite.scene.nowebgl` to `"1"` forces this, to check it by hand.
@@ -103,6 +104,21 @@ All timing lives in `web/watch.ts` (timeline of per-step travel and dwell, `posi
 - **Live.** `scene.set`, `films.set` and `page.set` for the scene refetch it; the scroll position is kept and the frames are rebuilt only when the page changed.
 - **No WebGL.** The sky gradient (or the cached poster) stays behind and the overlays still scroll; a hint says the camera cannot move.
 - Pure layout in `web/scene-page.ts` (unit tested, `test/scene-page.test.ts`), DOM in `web/scene-page-view.ts` (imported lazily, like Orbit). CSS: the delimited "3D scene, Page mode" block of `public/index.html`.
+
+### Watch mode (films)
+
+`#/project/<id>/scene/<sid>/watch[/<filmId>]` (`{view: "scene-watch", id, scene, film}`, `hrefSceneWatch`) plays the scene's films (see [3D scenes](scenes.md), Films) like the scenario player plays scenarios: the same near-black glass look, bar and keys.
+
+- **Picker** (`/watch`): the mode chip top left, a small caps line `<scene name> · N films · about 1 min 40 s`, the title "Pick a film to watch", a 2-column grid of glass cards (a 300 x 169 poster, a `m:ss` duration chip, a round play badge, the name, the description, `N shots`) and a blue **Play all, one after another**. The poster is a frame rendered from the film's first shot's start camera (one offscreen renderer draws every poster, then is freed); without WebGL 2 it is the scene still Orbit cached in this browser, else the sky gradient. `Esc` returns to Orbit.
+- **Player** (`/watch/<filmId>`): the 3D view fills the window. A clock (the scenario player's `tick` and speeds) moves a playhead through the shots back to back; each frame the camera is `sampleShot` of the shot under the playhead (`filmPositionAt`), look-at objects resolved by the renderer's `lookPoint`. Top left the mode chip and under it a blue chip `Shot 2 · The gate`; top right `<film> · Film i of n` and **Films** (the picker). The caption is a dark glass subtitle at the bottom centre while **Captions** is on (local storage `lite.watch.captions`, shared with the scenario player).
+- **Focus ring.** When the shot has a `focus` object, a blue-glow rounded ring is drawn over the object: its world bounding box (`SceneView.bounds`) is projected to the screen with the camera just set (`screenBox` in `web/scene-math.ts`, padded 10 px, at least 36 px a side, clipped to the window, hidden when the object is behind the camera or off screen). It fades in over the shot's first 500 ms and out over its last 500 ms (`focusRing`).
+- **Bar.** The scenario player's glass bar: a chapter scrubber with one segment per shot proportional to its duration (fill and thumb; hover shows `2 · <caption or shot name>`; click or drag seeks to the start of the shot under the pointer), Previous and Next shot, the big blue Play/Pause, `m:ss / m:ss`, the Captions switch, speed `0.5x 1x 2x` and Fullscreen.
+- **Keys.** `Space` play/pause, `Left`/`Right` previous/next shot, `C` captions, `F` fullscreen, `Esc` back to the picker (from the picker: to Orbit).
+- **End card**: `That was: <film>`, `Up next: <next>, starting in 5 s` (any key or click cancels) and **Replay**, **Next film**, **Explore (Orbit)**, which opens Orbit with the camera where the film ended (`handOffCamera` in `web/scene-view.ts`). **Play all** continues without an end card between films.
+- **Reduced motion.** Each shot holds its start view instead of flying and fades in from black over 300 ms.
+- **Hidden tab.** The clock and the drawing stop while the tab is hidden and resume where they were.
+- **Live.** A `scene.set` or `films.set` for the scene refetches it: the film on show keeps its playhead (clamped to its new length), the renderer is rebuilt only when the scene itself changed; a film that was removed shows `This film does not exist.`; the picker redraws.
+- The renderer is freed while the picker is on show (the posters are drawn once per scene version and kept in memory).
 
 ## Opening it with the token
 
@@ -135,5 +151,6 @@ On the Activity and project pages, browsers with WebGPU draw a slow, calm mesh g
 - `web/walk.ts` is the pure walkthrough logic (steps from the tour or the screens, header, stepping, auto-advance on the tour clock of `web/follow.ts`, spotlight target and callout placement), unit tested in `test/walk.test.ts`; `web/walk-view.ts` draws the rail, pill, spotlight and callout over the play view (`setInset` keeps room for the rail, `links` gives the link boxes).
 - `web/watch.ts` is the pure scenario-player logic (timeline, positions, seeking, chapters, labels, link picking, play all, end card), unit tested (`test/watch.test.ts`); `web/watch-view.ts` draws the picker and the player.
 - `web/scene-math.ts` is the pure 3D maths (colours, default sizes, terrain noise, orbit camera), unit tested (`test/scene-math.test.ts`); `web/scene-render.ts` is the Three.js renderer and `web/scene-view.ts` the Orbit DOM, both loaded with `import()` only on a scene route (`web/webgl.ts` checks WebGL 2 before Three.js is fetched). Their CSS is the delimited "3D scene" block in `public/index.html`.
+- `web/shots-play.ts` is the pure shot timeline and `web/scene-watch.ts` the pure Watch-mode rules (films from the API, labels, chips, scrubber seeking, previous and next shot, live clamping, reduced motion, the ring's box), unit tested in `test/shots-play.test.ts` and `test/scene-watch.test.ts`; `web/scene-modes.ts` lists the modes of the switch; `web/scene-watch-view.ts` is the Watch DOM (lazy, like Orbit). Its CSS is the delimited "3D scene modes switch" and "3D scene, Watch mode" blocks; it reuses the scenario player's `wt-*` classes.
 - `web/replay.ts` is the pure replay logic (event index, stepping, playback timing, ticks, labels, keys), unit tested (`test/replay.test.ts`); `web/replay-view.ts` draws the replay layer and bar (see [Canvas and screens](canvas.md)).
 - Project details come from `GET /api/projects/<id>` (see [the API](api.md)).

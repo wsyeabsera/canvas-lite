@@ -1,13 +1,42 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  farFor, fbm, fromOrbit, fullSize, hexToInt, instanceable, mixRgb, ORBIT_MAX_RADIUS, ORBIT_MIN_RADIUS, ORBIT_PHI_DRAG_MAX, orbitAxes, orbitPan, orbitRotate, orbitZoom,
+  boxCorners, cameraBasis, projectPoint, screenBox, farFor, fbm, fromOrbit, fullSize, hexToInt, instanceable, mixRgb, ORBIT_MAX_RADIUS, ORBIT_MIN_RADIUS, ORBIT_PHI_DRAG_MAX, orbitAxes, orbitPan, orbitRotate, orbitZoom,
   parseHex, shouldDraw, skyAt, terrainGrid, terrainHeight, terrainSegments, toOrbit, toRadians, valueNoise,
 } from "../web/scene-math.ts";
 import type { Terrain, Vec3 } from "../src/scene.ts";
 
 const close = (a: number, b: number, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} != ${b}`);
 const closeV = (a: number[], b: number[], eps = 1e-9) => a.forEach((v, i) => close(v, b[i], eps));
+
+test("projection: cameraBasis, projectPoint and screenBox match a lookAt camera with world up +Y", () => {
+  const b = cameraBasis([0, 0, 10], [0, 0, 0]);
+  closeV(b.forward, [0, 0, -1]);
+  closeV(b.right, [1, 0, 0]);
+  closeV(b.up, [0, 1, 0]);
+  const down = cameraBasis([0, 10, 0], [0, 0, 0]); // straight down: +X stays right
+  closeV(down.right, [1, 0, 0]);
+  closeV(down.forward, [0, -1, 0]);
+  const cam = { pos: [0, 0, 10] as Vec3, look: [0, 0, 0] as Vec3, fov: 90 };
+  const c = projectPoint(cam, 1, [0, 0, 0]);
+  close(c.x, 0); close(c.y, 0); close(c.depth, 10);
+  const edge = projectPoint(cam, 1, [10, 10, 0]); // tan(45 deg) = 1: the corner of the view at depth 10
+  close(edge.x, 1); close(edge.y, 1);
+  close(projectPoint(cam, 2, [10, 0, 0]).x, 0.5); // a wider view squeezes x
+  assert.ok(projectPoint(cam, 1, [0, 0, 20]).depth < 0); // behind
+  assert.equal(boxCorners([0, 0, 0], [1, 2, 3]).length, 8);
+  // a 2 x 2 x 2 box at the centre, 10 away, fov 90 on 800 x 800: its front face (depth 9) spans 800 / 9 px around (400, 400)
+  const box = screenBox(cam, 800, 800, [-1, -1, -1], [1, 1, 1])!;
+  close(box.x + box.w / 2, 400); close(box.y + box.h / 2, 400);
+  close(box.w, 800 / 9, 1e-6);
+  close(screenBox(cam, 800, 800, [-1, -1, -1], [1, 1, 1], 10)!.w, box.w + 20, 1e-6);
+  assert.ok(screenBox(cam, 800, 800, [-1, 3, -1], [1, 4, 1])!.y < box.y); // higher in the world is higher on screen
+  const big = screenBox(cam, 800, 800, [-100, -1, -1], [100, 1, 1])!; // clipped to the viewport
+  close(big.x, 0); close(big.w, 800);
+  assert.equal(screenBox(cam, 800, 800, [200, 0, 0], [201, 1, 1]), null); // off screen
+  assert.equal(screenBox(cam, 800, 800, [-1, -1, 20], [1, 1, 22]), null); // behind the camera
+  assert.equal(screenBox(cam, 0, 800, [-1, -1, -1], [1, 1, 1]), null);
+});
 
 test("colours: parseHex, hexToInt, mixRgb and the sky gradient", () => {
   assert.deepEqual(parseHex("#ff0000"), [1, 0, 0]);

@@ -1,7 +1,7 @@
 // The read-only watch page: the CLI's Watcher and formatter, drawn into views. It only reads; the one message it sends is the Watcher's hello.
 import { clock, detail as eventDetail, type WatchRow } from "../cli/format.ts";
 import { Watcher, normalizeUrl } from "../cli/watch-core.ts";
-import { addRow, describeProject, hrefActivity, hrefCanvas, hrefLanding, hrefPlay, hrefScene, hrefProject, hrefWalk, hrefWatch, hrefScreen, initialState, MAX_ROWS, parseRoute, routeCanvas, routeProject, sceneEventHits, sortedProjects, visibleRows, type Route, type State } from "./state.ts";
+import { addRow, describeProject, hrefActivity, hrefCanvas, hrefLanding, hrefPlay, hrefScene, hrefSceneWatch, hrefProject, hrefWalk, hrefWatch, hrefScreen, initialState, MAX_ROWS, parseRoute, routeCanvas, routeProject, sceneEventHits, sortedProjects, visibleRows, type Route, type State } from "./state.ts";
 import { agoText, canvasEvent, describeCanvasDetail, describeCanvasList, dropCanvas, refetchPlan, screensLabel, type CanvasDetail, type CanvasSummary, type Pending } from "./canvas.ts";
 import { createCanvasView } from "./canvas-view.ts";
 import { createPlayView } from "./play-view.ts";
@@ -409,7 +409,7 @@ const watchView = createWatchView({
 });
 
 function renderCanvas() {
-  if (route.view === "activity" || route.view === "landing" || route.view === "project" || route.view === "scene" || route.view === "scene-page") return;
+  if (route.view === "activity" || route.view === "landing" || route.view === "project" || route.view === "scene" || route.view === "scene-page" || route.view === "scene-watch") return;
   const pid = route.id;
   const cid = route.canvas;
   canvasView.render({
@@ -441,9 +441,16 @@ const landing = createLandingView({ headers, projects: () => sortedProjects(stat
 // A 3D scene in Orbit mode (web/scene-view.ts, imported lazily; it imports Three.js lazily in turn): `#/project/<id>/scene/<sid>`.
 let sceneScreen: import("./scene-view.ts").SceneScreen | null = null;
 let sceneLoad: Promise<unknown> | null = null;
+// The two modes share #view-scene, each in its own host: Orbit (web/scene-view.ts) and Watch (web/scene-watch-view.ts).
+const sceneOrbitHost = document.createElement("div");
+sceneOrbitHost.className = "sc-host";
+const sceneWatchHost = document.createElement("div");
+sceneWatchHost.className = "sc-host";
+sceneWatchHost.hidden = true;
+viewScene.append(sceneOrbitHost, sceneWatchHost);
 function openScene(pid: string, sid: string) {
   sceneLoad ??= import("./scene-view.ts").then((m) => {
-    sceneScreen = m.createSceneScreen(viewScene, { headers, exit: () => (location.hash = hrefLanding), locked: () => setLocked(true) });
+    sceneScreen = m.createSceneScreen(sceneOrbitHost, { headers, exit: () => (location.hash = hrefLanding), locked: () => setLocked(true) });
   });
   sceneLoad.then(() => {
     if (route.view === "scene" && route.id === pid && route.scene === sid) sceneScreen?.open(pid, sid);
@@ -466,6 +473,32 @@ function openScenePage(pid: string, sid: string) {
   });
 }
 
+// Watch mode of a 3D scene: `#/project/<id>/scene/<sid>/watch[/<filmId>]` (the film picker and player, loaded lazily).
+let sceneWatch: import("./scene-watch-view.ts").SceneWatchScreen | null = null;
+let sceneWatchLoad: Promise<unknown> | null = null;
+function openSceneWatch(pid: string, sid: string, film: string | null) {
+  sceneWatchLoad ??= import("./scene-watch-view.ts").then((m) => {
+    sceneWatch = m.createSceneWatchScreen(sceneWatchHost, {
+      headers,
+      locked: () => setLocked(true),
+      exit: () => (location.hash = hrefLanding),
+      orbit: () => { if (route.view === "scene-watch") location.hash = hrefScene(route.id, route.scene); },
+      picker: () => { if (route.view === "scene-watch") location.hash = hrefSceneWatch(route.id, route.scene); },
+      pick: (f) => { if (route.view === "scene-watch") location.hash = hrefSceneWatch(route.id, route.scene, f); },
+      moved: (f) => {
+        if (route.view !== "scene-watch" || route.film === f) return;
+        route = { ...route, film: f };
+        history.replaceState(null, "", hrefSceneWatch(route.id, route.scene, f)); // linkable without a history entry per film
+      },
+    });
+  });
+  sceneWatchLoad.then(() => {
+    if (route.view === "scene-watch" && route.id === pid && route.scene === sid) sceneWatch?.open(pid, sid, film);
+  }).catch(() => {
+    sceneWatchLoad = null;
+  });
+}
+
 function showRoute() {
   const wasProject = route.view === "project";
   const prevProject = routeProject(route);
@@ -480,16 +513,20 @@ function showRoute() {
   viewActivity.hidden = route.view !== "activity";
   viewProject.hidden = route.view !== "project";
   const inCanvas = routeCanvas(route) !== null;
-  const inScene = route.view === "scene" || route.view === "scene-page";
+  const inScene = route.view === "scene" || route.view === "scene-page" || route.view === "scene-watch";
   viewCanvas.hidden = !inCanvas;
-  viewScene.hidden = route.view !== "scene";
+  viewScene.hidden = route.view !== "scene" && route.view !== "scene-watch"; // Orbit and Watch share it; Page mode has its own section
   viewScenePage.hidden = route.view !== "scene-page";
   if (route.view === "scene-page") openScenePage(route.id, route.scene);
   else scenePage?.close();
   app.classList.toggle("canvas-mode", inCanvas || inScene); // hides the top bar, sidebar and main panel (and pauses the backdrop)
   if (!inCanvas && !inScene) startBackdrop(); // never started (no GPU cost) while only the canvas or a scene has been shown
+  sceneOrbitHost.hidden = route.view !== "scene";
+  sceneWatchHost.hidden = route.view !== "scene-watch";
   if (route.view === "scene") openScene(route.id, route.scene);
   else sceneScreen?.close();
+  if (route.view === "scene-watch") openSceneWatch(route.id, route.scene, route.film);
+  else sceneWatch?.close();
   (inCanvas ? cvTools : route.view === "landing" ? landing.toolsSlot : topBar).append(barTools);
   const pid = routeProject(route);
   if (pid && pid !== prevProject) {
@@ -596,6 +633,7 @@ const watcher = new Watcher({
     }
     if (sceneEventHits(route, row)) {
       if (route.view === "scene-page") scenePage?.refetch();
+      else if (route.view === "scene-watch") sceneWatch?.refetch();
       else sceneScreen?.refetch();
     }
     const ce = canvasEvent(row);

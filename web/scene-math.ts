@@ -169,3 +169,57 @@ export const farFor = (extent: number, camDist: number): number => Math.max(1000
 
 /** Whether the render loop may draw a frame now: something changed, the view is not paused and the tab is visible. */
 export const shouldDraw = (s: { dirty: boolean; paused: boolean; hidden: boolean }): boolean => s.dirty && !s.paused && !s.hidden;
+
+// --- projection (Watch mode's focus ring) --------------------------------------
+// The renderer's camera is a Three.js PerspectiveCamera turned with lookAt and world up +Y, so these match what it draws.
+
+/** A camera as SceneView.camera() reports it: position, look-at point and vertical fov in degrees. */
+export type CameraState = { pos: Vec3; look: Vec3; fov: number };
+/** A rectangle in CSS pixels of the viewport (x, y top-left). */
+export type ScreenBox = { x: number; y: number; w: number; h: number };
+
+const sub3 = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const dot3 = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross3 = (a: Vec3, b: Vec3): Vec3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const norm3 = (a: Vec3): Vec3 => { const l = Math.hypot(a[0], a[1], a[2]); return l > 1e-12 ? [a[0] / l, a[1] / l, a[2] / l] : [0, 0, 0]; };
+
+/** The camera's unit forward, right and up vectors (world up +Y; looking straight up or down uses +X as right). */
+export function cameraBasis(pos: Vec3, look: Vec3): { forward: Vec3; right: Vec3; up: Vec3 } {
+  let forward = norm3(sub3(look, pos));
+  if (forward[0] === 0 && forward[1] === 0 && forward[2] === 0) forward = [0, 0, -1];
+  let right = norm3(cross3(forward, [0, 1, 0]));
+  if (right[0] === 0 && right[1] === 0 && right[2] === 0) right = [1, 0, 0];
+  return { forward, right, up: cross3(right, forward) };
+}
+
+/** A world point in normalised device coordinates (x right, y up, -1..1 inside the view) and its depth along the view direction (negative: behind the camera). */
+export function projectPoint(cam: CameraState, aspect: number, p: Vec3): { x: number; y: number; depth: number } {
+  const { forward, right, up } = cameraBasis(cam.pos, cam.look);
+  const d = sub3(p, cam.pos);
+  const depth = dot3(d, forward);
+  const f = Math.tan((cam.fov * Math.PI) / 360);
+  const z = Math.max(1e-6, Math.abs(depth));
+  return { x: dot3(d, right) / (z * f * Math.max(1e-6, aspect)), y: dot3(d, up) / (z * f), depth };
+}
+
+/** The 8 corners of an axis-aligned box. */
+export const boxCorners = (min: Vec3, max: Vec3): Vec3[] => [0, 1, 2, 3, 4, 5, 6, 7].map((i) => [i & 1 ? max[0] : min[0], i & 2 ? max[1] : min[1], i & 4 ? max[2] : min[2]]);
+
+/**
+ * The screen rectangle around a world box (its corners projected; corners behind the near plane are left out), grown by `pad` px and clipped to the
+ * width x height viewport. Null when the box is wholly behind the camera or off screen.
+ */
+export function screenBox(cam: CameraState, width: number, height: number, min: Vec3, max: Vec3, pad = 0, near = 0.1): ScreenBox | null {
+  if (!(width > 0) || !(height > 0)) return null;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const c of boxCorners(min, max)) {
+    const p = projectPoint(cam, width / height, c);
+    if (p.depth < near) continue;
+    const sx = ((p.x + 1) / 2) * width, sy = ((1 - p.y) / 2) * height;
+    x0 = Math.min(x0, sx); x1 = Math.max(x1, sx); y0 = Math.min(y0, sy); y1 = Math.max(y1, sy);
+  }
+  if (!Number.isFinite(x0)) return null;
+  x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(width, x1 + pad); y1 = Math.min(height, y1 + pad);
+  if (x1 <= x0 || y1 <= y0) return null;
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}

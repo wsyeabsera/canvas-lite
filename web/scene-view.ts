@@ -6,29 +6,8 @@ import { fromOrbit, orbitPan, orbitRotate, orbitZoom, toOrbit, type Orbit } from
 import { hasWebGL2 } from "./webgl.ts";
 import type { SceneView } from "./scene-render.ts";
 import { scenePosterKey } from "./landing.ts";
-import { hrefScene, hrefScenePage } from "./state.ts";
-
-/** The scene modes of the chip's segmented control, in order (one line each; Watch adds itself here). */
-export const MODES: readonly { id: string; label: string; href: (project: string, scene: string) => string }[] = [
-  { id: "orbit", label: "Orbit", href: hrefScene },
-  { id: "page", label: "Page", href: hrefScenePage },
-];
-
-/** The `Orbit | Page` segmented control for the scene chip; `current` is the mode on show (aria-current). */
-export function modeSegments(project: string, scene: string, current: string): HTMLElement {
-  const nav = document.createElement("nav");
-  nav.className = "sc-modes";
-  nav.setAttribute("aria-label", "Scene mode");
-  for (const m of MODES) {
-    const a = document.createElement("a");
-    a.className = "sc-mode";
-    a.textContent = m.label;
-    a.href = m.href(project, scene);
-    if (m.id === current) a.setAttribute("aria-current", "page");
-    nav.append(a);
-  }
-  return nav;
-}
+import { modeSegments, type SceneMode } from "./scene-modes.ts";
+import type { Vec3 } from "../src/scene.ts";
 
 export interface SceneScreen {
   /** Shows a scene (fetches it); opening the one already shown does nothing. */
@@ -44,6 +23,30 @@ type Deps = { headers: () => Record<string, string>; exit: () => void; locked: (
 const POSTER_KEY = scenePosterKey;
 const POSTER_WIDTH = 480;
 
+// >>> scene modes: the segmented switch of the glass top chip (Orbit | Watch | ...), drawn from SCENE_MODES in web/scene-modes.ts.
+/** Fills `box` with one link per scene mode; the current one is marked `aria-current="page"`. Shared by every scene mode's chip. */
+export function modeSwitch(box: HTMLElement, current: SceneMode, project: string, scene: string): HTMLElement {
+  box.className = "sc-modes";
+  box.setAttribute("role", "group");
+  box.setAttribute("aria-label", "Mode");
+  box.replaceChildren(...modeSegments(current, project, scene).map((m) => {
+    const a = document.createElement("a");
+    a.className = "sc-mode";
+    a.href = m.href;
+    a.textContent = m.label;
+    if (m.current) a.setAttribute("aria-current", "page");
+    return a;
+  }));
+  return box;
+}
+
+/** A camera another mode hands to Orbit (Watch's "Explore (Orbit)"): Orbit opens there instead of at the scene's own camera, once. */
+let handed: { project: string; scene: string; pos: Vec3; look: Vec3 } | null = null;
+export function handOffCamera(project: string, scene: string, cam: { pos: Vec3; look: Vec3 }): void {
+  handed = { project, scene, pos: [...cam.pos], look: [...cam.look] };
+}
+// <<< scene modes
+
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -55,7 +58,7 @@ export function createSceneScreen(host: HTMLElement, deps: Deps): SceneScreen {
   const stage = el("div", "sc-stage");
   const chip = el("div", "sc-chip sc-g");
   const chipName = el("span", "sc-chip-n", "Scene");
-  let chipMode: HTMLElement = el("span", "sc-chip-m", "Orbit"); // replaced by the mode segments once a scene opens
+  const chipMode = el("span", "sc-chip-m");
   const exitBtn = el("button", "sc-exit");
   exitBtn.type = "button";
   exitBtn.title = "Back to designs (Esc)";
@@ -150,8 +153,11 @@ export function createSceneScreen(host: HTMLElement, deps: Deps): SceneScreen {
       const keep = moved && orbit ? orbit : null;
       dropView();
       view = m.createSceneView(stage, data);
-      orbit = keep ?? toOrbit(data.camera.pos, view.lookPoint(data.camera.look));
-      if (keep) apply();
+      const given = handed && handed.project === pid && handed.scene === sid ? handed : null;
+      handed = null;
+      if (given) moved = true;
+      orbit = keep ?? (given ? toOrbit(given.pos, given.look) : toOrbit(data.camera.pos, view.lookPoint(data.camera.look)));
+      if (keep || given) apply();
       msg.hidden = true;
       hint.hidden = false;
       const v = view, p = pid, s = sid;
@@ -257,9 +263,7 @@ export function createSceneScreen(host: HTMLElement, deps: Deps): SceneScreen {
       scene = null;
       dropView();
       chipName.textContent = s;
-      const seg = modeSegments(p, s, "orbit");
-      chipMode.replaceWith(seg);
-      chipMode = seg;
+      modeSwitch(chipMode, "orbit", p, s);
       showMsg("Loading the scene…");
       void load(true);
     },
