@@ -16,6 +16,7 @@ export type Route =
   | { view: "project"; id: string }
   | { view: "canvas"; id: string; canvas: string }
   | { view: "screen"; id: string; canvas: string; screen: string }
+  | { view: "walk"; id: string; canvas: string } // walkthrough mode of play: `#/project/<id>/canvas/<cid>/walk`
   | { view: "play"; id: string; canvas: string; screen: string | null }; // present mode; `screen` = where to start (null: the start screen)
 
 export const initialState = (): State => ({ rows: [], projects: {}, counts: {}, total: 0 });
@@ -55,6 +56,8 @@ export const validId = (id: string) => id.length <= 40 && ID_RE.test(id);
 
 /** `#/`, `#/project/<id>`, `#/project/<id>/canvas/<cid>`, `.../screen/<sid>` or `.../play[/<sid>]`; anything else (or any id that is not a slug) is the activity view. */
 export function parseRoute(hash: string): Route {
+  const w = /^#\/project\/([^/?#]+)\/canvas\/([^/?#]+)\/walk$/.exec(hash);
+  if (w) return validId(w[1]) && validId(w[2]) ? { view: "walk", id: w[1], canvas: w[2] } : { view: "activity" };
   const p = /^#\/project\/([^/?#]+)\/canvas\/([^/?#]+)\/play(?:\/([^/?#]+))?$/.exec(hash);
   if (p) return validId(p[1]) && validId(p[2]) && (p[3] === undefined || validId(p[3])) ? { view: "play", id: p[1], canvas: p[2], screen: p[3] ?? null } : { view: "activity" };
   const m = /^#\/project\/([^/?#]+)(?:\/canvas\/([^/?#]+)(?:\/screen\/([^/?#]+))?)?$/.exec(hash);
@@ -70,7 +73,7 @@ export function parseRoute(hash: string): Route {
 export const routeProject = (route: Route): string | null => (route.view === "activity" ? null : route.id);
 
 /** The canvas a route shows (canvas, screen or play), else null. */
-export const routeCanvas = (route: Route): string | null => (route.view === "canvas" || route.view === "screen" || route.view === "play" ? route.canvas : null);
+export const routeCanvas = (route: Route): string | null => (route.view === "canvas" || route.view === "screen" || route.view === "play" || route.view === "walk" ? route.canvas : null);
 
 export const hrefProject = (id: string) => `#/project/${id}`;
 export const hrefCanvas = (id: string, canvas: string) => `#/project/${id}/canvas/${canvas}`;
@@ -123,3 +126,4 @@ export function describeProject(api: unknown): ProjectView {
 }
 
 export const hrefPlay = (id: string, canvas: string, screen?: string | null) => `#/project/${id}/canvas/${canvas}/play${screen ? `/${screen}` : ""}`;
+export const hrefWalk = (id: string, canvas: string) => `#/project/${id}/canvas/${canvas}/walk`;

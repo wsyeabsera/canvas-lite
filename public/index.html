@@ -342,6 +342,53 @@
     main { flex-basis: 100%; padding: 16px; }
     #events { max-height: 60dvh; }
   }
+
+  /* >>> walkthrough mode of play (web/walk-view.ts): split Play | Walkthrough control, step rail, pill, spotlight, callout */
+  .split { display: inline-flex; align-items: center; gap: 2px; }
+  .split .play-pill { border-radius: 999px 6px 6px 999px; }
+  .split .wk-open { height: 30px; padding: 0 14px 0 11px; border-radius: 6px 999px 999px 6px; background: var(--chip); font-weight: 500; }
+  .split .wk-open:hover { background: var(--sel); }
+  .pl.walk .pl-bar { display: none; }
+  .wk-pill { top: 14px; left: 16px; gap: 10px; padding: 5px 6px 5px 16px; white-space: nowrap; z-index: 6; }
+  .wk-pill[hidden], .wk-rail[hidden], .wk-bubble[hidden], .wk-dim[hidden] { display: none; }
+  .wk-pill-t { font-weight: 600; }
+  .wk-pill-name { color: var(--mu); max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+  .wk-exit { background: var(--chip); padding: 5px 14px; }
+  .wk-exit kbd { font: 500 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--mu); margin-left: 6px; padding: 1px 5px; border-radius: 5px; background: var(--chip); }
+  .wk-rail { position: absolute; z-index: 6; top: 16px; right: 16px; bottom: 16px; width: 344px; display: flex; flex-direction: column; border-radius: 22px; padding: 18px 16px 16px; gap: 12px; }
+  .wk-head { font-weight: 600; font-size: 13px; color: var(--mu); padding: 0 6px; font-variant-numeric: tabular-nums; }
+  .wk-steps { list-style: none; margin: 0; padding: 0; flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+  .wk-step-b { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 10px; border: 0; border-radius: 14px; background: transparent; color: var(--mu); font: inherit; text-align: left; cursor: pointer; }
+  .wk-step-b:hover { background: var(--sel); color: var(--tx); }
+  .wk-num { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--dash); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .wk-step-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wk-step.cur .wk-step-b { background: rgba(61,107,255,.16); color: var(--tx); font-weight: 600; }
+  .wk-step.cur .wk-num { background: #3d6bff; border-color: #3d6bff; color: #fff; }
+  .wk-foot { display: flex; flex-direction: column; gap: 12px; }
+  .wk-auto { display: flex; align-items: center; justify-content: space-between; padding: 0 6px; cursor: pointer; }
+  .wk-switch { position: relative; width: 38px; height: 22px; padding: 0; border: 0; border-radius: 999px; background: var(--chip); cursor: pointer; }
+  .wk-knob { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+  .wk-switch[aria-checked=true] { background: #3d6bff; }
+  .wk-switch[aria-checked=true] .wk-knob { left: 19px; }
+  .wk-btns { display: flex; gap: 8px; }
+  .wk-btn { flex: 1; height: 36px; border-radius: 999px; font: inherit; font-weight: 600; cursor: pointer; }
+  .wk-prev { background: transparent; color: var(--tx); border: 1px solid var(--dash); }
+  .wk-prev:hover:not(:disabled) { background: var(--sel); }
+  .wk-next { background: #3d6bff; color: #fff; border: 0; box-shadow: inset 0 1px 0 rgba(255,255,255,.28), 0 4px 14px rgba(61,107,255,.4); }
+  .wk-next:hover:not(:disabled) { background: #5280ff; }
+  .wk-btn:disabled { opacity: .4; cursor: default; }
+  .wk-dim { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+  .wk-ring { position: absolute; border-radius: calc(6px / var(--k)); outline: calc(2px / var(--k)) solid #4f86ff; outline-offset: calc(2px / var(--k)); box-shadow: 0 0 0 9999px rgba(5,6,10,.55); }
+  .wk-bubble { position: absolute; z-index: 6; width: 280px; padding: 12px 14px; border-radius: 16px; border: 1px solid #4f86ff; pointer-events: none; }
+  .wk-b-t { color: #4f86ff; font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+  .wk-b-n { font-size: 14px; line-height: 1.4; }
+  .wk-b-h { color: var(--mu); font-size: 12px; margin-top: 8px; }
+  @media (prefers-reduced-motion: no-preference) {
+    .wk-dim.in { animation: wk-in 180ms ease-out; }
+    .wk-bubble { animation: wk-in 180ms ease-out; }
+    @keyframes wk-in { from { opacity: 0; } to { opacity: 1; } }
+  }
+  /* <<< walkthrough mode */
 </style>
 </head>
 <body>
@@ -379,7 +426,7 @@
       <nav class="crumb" id="cv-crumb" aria-label="Breadcrumb"></nav>
       <span class="live" id="cv-live" data-state="on">live</span>
     </div>
-    <div class="island glass cv-tr" id="cv-tools"><button class="play-pill" id="cv-play" type="button" aria-label="Play the prototype (P)" title="Play (P)"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg>Play</button><button class="ib rp-open" id="cv-replay" type="button">Replay</button></div>
+    <div class="island glass cv-tr" id="cv-tools"><span class="split"><button class="play-pill" id="cv-play" type="button" aria-label="Play the prototype (P)" title="Play (P)"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg>Play</button><button class="ib wk-open" id="cv-walk" type="button" aria-label="Walkthrough (W)" title="Walkthrough (W)">Walkthrough</button></span><button class="ib rp-open" id="cv-replay" type="button">Replay</button></div>
     <div class="island glass cv-writing" id="cv-writing" aria-live="polite" hidden></div>
     <div class="island glass cv-zoom" role="toolbar" aria-label="Zoom">
       <button class="ib" id="cv-out" type="button" aria-label="Zoom out">−</button>

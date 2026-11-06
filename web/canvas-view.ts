@@ -32,7 +32,7 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
 const dims = (s: { width: number; height: number }) => `${s.width} × ${s.height}`;
 
 /** `select(id)` moves to a screen's route (null: the canvas route); `play()` opens present mode (the Play pill, key P); the page owns the hash. */
-export function createCanvasView(select: (id: string | null) => void, play: () => void) {
+export function createCanvasView(select: (id: string | null) => void, play: () => void, walk: () => void = () => {}) {
   const $ = (id: string) => document.getElementById(id)!;
   const surface = $("cv-surface");
   const world = $("cv-world");
@@ -245,6 +245,10 @@ export function createCanvasView(select: (id: string | null) => void, play: () =
       case "P":
         play();
         break;
+      case "w":
+      case "W":
+        walk();
+        break;
       case "ArrowLeft":
       case "ArrowRight": {
         const id = stepScreen(input?.detail?.screens ?? [], input?.selected ?? null, e.key === "ArrowRight" ? 1 : -1);
@@ -261,6 +265,7 @@ export function createCanvasView(select: (id: string | null) => void, play: () =
   pctBtn.addEventListener("click", actual);
   $("cv-fit").addEventListener("click", fitAll);
   $("cv-play").addEventListener("click", play);
+  $("cv-walk").addEventListener("click", walk);
   apply(false);
 
   return {
