@@ -59,7 +59,7 @@ function makeRow(row: WatchRow): HTMLLIElement {
 
 /** Appends one row to a list, marks it new, trims to MAX_ROWS, keeps the view pinned to the end when it was. */
 function append(list: HTMLElement, row: WatchRow) {
-  const scroller = list.parentElement as HTMLElement;
+  const scroller = list; // the <ul> itself scrolls (public/index.html)
   const atEnd = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 40;
   list.querySelector("li.new")?.classList.remove("new");
   const li = makeRow(row);
@@ -73,6 +73,7 @@ function fill(list: HTMLElement, rows: WatchRow[]) {
   const frag = document.createDocumentFragment();
   for (const r of rows.slice(-MAX_ROWS)) frag.append(makeRow(r));
   list.replaceChildren(frag);
+  list.scrollTop = list.scrollHeight;
   list.lastElementChild?.classList.add("new");
 }
 
@@ -119,7 +120,7 @@ function setMeta(kind: string, repo: string | null, description: string, message
       a.target = "_blank";
       parts.push(a);
     }
-    if (description) parts.push(el("span", description));
+    if (description) parts.push(el("span", description, "desc"));
   }
   meta.replaceChildren(...parts);
 }
