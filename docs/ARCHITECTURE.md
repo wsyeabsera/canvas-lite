@@ -44,6 +44,18 @@ The spec is written in Lite 1 (design first).
 | MCP | official `@modelcontextprotocol` TypeScript SDK | transport and schema handling already written |
 | Tests | `node:test` on `node:sqlite` | store logic takes a tiny `sql` interface, so unit tests run in plain Node, not workerd |
 
+## MCP transport and structure
+
+`/mcp` is MCP **Streamable HTTP**: Claude POSTs JSON-RPC and the Worker answers with a stream (server-sent `message` frames),
+so a tool call can emit progress before its result. This is the only transport a Worker can offer, and Claude Code, the
+Claude apps and connectors all speak it.
+
+- **Stateless.** Each request builds a fresh `McpServer` (`src/mcp.ts`) and holds no session: any isolate can answer any request, and a deploy never drops a session. All state lives in the Hub.
+- **Thin tools.** A tool validates its input with zod and calls one Hub method; the rules live in pure functions (`src/projects.ts`, `src/store.ts`) that unit tests cover. Errors are returned as `isError` tool results carrying the spec's message.
+- **Push is not MCP's job.** Lite offers no server-initiated `GET /mcp` stream (it would need sessions). Live progress goes over the `/events` WebSocket, which any watcher can open.
+- **Growing the tool list.** While `src/mcp.ts` holds a handful of tools it stays one file; past that, one file per area under `src/tools/`, each exporting `register(server)`.
+- **Registering it.** `claude mcp add --transport http <name> <url>/mcp` (add `--header "Authorization: Bearer <token>"` for the deployed Worker).
+
 ## What we take from swift-canvas and tvdash
 
 - swift-canvas `helper/src/live.rs` LiveHub: sequence numbers, a bounded queue per subscriber, a reported `dropped` count instead of silent loss. A slow watcher is told it missed events and re-reads from the table.
