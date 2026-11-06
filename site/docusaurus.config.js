@@ -2,8 +2,8 @@
 export default {
   title: "Lite",
   tagline: "Canvas, rebuilt in small steps",
-  url: "https://wsyeabsera.github.io",
-  baseUrl: "/canvas-lite/",
+  url: "https://lite.tvdash-hub.workers.dev",
+  baseUrl: "/docs/",
   onBrokenLinks: "throw",
   markdown: { hooks: { onBrokenMarkdownLinks: "throw" } },
   presets: [

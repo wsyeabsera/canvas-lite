@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lite</title>
+<style>
+  :root { --bg: #fff; --fg: #1a1a1a; --mute: #6b6b6b; --line: #e6e6e6; --ok: #1a7f37; --wait: #9a6700; --bad: #cf222e; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #111; --fg: #e8e8e8; --mute: #8b8b8b; --line: #2a2a2a; --ok: #3fb950; --wait: #d29922; --bad: #f85149; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; display: flex; flex-direction: column; height: 100dvh; }
+  header { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  h1 { font-size: 14px; margin: 0; font-weight: 600; }
+  #status { color: var(--mute); }
+  #status::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; background: var(--mute); }
+  #status[data-state=ok]::before { background: var(--ok); }
+  #status[data-state=wait]::before { background: var(--wait); }
+  #status[data-state=bad]::before { background: var(--bad); }
+  a { color: var(--mute); margin-left: auto; }
+  ul { list-style: none; margin: 0; padding: 8px 16px; overflow: auto; flex: 1; }
+  li { padding: 2px 0; white-space: pre-wrap; word-break: break-word; }
+</style>
+</head>
+<body>
+<header><h1>Lite</h1><span id="status" data-state="wait">connecting</span><a href="/docs/">docs</a></header>
+<ul id="events" aria-live="polite"></ul>
+<script type="module" src="/page.js"></script>
+</body>
+</html>

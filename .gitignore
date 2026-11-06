@@ -5,3 +5,5 @@ site/build/
 site/.docusaurus/
 .wrangler/
 .claude/
+public/page.js
+public/docs/

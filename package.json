@@ -7,9 +7,11 @@
   },
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "build:web": "esbuild web/page.ts --bundle --format=esm --target=es2022 --outfile=public/page.js",
+    "build:docs": "npm --prefix site run build",
+    "deploy": "npm run build:web && npm run build:docs && wrangler deploy",
     "test": "node --test \"test/*.test.ts\"",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p web --noEmit",
     "watch": "node cli/watch.ts",
     "types": "wrangler types src/worker-configuration.d.ts"
   },
