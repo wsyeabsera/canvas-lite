@@ -4,6 +4,7 @@ import { Watcher, normalizeUrl } from "../cli/watch-core.ts";
 import { addRow, describeProject, hrefCanvas, hrefProject, hrefScreen, initialState, MAX_ROWS, parseRoute, routeProject, sortedProjects, visibleRows, type Route, type State } from "./state.ts";
 import { agoText, canvasEvent, describeCanvasDetail, describeCanvasList, dropCanvas, refetchPlan, screensLabel, type CanvasDetail, type CanvasSummary, type Pending } from "./canvas.ts";
 import { createCanvasView } from "./canvas-view.ts";
+import { createReplayView } from "./replay-view.ts";
 import { initTheme } from "./theme.ts";
 import { hasWebGPU, parseTheme, shouldRun, shouldShow, themeColors } from "./backdrop.ts";
 import { tokenFromHash } from "./token.ts";
@@ -268,6 +269,11 @@ const canvasView = createCanvasView((id) => {
   location.hash = id ? hrefScreen(route.id, route.canvas, id) : hrefCanvas(route.id, route.canvas);
 });
 
+const replay = createReplayView(headers);
+$("cv-replay").addEventListener("click", () => {
+  if (route.view === "canvas" || route.view === "screen") void replay.open(route.id, route.canvas);
+});
+
 function renderCanvas() {
   if (route.view !== "canvas" && route.view !== "screen") return;
   const pid = route.id;
@@ -304,6 +310,7 @@ function showRoute() {
   if (route.view === "canvas" || route.view === "screen") {
     const same = route.canvas === prevCanvas && pid === prevProject;
     if (!same) {
+      replay.close();
       detail = null;
       detailState = "loading";
       pending.clear();
@@ -316,6 +323,7 @@ function showRoute() {
     detail = null;
     pending.clear();
     canvasView.leave();
+    replay.close();
   }
   if (route.view === "project") {
     const p = state.projects[route.id];
