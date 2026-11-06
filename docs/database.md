@@ -46,3 +46,10 @@ untouched. `canvases` is keyed by `(project, id)` with `project` referencing `pr
 `(project, canvas, id)` and references `canvases`. Ids use the project slug rule and sizes are checked in SQL (width and height 100 to 8000,
 names 1 to 100 characters). The html byte limit (200,000) is checked in `src/canvases.ts`, because SQLite `length()` counts characters.
 A removed canvas keeps its row (`archived_at`) and its screens. Screens are listed in rowid order, which an upsert keeps.
+
+Migration 5 adds the canvas flow to `canvases`: `start_screen` (nullable text, the id of a screen on that canvas) and
+`transition` (NOT NULL, default `none`, checked in SQL to be one of `none`, `fade`, `slide-left`, `slide-right`, `push`).
+Two plain `ADD COLUMN`s: no rebuild, rows, events and triggers are untouched, and existing canvases get no start screen and
+`none`. `start_screen` has no foreign key: `setFlow` in `src/canvases.ts` checks the screen exists on the canvas, and
+`removeScreen` clears it when that screen is removed. Links are not stored: they live in screen html as `data-to`,
+`data-transition` and `data-back`, read by the pure `extractLinks(html)`; there is no link table.

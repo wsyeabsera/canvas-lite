@@ -4,7 +4,7 @@ import { createMcpHandler } from "agents/mcp/server";
 import { env } from "cloudflare:workers";
 import { z } from "zod";
 import { hub } from "./hub.ts";
-import { CANVAS_TEXT, MAX_SIZE, MIN_SIZE, SCREENS_PER_CALL } from "./canvases.ts";
+import { CANVAS_TEXT, MAX_SIZE, MIN_SIZE, SCREENS_PER_CALL, TRANSITIONS } from "./canvases.ts";
 import { OPEN_PROJECT_TEXT } from "./projects.ts";
 
 function createServer(): McpServer {
@@ -143,6 +143,20 @@ function createServer(): McpServer {
       inputSchema: z.object({ project, canvas, id: z.string().describe("Screen id from read_canvas.") }),
     },
     ({ project, canvas, id }) => guard(async () => hub(env).removeScreen(project, canvas, id)),
+  );
+  server.registerTool(
+    "set_flow",
+    {
+      title: "Set a canvas flow",
+      description: CANVAS_TEXT.set_flow,
+      inputSchema: z.object({
+        project,
+        canvas,
+        start_screen: z.string().nullable().optional().describe("Id of a screen on the canvas, or null to clear."),
+        transition: z.enum(TRANSITIONS).optional().describe("Default transition."),
+      }),
+    },
+    ({ project, canvas, ...input }) => guard(async () => hub(env).setFlow(project, canvas, input)),
   );
   server.registerTool(
     "remove_canvas",
