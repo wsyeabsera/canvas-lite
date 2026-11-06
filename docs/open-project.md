@@ -35,6 +35,10 @@ One call is enough if the manifest is built like this (the `open_project` tool d
 
 The tool description interpolates the limit from `MANIFEST_LIMIT` in `src/projects.ts`, so it cannot drift from the check.
 
+- `remove_project { id }` archives the project and returns `{ project }` (with `archived_at` set), or the error `unknown project "<id>"`. In one transaction it sets `archived_at` and appends `project.removed`; the Hub broadcasts that event to watchers like `project.opened`. Removing an already archived project is a no-op: same summary, no second event.
+
+Archived projects are hidden from `list_projects` and `GET /api/projects`. `read_project` still works on an archived id and its `project` shows `archived_at`. `open_project` with an archived id un-archives it (`archived_at` back to NULL). Nothing is ever deleted.
+
 ## Event
 
 `open_project` appends `project.opened` with `project` set to the id:
@@ -42,6 +46,8 @@ The tool description interpolates the limit from `MANIFEST_LIMIT` in `src/projec
 ```json
 { "name": "tvdash", "kind": "web", "repo": "https://github.com/yab/tvdash", "files": 42, "bytes": 3120 }
 ```
+
+`remove_project` appends `project.removed` with payload `{ "name": "tvdash" }`. (The CLI and the watch page do not yet know this kind; another stage teaches them.)
 
 The payload never carries the manifest; read it with `read_project` and `include_manifest: true`.
 
@@ -71,7 +77,7 @@ Returns `{ "project": { "id": "tvdash", "name": "tvdash", "kind": "web", "repo":
 
 ## Schema change
 
-The `projects` table from migration 1 has `path TEXT NOT NULL UNIQUE`, which does not fit a project that is told, not read. Migration 2 must replace `path` with `repo TEXT` (nullable) and add `manifest TEXT` (JSON, nullable); `events` stays append-only, with its triggers untouched. Migration 1 is never edited. Update [Database](database.md) in the same commit.
+The `projects` table from migration 1 has `path TEXT NOT NULL UNIQUE`, which does not fit a project that is told, not read. Migration 2 replaced `path` with `repo TEXT` (nullable) and added `manifest TEXT` (JSON, nullable); migration 3 adds `archived_at INTEGER` (nullable); `events` stays append-only, with its triggers untouched. Migration 1 is never edited. Update [Database](database.md) in the same commit.
 
 ## Non-goals
 

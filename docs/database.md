@@ -13,7 +13,7 @@ queries over a tiny `Sql` interface; `src/hub.ts` adapts Durable Object storage 
 
 | Table | Columns |
 |---|---|
-| `projects` | `id` (lowercase letters, digits, `-`, at most 40), `name`, `kind`, `repo` (nullable URL), `manifest` (nullable JSON text, at most 65536 bytes), `opened_at` (ms) |
+| `projects` | `id` (lowercase letters, digits, `-`, at most 40), `name`, `kind`, `repo` (nullable URL), `manifest` (nullable JSON text, at most 65536 bytes), `opened_at` (ms), `archived_at` (nullable ms; set by `remove_project`) |
 | `events` | `seq` (autoincrement), `project` (nullable, references `projects`), `kind`, `payload` (JSON), `ts` (ms) |
 
 ## Event model
@@ -35,3 +35,6 @@ Migration 2 replaces `projects.path` (NOT NULL UNIQUE) with nullable `repo` and 
 a scratch table, `projects` is dropped and recreated, and the rows are copied back with `repo` and `manifest` NULL, all in
 the migration transaction. Durable Object SQL cannot change `foreign_keys`, so `PRAGMA defer_foreign_keys = ON` defers the
 `events.project` check to commit. `events` and its append-only triggers are untouched.
+
+Migration 3 is a plain `ALTER TABLE projects ADD COLUMN archived_at INTEGER` (nullable): no rebuild and no pragma, so rows,
+events and triggers are untouched. A project is archived, never deleted, because events reference it and are append-only.

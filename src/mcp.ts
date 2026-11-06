@@ -68,6 +68,16 @@ function createServer(): McpServer {
     },
     ({ id, include_manifest }) => guard(() => hub(env).readProject(id, include_manifest ?? false)),
   );
+  server.registerTool(
+    "remove_project",
+    {
+      title: "Remove a project",
+      description:
+        "Archive a project: it disappears from list_projects and the watch page's project list, and a project.removed event is recorded. Nothing is deleted: read_project still works on the id, and open_project with the same id brings it back. Removing an already archived project does nothing.",
+      inputSchema: z.object({ id: z.string().describe("Project id from list_projects.") }),
+    },
+    ({ id }) => guard(() => hub(env).removeProject(id)),
+  );
   return server;
 }
 

@@ -15,7 +15,7 @@ Every response is `Content-Type: application/json` with `Cache-Control: no-store
 
 ## Endpoints
 
-`GET /api/projects` returns 200:
+`GET /api/projects` returns 200 (archived projects are left out):
 
 ```json
 { "projects": [{ "id": "tvdash", "name": "tvdash", "kind": "web", "repo": "https://github.com/yab/tvdash", "opened_at": 1767225600000, "files": 42 }] }

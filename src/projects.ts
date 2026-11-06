@@ -1,4 +1,4 @@
-// open_project / list_projects / read_project as pure functions over `Sql` (docs/open-project.md).
+// open_project / list_projects / read_project / remove_project as pure functions over `Sql` (docs/open-project.md).
 import { appendEvent, type LiteEvent, type Sql } from "./store.ts";
 
 export const MANIFEST_LIMIT = 65536;
@@ -22,12 +22,13 @@ const byteLength = (s: string) => new TextEncoder().encode(s).length;
 
 export type Manifest = { tree: string[]; files: Record<string, string> };
 export type OpenInput = { id?: string; name: string; kind?: string; repo?: string; manifest: Manifest };
-export type ProjectSummary = { id: string; name: string; kind: string; repo: string | null; opened_at: number; files: number };
+export type ProjectSummary = { id: string; name: string; kind: string; repo: string | null; opened_at: number; files: number; archived_at?: number };
 
 export const slugify = (name: string) =>
   name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40).replace(/-+$/, "");
 
-type Row = { id: string; name: string; kind: string; repo: string | null; opened_at: number; manifest: string | null };
+type Row = { id: string; name: string; kind: string; repo: string | null; opened_at: number; manifest: string | null; archived_at: number | null };
+const COLS = "id, name, kind, repo, opened_at, manifest, archived_at";
 const summary = (r: Row): ProjectSummary => ({
   id: r.id,
   name: r.name,
@@ -35,6 +36,7 @@ const summary = (r: Row): ProjectSummary => ({
   repo: r.repo,
   opened_at: r.opened_at,
   files: r.manifest ? (JSON.parse(r.manifest) as Manifest).tree.length : 0,
+  ...(r.archived_at === null ? {} : { archived_at: r.archived_at }),
 });
 
 function validate(input: OpenInput): { id: string; name: string; kind: string; manifestJson: string } {
@@ -68,7 +70,7 @@ export function openProject(sql: Sql, input: OpenInput, now = Date.now()): { pro
     sql.run(
       `INSERT INTO projects (id, name, kind, repo, manifest, opened_at) VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET name = excluded.name, kind = excluded.kind, repo = excluded.repo,
-         manifest = excluded.manifest, opened_at = excluded.opened_at`,
+         manifest = excluded.manifest, opened_at = excluded.opened_at, archived_at = NULL`,
       v.id, v.name, v.kind, repo, v.manifestJson, now,
     );
     const payload = { name: v.name, kind: v.kind, repo, files, bytes: byteLength(v.manifestJson) };
@@ -77,9 +79,9 @@ export function openProject(sql: Sql, input: OpenInput, now = Date.now()): { pro
   });
 }
 
-/** Newest `opened_at` first; no manifests. */
+/** Newest `opened_at` first; no manifests; archived projects are hidden. */
 export function listProjects(sql: Sql): { projects: ProjectSummary[] } {
-  const rows = sql.all<Row>("SELECT id, name, kind, repo, opened_at, manifest FROM projects ORDER BY opened_at DESC, id");
+  const rows = sql.all<Row>(`SELECT ${COLS} FROM projects WHERE archived_at IS NULL ORDER BY opened_at DESC, id`);
   return { projects: rows.map(summary) };
 }
 
@@ -87,7 +89,7 @@ export function listProjects(sql: Sql): { projects: ProjectSummary[] } {
 export function readProject(sql: Sql, id: string, includeManifest: true): { project: ProjectSummary; manifest: Manifest; events: LiteEvent[] };
 export function readProject(sql: Sql, id: string, includeManifest?: boolean): { project: ProjectSummary; manifest?: Manifest; events: LiteEvent[] };
 export function readProject(sql: Sql, id: string, includeManifest = false): { project: ProjectSummary; manifest?: Manifest; events: LiteEvent[] } {
-  const [r] = sql.all<Row>("SELECT id, name, kind, repo, opened_at, manifest FROM projects WHERE id = ?", id);
+  const [r] = sql.all<Row>(`SELECT ${COLS} FROM projects WHERE id = ?`, id);
   if (!r) throw new Error(`unknown project "${id}"`);
   const events = sql
     .all<{ seq: number; project: string | null; kind: string; payload: string; ts: number }>(
@@ -98,4 +100,19 @@ export function readProject(sql: Sql, id: string, includeManifest = false): { pr
     .reverse();
   if (!includeManifest) return { project: summary(r), events };
   return { project: summary(r), manifest: r.manifest ? JSON.parse(r.manifest) : { tree: [], files: {} }, events };
+}
+
+/**
+ * Archives a project (it is never deleted: events reference it). In one transaction sets `archived_at` and appends
+ * `project.removed` `{ name }`; the event is returned for the caller to broadcast. Already archived: no change, no event.
+ */
+export function removeProject(sql: Sql, id: string, now = Date.now()): { project: ProjectSummary; event: LiteEvent | null } {
+  return sql.transaction(() => {
+    const [r] = sql.all<Row>(`SELECT ${COLS} FROM projects WHERE id = ?`, id);
+    if (!r) throw new Error(`unknown project "${id}"`);
+    if (r.archived_at !== null) return { project: summary(r), event: null };
+    sql.run("UPDATE projects SET archived_at = ? WHERE id = ?", now, id);
+    const event = appendEvent(sql, { project: id, kind: "project.removed", payload: { name: r.name } }, now);
+    return { project: summary({ ...r, archived_at: now }), event };
+  });
 }
