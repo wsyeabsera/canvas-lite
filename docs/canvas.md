@@ -3,7 +3,7 @@ sidebar_position: 8
 slug: /canvas
 ---
 
-# Canvas and screens (spec, not built yet)
+# Canvas and screens (store, tools and API built; page not yet)
 
 A project holds **canvases**; a canvas holds **screens**. Claude writes screens with MCP tools; the watch page shows them live, read-only. Like projects, Lite is *told* the design: Claude sends the HTML of each screen.
 
@@ -45,6 +45,18 @@ Appended in the same transaction as the change, with `project` set; the payload 
 ## Showing a screen safely
 
 Screen html is untrusted input, written by a model that may have read hostile text. The page shows it only in `<iframe sandbox="" srcdoc="...">` (empty sandbox: no scripts, no forms, no same-origin access). The page's Content-Security-Policy, inherited by the srcdoc frame, allows `style-src 'unsafe-inline'`, `img-src data: https:` and `font-src data:` and nothing else, so a screen cannot run code, fetch data or load anything but images. The owner chose to allow `https:` images (2026-11-06). Known trade-off: an image URL can carry data out in its query string, so a screen written by a model that read hostile text could leak what that model knows. Revisit if Lite ever holds anything sensitive.
+
+## As built
+
+Code: `src/canvases.ts` (pure functions over `Sql`, limits as exported constants, tool texts), migration 4 in `src/store.ts`, Hub methods in `src/hub.ts` that broadcast every returned event, tools in `src/mcp.ts`, routes in `src/api.ts`. Details the spec left open:
+
+- `unknown screen "<id>"` is never raised: no tool reads a single screen, and `remove_screen` of a missing screen is the idempotent no-op.
+- Archived (removed) canvases are `unknown canvas` for `read_canvas`, `set_screen` and `remove_screen`; `remove_canvas` on one is a no-op, on an id that never existed it is `unknown canvas`. Their rows and screens stay in the database.
+- The 20 canvas limit counts live canvases only; un-archiving through `create_canvas` is checked against it too. Creating an existing live canvas never errors, even at the limit, and never renames it.
+- `set_screen` replaces the whole screen: an omitted `x` or `y` means no value (auto layout). A replace keeps the screen's place in the order (rowid order) and touches the canvas `updated_at`.
+- `x`, `y` are integers within +-1,000,000. Validation errors: `invalid name: use 1 to 100 characters`, `invalid canvas id "<id>": use lowercase letters, digits and -, at most 40` (and `screen id`), `invalid width: use an integer from 100 to 8000` (and `height`), `invalid html: expected text`, `invalid x: use an integer`.
+- Answers: `create_canvas` `{canvas:{id,name,screens,created_at,updated_at}}`; `read_canvas` `{canvas, screens}`; `set_screen` `{screen:{id,name,width,height,x,y,updated_at}, created}`; `remove_screen` `{screen:{canvas,id,name?}}` (`name` only when something was removed); `remove_canvas` `{canvas:{..., archived_at}}`.
+- The HTTP API answers 404 for `unknown project "<id>"` and `unknown canvas "<id>"`, 400 for bad ids or other path shapes, 405 for non-GET/HEAD.
 
 ## API for the page
 

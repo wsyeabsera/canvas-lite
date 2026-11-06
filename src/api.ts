@@ -4,6 +4,8 @@ import { bearerToken, misconfigured, tokenOk } from "./auth.ts";
 export type ApiRoute =
   | { kind: "list" }
   | { kind: "read"; id: string }
+  | { kind: "canvases"; id: string }
+  | { kind: "canvas"; id: string; canvas: string }
   | { kind: "error"; status: 400 | 404 | 405; message: string; headers?: Record<string, string> };
 
 const ID_RE = /^[a-z0-9][a-z0-9-]*$/;
@@ -18,12 +20,17 @@ export function isApiPath(pathname: string): boolean {
 export function routeApi(method: string, pathname: string): ApiRoute {
   const parts = pathname.slice("/api/".length).split("/");
   if (parts[0] !== "projects") return { kind: "error", status: 404, message: "not found" };
-  if (parts.length > 2) return { kind: "error", status: 400, message: "invalid path: expected /api/projects/<id>" };
+  if (parts.length > 4 || (parts.length > 2 && parts[2] !== "canvases") || parts.length === 4 && parts[3] === "")
+    return { kind: "error", status: 400, message: "invalid path: expected /api/projects/<id>[/canvases[/<canvas>]]" };
   if (method !== "GET" && method !== "HEAD") return { kind: "error", status: 405, message: "method not allowed", headers: { Allow: "GET, HEAD" } };
   if (parts.length === 1) return { kind: "list" };
   const id = parts[1];
   if (id.length > 40 || !ID_RE.test(id)) return { kind: "error", status: 400, message: `invalid project id "${id}": use lowercase letters, digits and -, at most 40` };
-  return { kind: "read", id };
+  if (parts.length === 2) return { kind: "read", id };
+  if (parts.length === 3) return { kind: "canvases", id };
+  const canvas = parts[3];
+  if (canvas.length > 40 || !ID_RE.test(canvas)) return { kind: "error", status: 400, message: `invalid canvas id "${canvas}": use lowercase letters, digits and -, at most 40` };
+  return { kind: "canvas", id, canvas };
 }
 
 /** Same gate as /mcp: fail closed first, then the bearer token. */
@@ -44,8 +51,8 @@ export function gateResponse(gate: 401 | 503): Response {
     : json(401, { error: "unauthorized" }, { "WWW-Authenticate": "Bearer" });
 }
 
-/** A Hub error becomes 404 when it is the unknown-project error, else 500. */
+/** A Hub error becomes 404 when it is the unknown-project or unknown-canvas error, else 500. */
 export function hubErrorResponse(e: unknown): Response {
   const message = e instanceof Error ? e.message : String(e);
-  return /^unknown project "/.test(message) ? json(404, { error: message }) : json(500, { error: "internal error" });
+  return /^unknown (project|canvas) "/.test(message) ? json(404, { error: message }) : json(500, { error: "internal error" });
 }

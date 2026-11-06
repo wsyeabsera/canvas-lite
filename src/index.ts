@@ -24,7 +24,11 @@ export default {
       const route = routeApi(request.method, pathname);
       if (route.kind === "error") return json(route.status, { error: route.message }, route.headers);
       try {
-        return json(200, route.kind === "list" ? await hub(env).listProjects() : await hub(env).readProject(route.id, true));
+        const h = hub(env);
+        if (route.kind === "list") return json(200, await h.listProjects());
+        if (route.kind === "read") return json(200, await h.readProject(route.id, true));
+        if (route.kind === "canvases") return json(200, await h.listCanvases(route.id));
+        return json(200, await h.readCanvas(route.id, route.canvas, true));
       } catch (e) {
         return hubErrorResponse(e);
       }
