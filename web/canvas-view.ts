@@ -32,7 +32,7 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
 const dims = (s: { width: number; height: number }) => `${s.width} × ${s.height}`;
 
 /** `select(id)` moves to a screen's route (null: the canvas route); `play()` opens present mode (the Play pill, key P); the page owns the hash. */
-export function createCanvasView(select: (id: string | null) => void, play: () => void, walk: () => void = () => {}) {
+export function createCanvasView(select: (id: string | null) => void, play: () => void, walk: () => void = () => {}, watch: () => void = () => {}) {
   const $ = (id: string) => document.getElementById(id)!;
   const surface = $("cv-surface");
   const world = $("cv-world");
@@ -41,6 +41,7 @@ export function createCanvasView(select: (id: string | null) => void, play: () =
   const back = $("cv-back") as HTMLAnchorElement;
   const writing = $("cv-writing");
   const pctBtn = $("cv-pct");
+  const watchBtn = $("cv-watch") as HTMLButtonElement;
 
   const frames = new Map<string, Frame>();
   let boxes: Box[] = [];
@@ -118,6 +119,9 @@ export function createCanvasView(select: (id: string | null) => void, play: () =
 
   function render(next: CanvasInput) {
     input = next;
+    const has = (next.detail?.scenarios.length ?? 0) > 0;
+    watchBtn.disabled = !has;
+    watchBtn.title = has ? "Watch a scenario (V)" : "No scenarios yet: ask Claude to add some";
     back.href = hrefLanding;
     crumb.replaceChildren(el("span", "cn", next.canvasName));
 
@@ -249,6 +253,11 @@ export function createCanvasView(select: (id: string | null) => void, play: () =
       case "W":
         walk();
         break;
+      case "v":
+      case "V":
+        if (watchBtn.disabled) return;
+        watch();
+        break;
       case "ArrowLeft":
       case "ArrowRight": {
         const id = stepScreen(input?.detail?.screens ?? [], input?.selected ?? null, e.key === "ArrowRight" ? 1 : -1);
@@ -266,6 +275,7 @@ export function createCanvasView(select: (id: string | null) => void, play: () =
   $("cv-fit").addEventListener("click", fitAll);
   $("cv-play").addEventListener("click", play);
   $("cv-walk").addEventListener("click", walk);
+  watchBtn.addEventListener("click", watch);
   apply(false);
 
   return {

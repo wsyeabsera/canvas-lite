@@ -1,11 +1,12 @@
 // The read-only watch page: the CLI's Watcher and formatter, drawn into views. It only reads; the one message it sends is the Watcher's hello.
 import { clock, detail as eventDetail, type WatchRow } from "../cli/format.ts";
 import { Watcher, normalizeUrl } from "../cli/watch-core.ts";
-import { addRow, describeProject, hrefActivity, hrefCanvas, hrefLanding, hrefPlay, hrefProject, hrefWalk, hrefScreen, initialState, MAX_ROWS, parseRoute, routeCanvas, routeProject, sortedProjects, visibleRows, type Route, type State } from "./state.ts";
+import { addRow, describeProject, hrefActivity, hrefCanvas, hrefLanding, hrefPlay, hrefProject, hrefWalk, hrefWatch, hrefScreen, initialState, MAX_ROWS, parseRoute, routeCanvas, routeProject, sortedProjects, visibleRows, type Route, type State } from "./state.ts";
 import { agoText, canvasEvent, describeCanvasDetail, describeCanvasList, dropCanvas, refetchPlan, screensLabel, type CanvasDetail, type CanvasSummary, type Pending } from "./canvas.ts";
 import { createCanvasView } from "./canvas-view.ts";
 import { createPlayView } from "./play-view.ts";
 import { createWalkView } from "./walk-view.ts";
+import { createWatchView } from "./watch-view.ts";
 import { createReplayView } from "./replay-view.ts";
 import { createLiveView } from "./live-view.ts";
 import { createLandingView } from "./landing-view.ts";
@@ -263,6 +264,9 @@ const canvasView = createCanvasView(
   () => {
     if (route.view === "canvas" || route.view === "screen") location.hash = hrefWalk(route.id, route.canvas);
   },
+  () => {
+    if (route.view === "canvas" || route.view === "screen") location.hash = hrefWatch(route.id, route.canvas);
+  },
 );
 
 // Live play: Claude's presenter session and the tour (rules in web/follow.ts, DOM in web/live-view.ts).
@@ -381,6 +385,27 @@ $("cv-replay").addEventListener("click", () => {
   if (route.view === "canvas" || route.view === "screen") void replay.open(route.id, route.canvas);
 });
 
+// Scenario video player (web/watch.ts rules, web/watch-view.ts DOM): `#/project/<id>/canvas/<cid>/watch[/<scenarioId>]`.
+const watchView = createWatchView({
+  exit: () => {
+    if (route.view === "watch") location.hash = playReturn ?? hrefCanvas(route.id, route.canvas);
+  },
+  picker: () => {
+    if (route.view === "watch") location.hash = hrefWatch(route.id, route.canvas);
+  },
+  pick: (sid) => {
+    if (route.view === "watch") location.hash = hrefWatch(route.id, route.canvas, sid);
+  },
+  tryIt: (screen) => {
+    if (route.view === "watch") location.hash = hrefPlay(route.id, route.canvas, screen);
+  },
+  moved: (sid) => {
+    if (route.view !== "watch") return;
+    route = { ...route, scenario: sid };
+    history.replaceState(null, "", hrefWatch(route.id, route.canvas, sid)); // linkable without a history entry per scenario
+  },
+});
+
 function renderCanvas() {
   if (route.view === "activity" || route.view === "landing" || route.view === "project") return;
   const pid = route.id;
@@ -394,6 +419,7 @@ function renderCanvas() {
     pending,
     selected: route.view === "screen" ? route.screen : null,
   });
+  if (route.view === "watch") watchView.render({ detail, state: detailState });
   if (route.view === "play" || route.view === "walk") {
     if (tour && JSON.stringify(tour.steps) !== JSON.stringify(detail?.tour ?? [])) stopTour(); // Claude set a new tour
     if (route.view === "walk") walkView.render(detail);
@@ -433,8 +459,8 @@ function showRoute() {
     void loadList(pid);
     fs = initialFollow(); // the session belongs to a project
   }
-  const wasPlaying = prev.view === "play" || prev.view === "walk";
-  if (route.view === "canvas" || route.view === "screen" || route.view === "play" || route.view === "walk") {
+  const wasPlaying = prev.view === "play" || prev.view === "walk" || prev.view === "watch";
+  if (route.view === "canvas" || route.view === "screen" || route.view === "play" || route.view === "walk" || route.view === "watch") {
     const same = route.canvas === prevCanvas && pid === prevProject;
     if (!same) {
       replay.close();
@@ -446,7 +472,18 @@ function showRoute() {
       offerPending = true;
       void loadDetail(route.id, route.canvas);
     }
-    if (route.view === "play" || route.view === "walk") {
+    if (route.view === "watch") {
+      if ((prev.view === "canvas" || prev.view === "screen") && same) playReturn = prev.view === "screen" ? hrefScreen(prev.id, prev.canvas, prev.screen) : hrefCanvas(prev.id, prev.canvas);
+      else if (!wasPlaying || !same) playReturn = null;
+      if (!wasPlaying || !same) canvasView.enter(same);
+      canvasView.pause();
+      stopTour();
+      walkView.close();
+      playView.close();
+      renderCanvas();
+      watchView.open({ detail, state: detailState }, route.scenario);
+    } else if (route.view === "play" || route.view === "walk") {
+      watchView.close();
       if ((prev.view === "canvas" || prev.view === "screen") && same) playReturn = prev.view === "screen" ? hrefScreen(prev.id, prev.canvas, prev.screen) : hrefCanvas(prev.id, prev.canvas);
       else if (!wasPlaying || !same) playReturn = null;
       if (!wasPlaying || !same) canvasView.enter(same);
@@ -458,6 +495,7 @@ function showRoute() {
       stopTour();
       walkView.close();
       playView.close();
+      watchView.close();
       if (wasPlaying && same) canvasView.resume();
       else canvasView.enter(same);
       renderCanvas();
@@ -470,6 +508,7 @@ function showRoute() {
     offerPending = false;
     walkView.close();
     playView.close();
+    watchView.close();
     canvasView.leave();
     replay.close();
   }
