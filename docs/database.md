@@ -13,7 +13,7 @@ queries over a tiny `Sql` interface; `src/hub.ts` adapts Durable Object storage 
 
 | Table | Columns |
 |---|---|
-| `projects` | `id` (lowercase letters, digits, `-`, at most 40), `name`, `path` (unique), `kind`, `opened_at` |
+| `projects` | `id` (lowercase letters, digits, `-`, at most 40), `name`, `kind`, `repo` (nullable URL), `manifest` (nullable JSON text, at most 65536 bytes), `opened_at` (ms) |
 | `events` | `seq` (autoincrement), `project` (nullable, references `projects`), `kind`, `payload` (JSON), `ts` (ms) |
 
 ## Event model
@@ -30,3 +30,8 @@ const missed = eventsAfter(sql, lastSeenSeq); // what a reconnecting watcher ask
 `MIGRATIONS` in `src/store.ts` is an ordered list; the `_migrations` table records which have run, each in its own
 transaction, applied by the Hub's constructor before it serves anything. Append a new entry, never edit one that has
 shipped. A database written by a newer build is refused.
+
+Migration 2 replaces `projects.path` (NOT NULL UNIQUE) with nullable `repo` and adds `manifest`: the old rows are parked in
+a scratch table, `projects` is dropped and recreated, and the rows are copied back with `repo` and `manifest` NULL, all in
+the migration transaction. Durable Object SQL cannot change `foreign_keys`, so `PRAGMA defer_foreign_keys = ON` defers the
+`events.project` check to commit. `events` and its append-only triggers are untouched.

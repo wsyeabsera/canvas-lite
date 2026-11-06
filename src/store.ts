@@ -11,7 +11,7 @@ export type Sql = {
 export type LiteEvent = { seq: number; project: string | null; kind: string; payload: unknown; ts: number };
 
 // Append new migrations to the end. Never edit one that has shipped: `_migrations` records which ran.
-const MIGRATIONS = [
+export const MIGRATIONS = [
   `CREATE TABLE projects (
      id        TEXT PRIMARY KEY CHECK (id GLOB '[a-z0-9]*' AND id NOT GLOB '*[^a-z0-9-]*' AND length(id) <= 40),
      name      TEXT NOT NULL,
@@ -28,6 +28,24 @@ const MIGRATIONS = [
    );
    CREATE TRIGGER events_no_update BEFORE UPDATE ON events BEGIN SELECT RAISE(ABORT, 'events are append-only'); END;
    CREATE TRIGGER events_no_delete BEFORE DELETE ON events BEGIN SELECT RAISE(ABORT, 'events are append-only'); END;`,
+  // 2: a project is told, not read. `path` (NOT NULL UNIQUE) becomes nullable `repo`; add `manifest` (JSON text).
+  // Table rebuild inside the migration transaction. Durable Object SQL forbids changing `foreign_keys`, so the
+  // events -> projects reference is deferred to commit instead (resets on its own); events and triggers are not touched.
+  // The rows are parked in a scratch table and inserted into the new `projects` after the drop, so the deferred
+  // violation count returns to zero before commit.
+  `PRAGMA defer_foreign_keys = ON;
+   CREATE TABLE projects_v1 AS SELECT id, name, kind, opened_at FROM projects;
+   DROP TABLE projects;
+   CREATE TABLE projects (
+     id        TEXT PRIMARY KEY CHECK (id GLOB '[a-z0-9]*' AND id NOT GLOB '*[^a-z0-9-]*' AND length(id) <= 40),
+     name      TEXT NOT NULL,
+     kind      TEXT NOT NULL,
+     repo      TEXT,
+     manifest  TEXT CHECK (manifest IS NULL OR json_valid(manifest)),
+     opened_at INTEGER NOT NULL
+   );
+   INSERT INTO projects (id, name, kind, repo, manifest, opened_at) SELECT id, name, kind, NULL, NULL, opened_at FROM projects_v1;
+   DROP TABLE projects_v1;`,
 ];
 
 /** Runs pending migrations, each in its own transaction. Refuses a database written by a newer build. */
