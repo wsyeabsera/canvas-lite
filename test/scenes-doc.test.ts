@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { checkScene } from "../src/scene.ts";
 import { checkFilms } from "../src/shots.ts";
 
-const doc = readFileSync(new URL("../docs/scenes.md", import.meta.url), "utf8");
+const doc = String(readFileSync(`${import.meta.dirname}/../docs/scenes.md`));
 
 function block(tag: string): unknown {
   const m = new RegExp("```json " + tag + "\\n([\\s\\S]*?)\\n```").exec(doc);
