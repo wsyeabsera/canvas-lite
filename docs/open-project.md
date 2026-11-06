@@ -22,7 +22,7 @@ The Worker cannot read your disk, so a project is told, not read: Claude reads t
 
 - `open_project { id?, name, kind?, repo?, manifest }` returns `{ project, seq }`: `project` is `{ id, name, kind, repo, opened_at, files }` (`files` = `tree` length), `seq` is the event it appended.
 - `list_projects {}` returns `{ projects: [{ id, name, kind, repo, opened_at, files }] }`, newest `opened_at` first. No manifests.
-- `read_project { id }` returns `{ project, manifest, events }` (`events` = the project's latest 20, oldest first), or the error `unknown project "<id>"`.
+- `read_project { id, include_manifest? }` returns `{ project, events }` (`events` = the project's latest 20, oldest first). With `include_manifest: true` (default false) it returns `{ project, manifest, events }`. An unknown id is the error `unknown project "<id>"`. The default is small on purpose: the manifest can be 65536 bytes.
 
 ## Building the manifest
 
@@ -43,7 +43,7 @@ The tool description interpolates the limit from `MANIFEST_LIMIT` in `src/projec
 { "name": "tvdash", "kind": "web", "repo": "https://github.com/yab/tvdash", "files": 42, "bytes": 3120 }
 ```
 
-The payload never carries the manifest; read it with `read_project`.
+The payload never carries the manifest; read it with `read_project` and `include_manifest: true`.
 
 ## Limits and errors
 

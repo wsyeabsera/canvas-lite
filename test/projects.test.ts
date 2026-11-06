@@ -78,7 +78,7 @@ test("same id twice: one row replaced, two events", () => {
   const { projects } = listProjects(sql);
   assert.deepEqual(projects, [{ id: "tvdash", name: "tvdash 2", kind: "web", repo: null, opened_at: 2, files: 1 }]);
   assert.deepEqual(eventsAfter(sql).map((e) => e.kind), ["project.opened", "project.opened"]);
-  assert.deepEqual(readProject(sql, "tvdash").manifest, { tree: ["a"], files: {} });
+  assert.deepEqual(readProject(sql, "tvdash", true).manifest, { tree: ["a"], files: {} });
 });
 
 test("the event is written in the same transaction as the project", () => {
@@ -116,7 +116,7 @@ test("read_project returns summary, manifest and its latest events; unknown id e
   const sql = fresh();
   openProject(sql, input({ name: "other" }), 1);
   for (let i = 0; i < 25; i++) openProject(sql, input(), 100 + i);
-  const r = readProject(sql, "tvdash");
+  const r = readProject(sql, "tvdash", true);
   assert.deepEqual(r.manifest, manifest);
   assert.equal(r.project.files, 3);
   assert.equal(r.events.length, 20);
@@ -135,4 +135,17 @@ test("open_project guidance interpolates the limit and covers the manifest recip
   assert.match(description, /1500/);
   assert.match(description, /line boundary/);
   assert.match(description, /collapse/i);
+});
+
+test("read_project leaves the manifest out by default and includes it on request", () => {
+  const sql = fresh();
+  openProject(sql, input(), 1);
+  const d = readProject(sql, "tvdash");
+  assert.deepEqual(Object.keys(d).sort(), ["events", "project"]);
+  assert.equal(readProject(sql, "tvdash", false).manifest, undefined);
+  const t = readProject(sql, "tvdash", true);
+  assert.deepEqual(Object.keys(t).sort(), ["events", "manifest", "project"]);
+  assert.deepEqual(t.manifest, manifest);
+  assert.deepEqual(t.project, d.project);
+  assert.deepEqual(t.events, d.events);
 });

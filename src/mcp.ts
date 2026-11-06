@@ -59,10 +59,14 @@ function createServer(): McpServer {
     "read_project",
     {
       title: "Read a project",
-      description: "Return a project's summary, its stored manifest and its latest events. Use it to see what Lite was told about a project.",
-      inputSchema: z.object({ id: z.string().describe("Project id from list_projects.") }),
+      description:
+        "Return a project's summary and its latest events. The stored manifest (tree and excerpts, up to 65536 bytes) is left out unless you set include_manifest to true; ask for it only when you need the file tree.",
+      inputSchema: z.object({
+        id: z.string().describe("Project id from list_projects."),
+        include_manifest: z.boolean().optional().describe("Also return the stored manifest. Default false."),
+      }),
     },
-    ({ id }) => guard(() => hub(env).readProject(id)),
+    ({ id, include_manifest }) => guard(() => hub(env).readProject(id, include_manifest ?? false)),
   );
   return server;
 }

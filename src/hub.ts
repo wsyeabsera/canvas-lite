@@ -47,8 +47,8 @@ export class Hub extends DurableObject<Env> {
     return listProjects(this.sql);
   }
 
-  readProject(id: string) {
-    return readProject(this.sql, id);
+  readProject(id: string, includeManifest = false) {
+    return readProject(this.sql, id, includeManifest);
   }
 
   ping(note?: string): LiteEvent {

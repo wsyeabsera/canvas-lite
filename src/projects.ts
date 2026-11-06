@@ -83,8 +83,10 @@ export function listProjects(sql: Sql): { projects: ProjectSummary[] } {
   return { projects: rows.map(summary) };
 }
 
-/** The summary, the stored manifest and the project's latest events (newest last, at most 20). */
-export function readProject(sql: Sql, id: string): { project: ProjectSummary; manifest: Manifest; events: LiteEvent[] } {
+/** The summary and the project's latest events (newest last, at most 20); the stored manifest only when `includeManifest`. */
+export function readProject(sql: Sql, id: string, includeManifest: true): { project: ProjectSummary; manifest: Manifest; events: LiteEvent[] };
+export function readProject(sql: Sql, id: string, includeManifest?: boolean): { project: ProjectSummary; manifest?: Manifest; events: LiteEvent[] };
+export function readProject(sql: Sql, id: string, includeManifest = false): { project: ProjectSummary; manifest?: Manifest; events: LiteEvent[] } {
   const [r] = sql.all<Row>("SELECT id, name, kind, repo, opened_at, manifest FROM projects WHERE id = ?", id);
   if (!r) throw new Error(`unknown project "${id}"`);
   const events = sql
@@ -94,5 +96,6 @@ export function readProject(sql: Sql, id: string): { project: ProjectSummary; ma
     )
     .map((e) => ({ ...e, payload: JSON.parse(e.payload) }))
     .reverse();
+  if (!includeManifest) return { project: summary(r), events };
   return { project: summary(r), manifest: r.manifest ? JSON.parse(r.manifest) : { tree: [], files: {} }, events };
 }

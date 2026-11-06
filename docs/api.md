@@ -5,8 +5,8 @@ slug: /api
 
 # Project API
 
-A read-only JSON API the watch page uses. It returns what the `list_projects` and `read_project` tools return
-(see [Open a project](open-project.md)). Same-origin only: no CORS headers are sent.
+A read-only JSON API the watch page uses. It returns what the `list_projects` tool and `read_project` with `include_manifest: true` return
+(see [Open a project](open-project.md)); `GET /api/projects/<id>` always includes the manifest. Same-origin only: no CORS headers are sent.
 
 ## Auth
 
