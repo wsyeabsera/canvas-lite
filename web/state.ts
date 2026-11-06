@@ -1,0 +1,98 @@
+// Pure page state: no DOM. page.ts feeds it rows and API results and draws what it returns.
+import type { WatchRow } from "../cli/format.ts";
+
+export const MAX_ROWS = 500;
+const ID_RE = /^[a-z0-9][a-z0-9-]*$/;
+
+export type ProjectInfo = { id: string; name: string; kind: string; repo: string | null; files: number };
+export type State = {
+  rows: WatchRow[]; // ordered by seq, at most MAX_ROWS (the newest)
+  projects: Record<string, ProjectInfo>;
+  counts: Record<string, number>; // events seen per project id (not capped)
+  total: number; // events seen
+};
+export type Route = { view: "activity" } | { view: "project"; id: string };
+
+export const initialState = (): State => ({ rows: [], projects: {}, counts: {}, total: 0 });
+
+/** Returns the same state object when the row is a duplicate (by seq). */
+export function addRow(s: State, row: WatchRow): State {
+  if (s.rows.some((r) => r.seq === row.seq)) return s;
+  const next = s.rows.slice();
+  let i = next.length;
+  while (i > 0 && next[i - 1].seq > row.seq) i--;
+  next.splice(i, 0, row);
+  while (next.length > MAX_ROWS) next.shift();
+  const counts = { ...s.counts };
+  if (row.project) counts[row.project] = (counts[row.project] ?? 0) + 1;
+  let projects = s.projects;
+  if (row.kind === "project.opened" && row.project) {
+    const p = row.payload as Record<string, unknown> | null;
+    projects = {
+      ...projects,
+      [row.project]: {
+        id: row.project,
+        name: typeof p?.name === "string" ? p.name : row.project,
+        kind: typeof p?.kind === "string" ? p.kind : "",
+        repo: typeof p?.repo === "string" ? p.repo : null,
+        files: typeof p?.files === "number" ? p.files : 0,
+      },
+    };
+  }
+  return { rows: next, projects, counts, total: s.total + 1 };
+}
+
+export const validId = (id: string) => id.length <= 40 && ID_RE.test(id);
+
+/** `#/` or `#/project/<id>`; anything else is the activity view. */
+export function parseRoute(hash: string): Route {
+  const m = /^#\/project\/([^/?#]+)$/.exec(hash);
+  if (m && validId(m[1])) return { view: "project", id: m[1] };
+  return { view: "activity" };
+}
+
+export function visibleRows(s: State, route: Route): WatchRow[] {
+  return route.view === "project" ? s.rows.filter((r) => r.project === route.id) : s.rows;
+}
+
+/** Sidebar order: by name, then id. */
+export function sortedProjects(s: State): ProjectInfo[] {
+  return Object.values(s.projects).sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+}
+
+export type ProjectView = {
+  title: string;
+  kind: string;
+  repo: string | null; // only http(s) URLs
+  description: string; // first non-empty README line, or ""
+  files: string[];
+  rows: WatchRow[];
+};
+
+export const safeRepo = (url: unknown): string | null => (typeof url === "string" && /^https?:\/\//i.test(url) ? url : null);
+
+/** First non-empty README line, heading marks removed, capped at 200 characters. */
+export function readmeLine(readme: string | undefined): string {
+  if (!readme) return "";
+  for (const line of readme.split(/\r?\n/)) {
+    const t = line.replace(/^\s*#+\s*/, "").trim();
+    if (t) return t.length > 200 ? `${t.slice(0, 197)}...` : t;
+  }
+  return "";
+}
+
+/** Shapes the `/api/projects/<id>` JSON; tolerant of missing parts. */
+export function describeProject(api: unknown): ProjectView {
+  const a = (api ?? {}) as Record<string, any>;
+  const p = a.project ?? {};
+  const files: Record<string, string> = a.manifest?.files && typeof a.manifest.files === "object" ? a.manifest.files : {};
+  const key = Object.keys(files).find((k) => k.toLowerCase() === "readme.md");
+  return {
+    title: typeof p.name === "string" ? p.name : String(p.id ?? ""),
+    kind: typeof p.kind === "string" ? p.kind : "",
+    repo: safeRepo(p.repo),
+    description: key ? readmeLine(String(files[key])) : "",
+    files: Array.isArray(a.manifest?.tree) ? a.manifest.tree.filter((x: unknown) => typeof x === "string") : [],
+    rows: Array.isArray(a.events) ? a.events.filter((e: any) => e && typeof e.seq === "number") : [],
+  };
+}
