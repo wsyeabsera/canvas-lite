@@ -4,6 +4,8 @@ import { DurableObject } from "cloudflare:workers";
 import { tokenOk } from "./auth.ts";
 import { parseHello, replay } from "./events.ts";
 import { createCanvas, listCanvases, readCanvas, removeCanvas, removeScreen, setFlow, setScreen, setScreens, type ScreenFields, type ScreenInput } from "./canvases.ts";
+import { patchScreen, readCanvasForPage, readFlow, setTour, validateFlow, type PatchEdit } from "./flow.ts";
+import { goto, present, stopPresent } from "./present.ts";
 import { listProjects, openProject, readProject, removeProject, type OpenInput, type ProjectSummary } from "./projects.ts";
 import { appendEvent,migrate, type LiteEvent, type Sql } from "./store.ts";
 
@@ -92,6 +94,49 @@ export class Hub extends DurableObject<Env> {
 
   setFlow(project: string, canvas: string, input: { start_screen?: string | null; transition?: string }) {
     const { event, ...result } = setFlow(this.sql, project, canvas, input);
+    if (event) this.broadcast(event);
+    return result;
+  }
+
+  readFlow(project: string, canvas: string) {
+    return readFlow(this.sql, project, canvas);
+  }
+
+  validateFlow(project: string, canvas: string) {
+    return validateFlow(this.sql, project, canvas);
+  }
+
+  /** The canvas as the watch page loads it: html, plus its tour and the project's presenter session. */
+  readCanvasForPage(project: string, canvas: string) {
+    return readCanvasForPage(this.sql, project, canvas);
+  }
+
+  patchScreen(project: string, canvas: string, id: string, edits: PatchEdit[]) {
+    const { event, ...result } = patchScreen(this.sql, project, canvas, id, edits);
+    this.broadcast(event);
+    return result;
+  }
+
+  setTour(project: string, canvas: string, steps: unknown) {
+    const { event, ...result } = setTour(this.sql, project, canvas, steps);
+    this.broadcast(event);
+    return result;
+  }
+
+  present(project: string, input: { canvas: string; screen?: string }) {
+    const { event, ...result } = present(this.sql, project, input);
+    this.broadcast(event);
+    return result;
+  }
+
+  goto(project: string, input: { screen: string; transition?: string }) {
+    const { event, ...result } = goto(this.sql, project, input);
+    this.broadcast(event);
+    return result;
+  }
+
+  stopPresent(project: string) {
+    const { event, ...result } = stopPresent(this.sql, project);
     if (event) this.broadcast(event);
     return result;
   }

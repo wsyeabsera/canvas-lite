@@ -5,6 +5,7 @@ import { env } from "cloudflare:workers";
 import { z } from "zod";
 import { hub } from "./hub.ts";
 import { CANVAS_TEXT, MAX_SIZE, MIN_SIZE, SCREENS_PER_CALL, TRANSITIONS } from "./canvases.ts";
+import { FLOW_TEXT, PATCH_EDITS_MAX, TOUR_DWELL_MAX, TOUR_DWELL_MIN, TOUR_NOTE_MAX, TOUR_STEPS_MAX } from "./flow.ts";
 import { OPEN_PROJECT_TEXT } from "./projects.ts";
 
 function createServer(): McpServer {
@@ -157,6 +158,85 @@ function createServer(): McpServer {
       }),
     },
     ({ project, canvas, ...input }) => guard(async () => hub(env).setFlow(project, canvas, input)),
+  );
+  server.registerTool(
+    "read_flow",
+    { title: "Read a canvas flow", description: FLOW_TEXT.read_flow, inputSchema: z.object({ project, canvas }) },
+    ({ project, canvas }) => guard(async () => hub(env).readFlow(project, canvas)),
+  );
+  server.registerTool(
+    "validate_flow",
+    { title: "Validate a canvas flow", description: FLOW_TEXT.validate_flow, inputSchema: z.object({ project, canvas }) },
+    ({ project, canvas }) => guard(async () => hub(env).validateFlow(project, canvas)),
+  );
+  server.registerTool(
+    "patch_screen",
+    {
+      title: "Patch a screen",
+      description: FLOW_TEXT.patch_screen,
+      inputSchema: z.object({
+        project,
+        canvas,
+        id: z.string().describe("Screen id from read_canvas."),
+        edits: z
+          .array(z.object({ find: z.string().describe("Plain text to find."), replace: z.string().describe("Replacement text (may be empty)."), all: z.boolean().optional().describe("Replace every occurrence. Default: find must occur exactly once.") }))
+          .min(1).max(PATCH_EDITS_MAX).optional().describe(`1 to ${PATCH_EDITS_MAX} edits, applied in order.`),
+        find: z.string().optional().describe("Single edit: plain text to find (instead of edits)."),
+        replace: z.string().optional().describe("Single edit: replacement text."),
+        all: z.boolean().optional().describe("Single edit: replace every occurrence."),
+      }),
+    },
+    ({ project, canvas, id, edits, find, replace, all }) =>
+      guard(async () => {
+        if ((edits === undefined) === (find === undefined)) throw new Error("invalid edits: give edits, or find and replace, not both");
+        if (edits === undefined && replace === undefined) throw new Error("invalid edits: replace is required with find");
+        return hub(env).patchScreen(project, canvas, id, edits ?? [{ find: find!, replace: replace!, ...(all !== undefined && { all }) }]);
+      }),
+  );
+  server.registerTool(
+    "set_tour",
+    {
+      title: "Set a tour",
+      description: FLOW_TEXT.set_tour,
+      inputSchema: z.object({
+        project,
+        canvas,
+        steps: z
+          .array(
+            z.object({
+              screen: z.string().describe("Screen id on the canvas."),
+              dwell_ms: z.number().int().min(TOUR_DWELL_MIN).max(TOUR_DWELL_MAX).describe(`How long to show it, ${TOUR_DWELL_MIN} to ${TOUR_DWELL_MAX} ms.`),
+              note: z.string().max(TOUR_NOTE_MAX).optional().describe("Caption shown while the step plays."),
+            }),
+          )
+          .max(TOUR_STEPS_MAX)
+          .describe(`0 to ${TOUR_STEPS_MAX} steps; empty clears the tour.`),
+      }),
+    },
+    ({ project, canvas, steps }) => guard(async () => hub(env).setTour(project, canvas, steps)),
+  );
+  server.registerTool(
+    "present",
+    {
+      title: "Start presenting",
+      description: FLOW_TEXT.present,
+      inputSchema: z.object({ project, canvas, screen: z.string().optional().describe("Screen id to open on. Default: the start screen, else the first.") }),
+    },
+    ({ project, ...input }) => guard(async () => hub(env).present(project, input)),
+  );
+  server.registerTool(
+    "goto",
+    {
+      title: "Go to a screen while presenting",
+      description: FLOW_TEXT.goto,
+      inputSchema: z.object({ project, screen: z.string().describe("Screen id on the presented canvas."), transition: z.enum(TRANSITIONS).optional().describe("Default: the canvas default transition.") }),
+    },
+    ({ project, ...input }) => guard(async () => hub(env).goto(project, input)),
+  );
+  server.registerTool(
+    "stop_present",
+    { title: "Stop presenting", description: FLOW_TEXT.stop_present, inputSchema: z.object({ project }) },
+    ({ project }) => guard(async () => hub(env).stopPresent(project)),
   );
   server.registerTool(
     "remove_canvas",

@@ -30,6 +30,8 @@ All tools take `project` (an existing, not archived project id; otherwise `unkno
 | `remove_screen` | `canvas`, `id` | `{screen}`; idempotent no-op if already gone; the html is gone but the event log keeps the removal |
 | `remove_canvas` | `canvas` | archives it, keeps the log; idempotent |
 
+Prototype tools (`set_flow`, `read_flow`, `validate_flow`, `patch_screen`, `set_tour`, `present`, `goto`, `stop_present`) are in [Prototype tools](prototype-tools.md).
+
 Unknown canvas: `unknown canvas "<id>"`; unknown screen on read: `unknown screen "<id>"`. Tool descriptions tell Claude: one self-contained HTML document per screen, inline CSS, no scripts; images may be `https` URLs or `data:` URIs and nothing else is loaded; size the root to `width` x `height`.
 
 ## Events

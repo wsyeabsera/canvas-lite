@@ -28,7 +28,7 @@ export default {
         if (route.kind === "list") return json(200, await h.listProjects());
         if (route.kind === "read") return json(200, await h.readProject(route.id, true));
         if (route.kind === "canvases") return json(200, await h.listCanvases(route.id));
-        return json(200, await h.readCanvas(route.id, route.canvas, true));
+        return json(200, await h.readCanvasForPage(route.id, route.canvas));
       } catch (e) {
         return hubErrorResponse(e);
       }
