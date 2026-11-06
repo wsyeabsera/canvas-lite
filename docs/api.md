@@ -44,7 +44,26 @@ Every response is `Content-Type: application/json` with `Cache-Control: no-store
   "screens": [{ "id": "home", "name": "Home", "width": 400, "height": 300, "x": null, "y": null, "updated_at": 1767225600000, "bytes": 9, "html": "<p>hi</p>" }] }
 ```
 
-`<canvas>` follows the same id rule. Any other path below `/api/projects/<id>` is 400.
+`<canvas>` follows the same id rule.
+
+`GET /api/projects/<id>/canvases/<canvas>/timeline` returns 200: the canvas's events, oldest first (`canvas.created`, `screen.set`, `screen.removed`, `flow.set`; `screen` and `name` are null except for the two screen kinds):
+
+```json
+{ "canvas": "main", "events": [
+  { "seq": 12, "ts": 1767225500000, "kind": "canvas.created", "screen": null, "name": null },
+  { "seq": 13, "ts": 1767225600000, "kind": "screen.set", "screen": "home", "name": "Home" },
+  { "seq": 14, "ts": 1767225700000, "kind": "flow.set", "screen": null, "name": null } ] }
+```
+
+`GET /api/projects/<id>/canvases/<canvas>/at/<seq>` returns 200: the canvas as it was after event `seq` (a non-negative integer; past the end is the latest state, 0 is empty). Screens are in creation order with their html; `seq` on a screen is the event that wrote that version; `ts` is the time of the canvas event at exactly `seq`, else null; the flow is as of `seq`:
+
+```json
+{ "canvas": { "id": "main", "name": "Main" }, "seq": 13, "ts": 1767225600000,
+  "screens": [{ "id": "home", "name": "Home", "width": 400, "height": 300, "x": null, "y": null, "seq": 13, "bytes": 9, "layout": { "x": 0, "y": 0 }, "html": "<p>hi</p>" }],
+  "start_screen": null, "transition": "none" }
+```
+
+Both need a live (not removed) canvas, else 404. Any other path below `/api/projects/<id>` is 400.
 
 ## Errors
 
@@ -52,7 +71,7 @@ Body is `{ "error": "<message>" }`.
 
 | Status | When |
 |---|---|
-| 400 | invalid id, or extra path segments |
+| 400 | invalid id, invalid `<seq>`, or extra path segments |
 | 401 | missing or wrong token (`WWW-Authenticate: Bearer`) |
 | 404 | unknown project (`unknown project "<id>"`), unknown or removed canvas (`unknown canvas "<id>"`) or unknown `/api/` path |
 | 405 | method other than GET or HEAD (`Allow: GET, HEAD`) |

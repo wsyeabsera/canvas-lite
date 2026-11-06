@@ -3,6 +3,7 @@
 import { appendEvent, type LiteEvent, type Sql } from "./store.ts";
 import { slugify } from "./projects.ts";
 import { layoutScreens } from "./layout.ts";
+import { recordVersion } from "./timeline.ts";
 
 export const SCREEN_HTML_LIMIT = 200_000;
 export const SCREENS_PER_CANVAS = 50;
@@ -198,6 +199,7 @@ function writeScreen(sql: Sql, project: string, canvas: string, p: Prepared, now
     { project, kind: "screen.set", payload: { canvas, id: p.id, name: p.name, width: p.width, height: p.height, bytes: p.bytes, created: !exists } },
     now,
   );
+  recordVersion(sql, project, canvas, event.seq, { id: p.id, name: p.name, width: p.width, height: p.height, html: p.html, x: p.x, y: p.y });
   const result: ScreenResult = {
     id: p.id, name: p.name, width: p.width, height: p.height, x: p.x, y: p.y, updated_at: now,
     bytes: p.bytes, created: !exists, warnings: screenWarnings(p.html, p.bytes),
@@ -291,6 +293,7 @@ export function removeScreen(
     sql.run("UPDATE canvases SET start_screen = NULL WHERE project = ? AND id = ? AND start_screen = ?", project, canvas, id);
     sql.run("UPDATE canvases SET updated_at = ? WHERE project = ? AND id = ?", now, project, canvas);
     const event = appendEvent(sql, { project, kind: "screen.removed", payload: { canvas, id, name: s.name } }, now);
+    recordVersion(sql, project, canvas, event.seq, { id, name: s.name, width: 100, height: 100, html: "", x: null, y: null, removed: true });
     return { screen: { canvas, id, name: s.name }, event };
   });
 }
