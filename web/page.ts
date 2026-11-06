@@ -6,6 +6,8 @@ import { agoText, canvasEvent, describeCanvasDetail, describeCanvasList, dropCan
 import { createCanvasView } from "./canvas-view.ts";
 import { createPlayView } from "./play-view.ts";
 import { createReplayView } from "./replay-view.ts";
+import { createLiveView } from "./live-view.ts";
+import { initialFollow, onCanvasLoad, onPresenterEvent, pillModel, resumeFollow, takeOver, tourCaption, tourLabel, tourPause, tourResume, tourStart, tourTick, type FollowState, type Target, type TourRun } from "./follow.ts";
 import { initTheme } from "./theme.ts";
 import { hasWebGPU, parseTheme, shouldRun, shouldShow, themeColors } from "./backdrop.ts";
 import { tokenFromHash } from "./token.ts";
@@ -210,6 +212,12 @@ async function loadDetail(pid: string, cid: string) {
     detailState = "error";
   }
   for (const [id, p] of pending) if (p.at <= startedAt) pending.delete(id); // their html has arrived (or will not)
+  if (offerPending && detailState === "ok" && detail && routeCanvas(route) === cid && routeProject(route) === pid) {
+    offerPending = false; // the stored session is offered once per canvas load, never on a refetch
+    const r = onCanvasLoad(fs, detail.presenter, cid);
+    fs = r.state;
+    if (r.jump && (route.view === "canvas" || (route.view === "play" && route.screen === null))) followJump(pid, r.jump);
+  }
   if (routeCanvas(route) === cid && routeProject(route) === pid) renderCanvas();
 }
 
@@ -276,9 +284,93 @@ const canvasView = createCanvasView(
   },
 );
 
+// Live play: Claude's presenter session and the tour (rules in web/follow.ts, DOM in web/live-view.ts).
+const loadedAt = Date.now(); // presenter events older than this are websocket backfill, not live
+let fs: FollowState = initialFollow();
+let tour: TourRun | null = null;
+let tourTimer: ReturnType<typeof setInterval> | undefined;
+let tourLast = 0;
+let offerPending = false; // set when a canvas starts loading; the first answer may offer the stored session
+let held: Target | null = null; // a goto for a screen the page does not have yet, retried after the next refetch
+
+function followJump(pid: string, t: Target) {
+  if (route.view === "play" && route.id === pid && route.canvas === t.canvas && playView.isOpen()) {
+    const r = playView.goto(t.screen, t.transition);
+    held = r === "missing" || r === "closed" ? t : null;
+  } else {
+    held = null;
+    location.hash = hrefPlay(pid, t.canvas, t.screen);
+  }
+}
+
+function stopTour() {
+  clearInterval(tourTimer);
+  tour = null;
+}
+
+function drawLive() {
+  if (route.view !== "play") return;
+  const steps = detail?.tour ?? [];
+  const pill = pillModel(fs, route.canvas, detail?.screens ?? [], steps);
+  liveView.draw({ pill, follow: pill?.kind === "taken", tour: steps.length > 0 && pill?.kind !== "live" ? tourLabel(tour) : null, caption: tourCaption(tour) });
+}
+
+function runTour(dt: number) {
+  if (!tour) return;
+  const x = tourTick(tour, dt);
+  tour = x.run;
+  if (x.enter && playView.goto(x.enter.step.screen, null) === "closed") return stopTour();
+  if (!tour.playing) clearInterval(tourTimer);
+  drawLive();
+}
+
+function toggleTour() {
+  const steps = detail?.tour ?? [];
+  if (steps.length === 0 || !playView.isOpen()) return;
+  if (tour?.playing) {
+    tour = tourPause(tour);
+    clearInterval(tourTimer);
+  } else {
+    tour = tour ? tourResume(tour) : tourStart(steps);
+    clearInterval(tourTimer);
+    tourLast = Date.now();
+    tourTimer = setInterval(() => {
+      const n = Date.now();
+      const dt = n - tourLast;
+      tourLast = n;
+      runTour(dt);
+    }, 100);
+    runTour(0);
+  }
+  drawLive();
+}
+
+/** The viewer moved by hand: Follow turns off (Claude's session goes on) and a running tour pauses. */
+function viewerTookOver() {
+  fs = takeOver(fs);
+  if (tour?.playing) {
+    tour = tourPause(tour);
+    clearInterval(tourTimer);
+  }
+  drawLive();
+}
+
+const liveView = createLiveView({
+  takeOver: viewerTookOver,
+  follow: () => {
+    const r = resumeFollow(fs);
+    fs = r.state;
+    const pid = routeProject(route);
+    if (r.jump && pid) followJump(pid, r.jump);
+    drawLive();
+  },
+  tour: toggleTour,
+});
+
 // Present mode (web/play-view.ts) sits over the canvas view; Esc / Exit goes back to where Play was pressed.
 let playReturn: string | null = null;
 const playView = createPlayView({
+  userAction: viewerTookOver,
   exit: () => {
     if (route.view === "play") location.hash = playReturn ?? hrefCanvas(route.id, route.canvas);
   },
@@ -306,7 +398,12 @@ function renderCanvas() {
     pending,
     selected: route.view === "screen" ? route.screen : null,
   });
-  if (route.view === "play") playView.render({ detail, state: detailState }, route.screen);
+  if (route.view === "play") {
+    if (tour && JSON.stringify(tour.steps) !== JSON.stringify(detail?.tour ?? [])) stopTour(); // Claude set a new tour
+    playView.render({ detail, state: detailState }, route.screen);
+    if (held && playView.goto(held.screen, held.transition) !== "missing") held = null;
+    drawLive();
+  }
 }
 
 setInterval(() => {
@@ -327,7 +424,10 @@ function showRoute() {
   if (!inCanvas) startBackdrop(); // never started (no GPU cost) while only the canvas has been shown
   (inCanvas ? cvTools : topBar).append(barTools);
   const pid = routeProject(route);
-  if (pid && pid !== prevProject) void loadList(pid);
+  if (pid && pid !== prevProject) {
+    void loadList(pid);
+    fs = initialFollow(); // the session belongs to a project
+  }
   if (route.view === "canvas" || route.view === "screen" || route.view === "play") {
     const same = route.canvas === prevCanvas && pid === prevProject;
     if (!same) {
@@ -335,6 +435,9 @@ function showRoute() {
       detail = null;
       detailState = "loading";
       pending.clear();
+      stopTour();
+      held = null;
+      offerPending = true;
       void loadDetail(route.id, route.canvas);
     }
     if (route.view === "play") {
@@ -345,6 +448,7 @@ function showRoute() {
       renderCanvas();
       playView.open({ detail, state: detailState }, route.screen);
     } else {
+      stopTour();
       playView.close();
       if (prev.view === "play" && same) canvasView.resume();
       else canvasView.enter(same);
@@ -354,6 +458,8 @@ function showRoute() {
     detailSeq++;
     detail = null;
     pending.clear();
+    stopTour();
+    offerPending = false;
     playView.close();
     canvasView.leave();
     replay.close();
@@ -413,6 +519,12 @@ const watcher = new Watcher({
         renderCanvas();
       } else if (plan.detail) eventCounter++;
       if (plan.list || plan.detail) scheduleRefetch(plan);
+    }
+    if (row.project && row.kind.startsWith("presenter.") && row.project === routeProject(route)) {
+      const r = onPresenterEvent(fs, row, loadedAt);
+      fs = r.state;
+      if (r.jump) followJump(row.project, r.jump);
+      drawLive();
     }
     renderSidebar();
     if (row.kind === "project.opened" && !before) renderCanvas(); // the island shows the project's name once Lite knows it

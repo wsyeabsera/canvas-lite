@@ -311,6 +311,21 @@
   .rp-sp[aria-pressed=true] { background: var(--g); box-shadow: 0 0 0 1px var(--gb); }
   .rp-exit { background: var(--chip); padding: 5px 14px; }
   .rp-exit:hover, .rp-sp:hover { background: var(--sel); }
+  /* live play: the "Claude is presenting" pill replaces the bar; tour and follow buttons, the tour caption (web/live-view.ts) */
+  .pl-live { top: 14px; left: 50%; transform: translateX(-50%); gap: 10px; padding: 5px 6px 5px 14px; white-space: nowrap; }
+  .pl-live[hidden], .pl-tour[hidden], .pl-follow[hidden], .pl-caption[hidden] { display: none; }
+  .pl.presenting .pl-bar { display: none; }
+  .pl-live-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); }
+  .pl-live-t { font-weight: 600; }
+  .pl-live-s { color: var(--mu); font-variant-numeric: tabular-nums; }
+  .pl-take { background: var(--sel); padding: 0 14px; }
+  .pl-follow { background: var(--ac); color: #fff; padding: 0 12px; }
+  .pl-tour { padding: 0 12px; font-variant-numeric: tabular-nums; }
+  .pl-caption {
+    position: absolute; left: 50%; bottom: 72px; transform: translateX(-50%); max-width: min(640px, 80vw); padding: 7px 16px; border-radius: 999px; font-size: 14px;
+    color: #fff; background: rgba(14,17,28,.88); border: 1px solid rgba(255,255,255,.18); box-shadow: 0 8px 24px rgba(0,0,0,.45); text-align: center;
+  }
+  @media (prefers-reduced-motion: no-preference) { .pl-live-dot { animation: lite-pulse 1.4s ease-in-out infinite; } }
 
   #locked { max-width: 460px; margin: 18vh auto 0; padding: 28px; text-align: center; width: calc(100% - 32px); }
   #locked h1 { margin-bottom: 10px; }
@@ -376,9 +391,19 @@
         <button class="ib" id="pl-back" type="button" aria-label="Back (Left arrow)" title="Back (Left arrow)"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
         <button class="ib" id="pl-restart" type="button" aria-label="Restart (R)" title="Restart (R)"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.6-5.9M4 4v4h4"/></svg></button>
         <span class="pl-prog"><span class="pl-dots" id="pl-dots"></span><span class="pl-name" id="pl-name"></span></span>
+        <button class="ib pl-tour" id="pl-tour" type="button" hidden title="Play the tour Claude set">Tour</button>
+        <button class="ib pl-follow" id="pl-follow" type="button" hidden title="Follow Claude again">Follow</button>
         <button class="ib pl-mode" id="pl-mode" type="button" aria-pressed="false" title="Mouse or TV remote keys (M)">Mouse</button>
         <button class="ib pl-exit" id="pl-exit" type="button" aria-label="Exit (Esc)" title="Exit (Esc)">Exit <kbd>Esc</kbd></button>
       </div>
+      <div class="island glass pl-live" id="pl-live" role="status" aria-live="polite" hidden>
+        <span class="pl-live-dot" aria-hidden="true"></span>
+        <span class="pl-live-t">Claude is presenting</span>
+        <span class="pl-live-s" id="pl-live-step"></span>
+        <span class="pl-dots" id="pl-live-dots"></span>
+        <button class="ib pl-take" id="pl-take" type="button" title="Stop following; Claude keeps presenting">Take over</button>
+      </div>
+      <div class="pl-caption" id="pl-caption" role="status" hidden></div>
       <div class="pl-toast" id="pl-toast" role="status" hidden></div>
     </div>
   </section>
