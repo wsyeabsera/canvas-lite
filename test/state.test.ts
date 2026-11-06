@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addRow, initialState, parseRoute, routeProject, visibleRows, describeProject, readmeLine, MAX_ROWS, sortedProjects, hrefScene, routeScene, sceneEventHits, routeCanvas, type State } from "../web/state.ts";
+import { addRow, initialState, parseRoute, routeProject, visibleRows, describeProject, readmeLine, MAX_ROWS, sortedProjects, hrefScene, hrefSceneWatch, routeScene, sceneEventHits, routeCanvas, type State } from "../web/state.ts";
 import type { WatchRow } from "../cli/format.ts";
 
 const row = (seq: number, project: string | null, kind = "ping", payload: unknown = {}): WatchRow => ({ seq, project, kind, payload, ts: seq });
@@ -94,6 +94,24 @@ test("project.removed drops the project from the sidebar, and a later project.op
   assert.equal(s.counts.tvdash, 2, "its events stay in the log and the counts");
   s = addRow(s, row(3, "tvdash", "project.opened", { name: "tvdash", kind: "hobby", repo: null, files: 2, bytes: 9 }));
   assert.deepEqual(Object.keys(s.projects), ["tvdash"]);
+});
+
+test("parseRoute: the scene Watch route (film picker and player) and its helpers", () => {
+  assert.deepEqual(parseRoute("#/project/lite/scene/town/watch"), { view: "scene-watch", id: "lite", scene: "town", film: null });
+  assert.deepEqual(parseRoute("#/project/lite/scene/town/watch/tour"), { view: "scene-watch", id: "lite", scene: "town", film: "tour" });
+  assert.equal(hrefSceneWatch("lite", "town"), "#/project/lite/scene/town/watch");
+  assert.equal(hrefSceneWatch("lite", "town", null), "#/project/lite/scene/town/watch");
+  assert.equal(hrefSceneWatch("lite", "town", "tour"), "#/project/lite/scene/town/watch/tour");
+  assert.deepEqual(parseRoute(hrefSceneWatch("a-1", "b-2", "c-3")), { view: "scene-watch", id: "a-1", scene: "b-2", film: "c-3" });
+  for (const h of ["#/project/lite/scene/town/watch/", "#/project/lite/scene/town/watch/Tour", "#/project/lite/scene/BAD/watch", "#/project/lite/scene/town/watch/a/b"]) assert.deepEqual(parseRoute(h), { view: "activity" }, h);
+  assert.deepEqual(parseRoute("#/project/lite/scene/town"), { view: "scene", id: "lite", scene: "town" }); // Orbit unchanged
+  const r = parseRoute("#/project/lite/scene/town/watch/tour");
+  assert.equal(routeProject(r), "lite");
+  assert.equal(routeScene(r), "town");
+  assert.equal(routeCanvas(r), null);
+  assert.equal(sceneEventHits(r, row(1, "lite", "films.set", { scene: "town", count: 2 })), true);
+  assert.equal(sceneEventHits(r, row(1, "lite", "scene.set", { scene: "town" })), true);
+  assert.equal(sceneEventHits(r, row(1, "lite", "scene.set", { scene: "other" })), false);
 });
 
 test("parseRoute: the scene route (Orbit mode) and its helpers", () => {

@@ -22,6 +22,8 @@ export interface SceneView {
   camera(): { pos: Vec3; look: Vec3; fov: number };
   /** The world-space point a look (a point or an object id) resolves to; an unknown id gives the scene centre. */
   lookPoint(look: Vec3 | string): Vec3;
+  /** The world-space bounding box of a declared object id (a repeater template id: all its copies), or null for an unknown id. */
+  bounds(id: string): { min: Vec3; max: Vec3 } | null;
   /** Schedules one frame (drawn on the next animation frame, unless paused or the tab is hidden). */
   render(): void;
   /** Re-reads the container size and schedules a frame. Also runs by itself on container resize. */
@@ -281,6 +283,14 @@ export function createSceneView(container: HTMLElement, scene: Scene): SceneView
     return [v.x, v.y, v.z];
   };
 
+  const objectBounds = (id: string): { min: Vec3; max: Vec3 } | null => {
+    const obj = byId.get(id);
+    if (!obj) return null;
+    const b = new Box3().setFromObject(obj);
+    if (b.isEmpty()) return null;
+    return { min: [b.min.x, b.min.y, b.min.z], max: [b.max.x, b.max.y, b.max.z] };
+  };
+
   // --- render loop: only when something changed, never while hidden or paused ---------
   let dirty = true;
   let paused = false;
@@ -339,6 +349,7 @@ export function createSceneView(container: HTMLElement, scene: Scene): SceneView
     setCamera,
     camera: () => ({ pos: [camera.position.x, camera.position.y, camera.position.z], look: [...lookAt], fov: camera.fov }),
     lookPoint,
+    bounds: objectBounds,
     render: () => {
       dirty = true;
       schedule();
