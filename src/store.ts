@@ -75,6 +75,11 @@ export const MIGRATIONS = [
      PRIMARY KEY (project, canvas, id),
      FOREIGN KEY (project, canvas) REFERENCES canvases(project, id)
    );`,
+  // 5: the canvas flow (docs/canvas.md): a start screen id and a default transition. Plain ADD COLUMNs: no rebuild, rows,
+  // events and triggers are untouched. `start_screen` has no foreign key: it is checked in src/canvases.ts and cleared
+  // when that screen is removed. Existing canvases get no start screen and transition 'none'.
+  `ALTER TABLE canvases ADD COLUMN start_screen TEXT;
+   ALTER TABLE canvases ADD COLUMN transition TEXT NOT NULL DEFAULT 'none' CHECK (transition IN ('none', 'fade', 'slide-left', 'slide-right', 'push'));`,
 ];
 
 /** Runs pending migrations, each in its own transaction. Refuses a database written by a newer build. */
