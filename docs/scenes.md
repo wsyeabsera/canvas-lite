@@ -104,7 +104,8 @@ All take `project`; errors are `isError` results. Validation is done by the pure
 | `set_scene` | `scene`, `data` (a Scene) | `{scene: SceneSummary}`; replaces the whole scene (films stay) |
 | `patch_scene` | `scene`, `edits:[{op: "set"\|"remove", id, object?}]` | `{scene: SceneSummary}`; edits top-level or nested objects by id (`set` replaces, or adds a top-level object when the id is new; `remove` needs an existing id), re-checks the whole scene |
 | `set_films` | `scene`, `films` (at most 8) | `{scene, count}`; replaces all films |
-| `read_scene` | `scene` | `{scene: Scene, films: FilmRead[], updated_at}` |
+| `set_page` | `scene`, `page` (`{sections}`, or null/`{}` to clear) | `{scene, sections}`; replaces the page (see Page) |
+| `read_scene` | `scene` | `{scene: Scene, films: FilmRead[], page: Page \| null, updated_at}` |
 | `list_scenes` | none | `{scenes: SceneSummary[]}`: `{id, name, objects, drawables, films, updated_at}`, newest first |
 | `validate_scene` | `scene` | `{ok, issues:[{severity, kind, message, fix, object?, film?, shot?}]}` |
 
@@ -116,6 +117,28 @@ A `patch_scene` `set` also finds an id inside a repeater's template (`repeat.of`
 
 Errors reuse `unknown project "<id>"` and add `unknown scene "<id>"`.
 
+## Page
+
+A **page** turns a scene into a scrolling landing page: the camera follows the scroll and text overlays sit on top. It is data too: `{sections: Section[]}`, stored on the scene (`page` column, migration 8) and set with `set_page`. Code: `src/page-model.ts` (`checkPage`, `pageCoverage`, `unsafeHtml`) and `web/page-scroll.ts` (the pure scroll mapping the browser and the tests share).
+
+A section is `{id, title?, html, shot, align?, height_vh?, gap_vh?}`:
+
+| Field | Meaning |
+|---|---|
+| `id` | slug, unique in the page |
+| `title` | optional, at most 80 characters |
+| `html` | the overlay content; shown later in a sandboxed frame, so text and markup only |
+| `shot` | a shot id of any film of the scene, or a pair `[first, second]` of shot ids |
+| `align` | `left`, `right` or `center` (where the overlay sits) |
+| `height_vh` | scroll length of the section, 50 to 300, default 100 |
+| `gap_vh` | scroll distance before the section, 0 to 100, default 0 |
+
+**Mapping rules** (`cameraAt(page, films, scrollY, viewportHeight)`). Sections are consecutive: section n starts where section n-1 ended plus its own `gap_vh`. A section bound to one shot plays that shot from start to end across its scroll range (progress = how far through the range, eased like the shot player). A pair moves from the first shot's start view to the second shot's end view (the first shot's easing, no waypoints). In a gap between sections the camera holds the previous section's end view. Before the first section it sits at the first section's start view; after the last it holds the last end view. A section whose shot no longer exists is skipped.
+
+**Limits:** at most 12 sections; html at most 20000 bytes per section and 100000 per page; title 80 characters. Overlay html is rejected, naming the section, when it contains `<script>`, an `on*` attribute, a `javascript:` url, or `<iframe>`, `<object>`, `<embed>` or `<form>`. Every referenced shot id must exist in some film (`invalid section "<id>": unknown shot "<id>"`). `set_page` checks against the stored scene and films, so set films first. Setting new films later does not re-check the page; `cameraAt` skips dead shots and `pageCoverage` lists shots no section uses (information for the review, never an error).
+
+Write sections like a landing page: a headline, one idea per section, each bound to a shot; run `validate_scene` and `review_scene` first.
+
 ## Events
 
 Envelope and replay are the usual (see [Progress](progress.md)). **No event carries a scene body.**
@@ -124,11 +147,12 @@ Envelope and replay are the usual (see [Progress](progress.md)). **No event carr
 |---|---|---|
 | `scene.set` | `{scene, name, bytes}` | `create_scene`, `set_scene`, `patch_scene` |
 | `films.set` | `{scene, count}` | `set_films` |
+| `page.set` | `{scene, sections}` (no html) | `set_page` |
 | `scene.removed` | `{scene}` | reserved: not emitted yet (no tool removes a scene in this version) |
 
 ## Storage
 
-Migration 7 adds the `scenes` table, keyed by `(project, id)`: `name`, `data` (the scene JSON), `films` (the films JSON, default `'[]'`), `updated_at` and `removed` (0 or 1). See [Database](database.md). Writes check the whole input first and store it with its event in one transaction; `patch_scene` writes the whole checked scene back, never a partial one.
+Migration 8 adds the `page` column (JSON text, `'null'` when there is no page). Migration 7 adds the `scenes` table, keyed by `(project, id)`: `name`, `data` (the scene JSON), `films` (the films JSON, default `'[]'`), `updated_at` and `removed` (0 or 1). See [Database](database.md). Writes check the whole input first and store it with its event in one transaction; `patch_scene` writes the whole checked scene back, never a partial one.
 
 ## Worked example: a small town
 

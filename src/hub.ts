@@ -7,7 +7,7 @@ import { createCanvas, listCanvases, listCanvasesForPage, readCanvas, removeCanv
 import { canvasAt, canvasTimeline } from "./timeline.ts";
 import { patchScreen, readCanvasForPage, readFlow, reviewFlow, setTour, validateFlow, type PatchEdit } from "./flow.ts";
 import { setScenarios } from "./scenarios.ts";
-import { createScene, listScenes, patchScene, readScene, setFilms, setScene, validateStoredScene, type SceneEdit } from "./scene-store.ts";
+import { createScene, listScenes, patchScene, readScene, setFilms, setPage, setScene, validateStoredScene, type SceneEdit } from "./scene-store.ts";
 import { goto, present, stopPresent } from "./present.ts";
 import { listProjects, openProject, readProject, removeProject, type OpenInput, type ProjectSummary } from "./projects.ts";
 import { appendEvent,migrate, type LiteEvent, type Sql } from "./store.ts";
@@ -168,6 +168,12 @@ export class Hub extends DurableObject<Env> {
 
   setFilms(project: string, scene: string, films: unknown) {
     const { event, result } = setFilms(this.sql, project, scene, films);
+    this.broadcast(event);
+    return result;
+  }
+
+  setPage(project: string, scene: string, page: unknown) {
+    const { event, result } = setPage(this.sql, project, scene, page);
     this.broadcast(event);
     return result;
   }

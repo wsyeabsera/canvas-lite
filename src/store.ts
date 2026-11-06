@@ -119,6 +119,8 @@ export const MIGRATIONS = [
      removed    INTEGER NOT NULL DEFAULT 0 CHECK (removed IN (0, 1)),
      PRIMARY KEY (project, id)
    );`,
+  // 8: the page of a scene (docs/scenes.md "Page"): sections bound to shots, as JSON text ('null' = no page). Plain ADD COLUMN.
+  `ALTER TABLE scenes ADD COLUMN page TEXT NOT NULL DEFAULT 'null';`,
 ];
 
 /** Runs pending migrations, each in its own transaction. Refuses a database written by a newer build. */

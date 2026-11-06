@@ -1,6 +1,7 @@
 // Scenes as pure functions over `Sql` (docs/scenes.md). The only code that touches the `scenes` table. Every write checks the whole
 // input first, then stores it with its event in one transaction. Events never carry a scene body or films.
 import { checkId, requireProject } from "./canvases.ts";
+import { checkPage, type Page } from "./page-model.ts";
 import { slugify } from "./projects.ts";
 import { checkScene, expandedCount, type Scene, type SceneObject } from "./scene.ts";
 import { validateScene } from "./scene-validate.ts";
@@ -20,16 +21,17 @@ export const SCENE_TEXT = {
   read_scene: "Read a scene and its films: {scene, films, updated_at}. Each film has duration_ms and missing: the indexes of shots whose focus or look-at object no longer exists. Use it to find object ids before patch_scene or set_films.",
   list_scenes: "List a project's scenes, newest updated first: {scenes:[{id, name, objects, drawables, films, updated_at}]}; objects counts top-level objects, drawables the objects after repeaters expand (limit 2000).",
   validate_scene: "Review a scene and its films like a director. Answer {ok, issues:[{severity, kind, message, fix, object?, film?, shot?}]}: errors camera_inside_solid, shot_looks_at_nothing and focus_missing, warnings no_lights and film_too_short, info empty_scene. ALWAYS run it after set_scene and set_films and fix every issue (set_scene, patch_scene, set_films) before you show anything; ok means no errors.",
+  set_page: "Set the scrolling web page of a scene (the 3D landing page): page {sections: [{id, title?, html, shot, align?, height_vh?, gap_vh?}]}, 1 to 12 sections; null or {} clears it. Write the sections like a landing page: a headline first, then ONE idea per section, each bound to a shot (shot: a shot id of a film, or a pair [first, second] that moves the camera from the first shot's start view to the second shot's end view). html is the overlay shown over the 3D view in a sandboxed frame: text and markup only, no <script>, no on* attributes, no javascript: urls, no iframe, object, embed or form; at most 20000 bytes a section and 100000 a page; title at most 80 characters; align left, right or center; height_vh 50 to 300 is the scroll length (default 100); gap_vh 0 to 100 holds the camera on the previous end view before the section. Run validate_scene and review_scene first and fix what they say. Answer {scene, sections}.",
 } as const;
 
-type Row = { id: string; name: string; data: string; films: string; updated_at: number };
+type Row = { id: string; name: string; data: string; films: string; page: string; updated_at: number };
 
 const byteLength = (s: string) => new TextEncoder().encode(s).length;
 
 function requireScene(sql: Sql, project: string, id: string): Row {
   requireProject(sql, project);
   checkId("scene", id);
-  const [r] = sql.all<Row>("SELECT id, name, data, films, updated_at FROM scenes WHERE project = ? AND id = ? AND removed = 0", project, id);
+  const [r] = sql.all<Row>("SELECT id, name, data, films, page, updated_at FROM scenes WHERE project = ? AND id = ? AND removed = 0", project, id);
   if (!r) throw new Error(`unknown scene "${id}"`);
   return r;
 }
@@ -38,9 +40,9 @@ const summary = (id: string, scene: Scene, films: unknown[], updated_at: number)
   id, name: scene.name, objects: scene.objects.length, drawables: expandedCount(scene.objects), films: films.length, updated_at,
 });
 
-function load(sql: Sql, project: string, id: string): { scene: Scene; films: Film[]; updated_at: number } {
+function load(sql: Sql, project: string, id: string): { scene: Scene; films: Film[]; page: Page | null; updated_at: number } {
   const r = requireScene(sql, project, id);
-  return { scene: JSON.parse(r.data), films: JSON.parse(r.films), updated_at: r.updated_at };
+  return { scene: JSON.parse(r.data), films: JSON.parse(r.films), page: JSON.parse(r.page), updated_at: r.updated_at };
 }
 
 function store(sql: Sql, project: string, id: string, scene: Scene, now: number): LiteEvent {
@@ -66,7 +68,7 @@ export function createScene(
     // A removed row with this id is revived in place (its data and films replaced), never deleted.
     sql.run(
       `INSERT INTO scenes (project, id, name, data, films, updated_at, removed) VALUES (?, ?, ?, ?, '[]', ?, 0)
-       ON CONFLICT (project, id) DO UPDATE SET name = excluded.name, data = excluded.data, films = '[]', updated_at = excluded.updated_at, removed = 0`,
+       ON CONFLICT (project, id) DO UPDATE SET name = excluded.name, data = excluded.data, films = '[]', page = 'null', updated_at = excluded.updated_at, removed = 0`,
       project, id, scene.name, data, now,
     );
     const event = appendEvent(sql, { project, kind: "scene.set", payload: { scene: id, name: scene.name, bytes: byteLength(data) } }, now);
@@ -142,10 +144,23 @@ export function setFilms(sql: Sql, project: string, id: string, films: unknown, 
   });
 }
 
+/** Replaces the page (checked against the stored scene and films). null, `{}` or no sections clears it. The event carries the section count only, never html. */
+export function setPage(sql: Sql, project: string, id: string, input: unknown, now = Date.now()): { result: { scene: string; sections: number }; event: LiteEvent } {
+  return sql.transaction(() => {
+    const { scene, films } = load(sql, project, id);
+    const empty = input === null || input === undefined || (typeof input === "object" && !Array.isArray(input) && (Object.keys(input).length === 0 || (Array.isArray((input as any).sections) && (input as any).sections.length === 0)));
+    const page = empty ? null : checkPage(input, scene, films);
+    const sections = page ? page.sections.length : 0;
+    sql.run("UPDATE scenes SET page = ?, updated_at = ? WHERE project = ? AND id = ?", JSON.stringify(page), now, project, id);
+    const event = appendEvent(sql, { project, kind: "page.set", payload: { scene: id, sections } }, now);
+    return { result: { scene: id, sections }, event };
+  });
+}
+
 /** The scene with its films (each with duration and `missing`). Never throws for shots whose object is gone. */
-export function readScene(sql: Sql, project: string, id: string): { scene: Scene; films: FilmRead[]; updated_at: number } {
-  const { scene, films, updated_at } = load(sql, project, id);
-  return { scene, films: readFilms(films, scene), updated_at };
+export function readScene(sql: Sql, project: string, id: string): { scene: Scene; films: FilmRead[]; page: Page | null; updated_at: number } {
+  const { scene, films, page, updated_at } = load(sql, project, id);
+  return { scene, films: readFilms(films, scene), page, updated_at };
 }
 
 /** validate_scene on the stored scene and films. */
