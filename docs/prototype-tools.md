@@ -7,6 +7,8 @@ slug: /prototype-tools
 
 How Claude drives the prototype player (see [Prototype](prototype.md) for the link model). Everything here is built; the tools live in `src/flow.ts` and `src/present.ts` (pure, unit tested) with thin Hub and MCP wiring. For how to write a prototype, read the [Prototyping guide](prototyping-guide.md).
 
+> **3D scenes** have their own tools: `create_scene`, `set_scene`, `patch_scene`, `read_scene`, `list_scenes`, `set_films` and `validate_scene`. They follow the same pattern (pure modules, thin wiring, an event per write with no body) but store a scene in a table, not events. See [3D scenes and films](scenes.md).
+
 ## Decisions
 
 - **`set_flow` stays as it is.** It already sets the start screen and the default transition; nothing in Proto 2 needs more. Reading is new: `read_flow`.
