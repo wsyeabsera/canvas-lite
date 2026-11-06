@@ -4,10 +4,10 @@
 import type { WatchRow } from "../cli/format.ts";
 import { CANVAS_KINDS, describeCanvasDetail, iframeSpec, type CanvasDetail } from "./canvas.ts";
 import {
-  applyFilter, badgeOf, bannerModel, continueModel, describeEntries, FILTER_LABEL, FILTERS, filterCounts, foldSession, groupByProject, LAST_KEY, metaLine, parseLast,
-  rememberRoute, rememberScreen, searchEntries, startScreenOf, thumbFit, type Entry, type Filter, type Last, type Sessions,
+  applyFilter, badgeOf, bannerModel, continueModel, describeEntries, FILTER_LABEL, FILTERS, filterCounts, filterByProject, foldSession, LAST_KEY, metaLine, parseLast, PROJECT_KEY, projectOptions,
+  rememberRoute, rememberScreen, resolveProject, searchEntries, showProjectPicker, sortEntries, startScreenOf, thumbFit, type Entry, type Filter, type Last, type Sessions,
 } from "./landing.ts";
-import { hrefActivity, hrefCanvas, hrefPlay, hrefProject, hrefWalk, type ProjectInfo } from "./state.ts";
+import { hrefActivity, hrefCanvas, hrefPlay, hrefWalk, type ProjectInfo } from "./state.ts";
 
 export type LandingDeps = {
   headers: () => Record<string, string>;
@@ -55,6 +55,8 @@ export function createLandingView(deps: LandingDeps) {
   const galleryEl = $("ld-gallery");
   const searchEl = $("ld-search") as HTMLInputElement;
   const slot = $("ld-tools");
+  const projWrap = $("ld-proj");
+  const projEl = $("ld-project") as HTMLSelectElement;
 
   let visible = false;
   let dirty = true;
@@ -64,11 +66,13 @@ export function createLandingView(deps: LandingDeps) {
   let entries: Entry[] = [];
   let query = "";
   let filter: Filter = "all";
-  const collapsed = new Set<string>();
+  let project = ""; // chosen project id, "" = All projects
+  let savedProject: string | null = null;
   let sessions: Sessions = {};
   let last: Last | null = null;
   try {
     last = parseLast(localStorage.getItem(LAST_KEY));
+    savedProject = localStorage.getItem(PROJECT_KEY);
   } catch {
     /* storage blocked: nothing is remembered */
   }
@@ -238,53 +242,49 @@ export function createLandingView(deps: LandingDeps) {
     const b = badgeOf(e);
     const body = el("div", "ld-body");
     const name = link(hrefCanvas(e.pid, e.id), "ld-name", e.name); // its ::after covers the card: a click anywhere opens the canvas
+    const label = project === "" ? el("div", "ld-plabel", e.project) : null; // context only, while All projects is selected
     const meta = el("div", "ld-meta", metaLine(e, now()));
     meta.dataset.screens = String(e.screens);
     meta.dataset.ts = String(e.updated_at);
     const badge = el("span", `ld-badge ${b.kind}`, b.text);
-    body.append(name, meta, badge);
+    if (label) body.append(name, label, meta, badge);
+    else body.append(name, meta, badge);
     c.append(wrap, body);
     return c;
   }
 
+  function drawProjects(all: Entry[]) {
+    const options = projectOptions(all);
+    project = resolveProject(savedProject, options);
+    projWrap.hidden = !showProjectPicker(options);
+    projEl.replaceChildren(...options.map((o) => {
+      const opt = el("option", undefined, o.label);
+      opt.value = o.value;
+      return opt;
+    }));
+    projEl.value = project;
+  }
+
   function drawGallery(all: Entry[]) {
-    const shown = applyFilter(searchEntries(all, query), filter);
-    if (all.length === 0) {
+    const shown = sortEntries(applyFilter(searchEntries(all, query), filter));
+    if (entries.length === 0) {
       galleryEl.replaceChildren(settled ? el("p", "ld-empty", "Nothing yet. Ask Claude to design something.") : el("p", "ld-empty"));
       return;
     }
     if (shown.length === 0) return galleryEl.replaceChildren(el("p", "ld-empty", "No designs match."));
-    const frag = document.createDocumentFragment();
-    for (const g of groupByProject(shown)) {
-      const sec = el("section", "ld-group");
-      const head = el("div", "ld-ghead");
-      const toggle = el("button", "ld-gtoggle");
-      toggle.type = "button";
-      const open = !collapsed.has(g.pid);
-      toggle.setAttribute("aria-expanded", String(open));
-      toggle.append(icon("M9 6l6 6-6 6", 14), el("span", "ld-gname", g.project), el("span", "ld-gcount", String(g.count)));
-      const grid = el("div", "ld-grid");
-      grid.hidden = !open;
-      grid.append(...g.entries.map(card));
-      toggle.addEventListener("click", () => {
-        if (collapsed.has(g.pid)) collapsed.delete(g.pid);
-        else collapsed.add(g.pid);
-        grid.hidden = collapsed.has(g.pid);
-        toggle.setAttribute("aria-expanded", String(!collapsed.has(g.pid)));
-      });
-      head.append(toggle, link(hrefProject(g.pid), "ld-details", "Details", `${g.project}: files and events`));
-      sec.append(head, grid);
-      frag.append(sec);
-    }
-    galleryEl.replaceChildren(frag);
+    const grid = el("div", "ld-grid");
+    grid.append(...shown.map(card));
+    galleryEl.replaceChildren(grid);
   }
 
   function render() {
     if (!visible) return;
     drawBanner();
     drawContinue();
-    drawChips(entries);
-    drawGallery(entries);
+    drawProjects(entries);
+    const scoped = filterByProject(entries, project);
+    drawChips(scoped);
+    drawGallery(scoped);
   }
 
   // The gallery redraws on data and on filter/search changes; relative times tick in place so thumbnails never reload.
@@ -294,6 +294,15 @@ export function createLandingView(deps: LandingDeps) {
     tickContinue();
   }, 30_000);
 
+  projEl.addEventListener("change", () => {
+    project = savedProject = projEl.value;
+    try {
+      localStorage.setItem(PROJECT_KEY, project);
+    } catch {
+      /* ignore */
+    }
+    render();
+  });
   searchEl.addEventListener("input", () => {
     query = searchEl.value;
     render();

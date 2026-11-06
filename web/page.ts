@@ -19,7 +19,6 @@ const $ = (id: string) => document.getElementById(id)!;
 const app = $("app");
 const locked = $("locked");
 const status = $("status");
-const projectsEl = $("projects");
 const viewActivity = $("view-activity");
 const viewLanding = $("view-landing");
 const viewProject = $("view-project");
@@ -89,30 +88,6 @@ function fill(list: HTMLElement, rows: WatchRow[]) {
   list.replaceChildren(frag);
   list.scrollTop = list.scrollHeight;
   list.lastElementChild?.classList.add("new");
-}
-
-function renderSidebar() {
-  const frag = document.createDocumentFragment();
-  const item = (href: string, label: string, count: number, kind: string | null, current: boolean, sub = false) => {
-    const li = el("li");
-    if (sub) li.className = "sub";
-    const a = el("a");
-    a.href = href;
-    a.append(label);
-    if (kind) a.append(" ", el("span", kind));
-    if (count >= 0) a.append(" ", el("span", String(count), "count"));
-    if (current) a.setAttribute("aria-current", "page");
-    li.append(a);
-    frag.append(li);
-  };
-  item(hrefLanding, "Designs", -1, null, false);
-  item(hrefActivity, "All activity", state.total, null, route.view === "activity");
-  const open = routeProject(route);
-  for (const p of sortedProjects(state)) {
-    item(hrefProject(p.id), p.name, state.counts[p.id] ?? 0, p.kind, route.view === "project" && route.id === p.id);
-    if (p.id === open) for (const c of canvasLists[p.id] ?? []) item(hrefCanvas(p.id, c.id), c.name, c.screens, null, routeCanvas(route) === c.id, true);
-  }
-  projectsEl.replaceChildren(frag);
 }
 
 // --- project view -------------------------------------------------------
@@ -188,7 +163,6 @@ async function loadList(pid: string) {
     const list = describeCanvasList(await res.json());
     if (mine !== listSeq) return;
     canvasLists[pid] = list;
-    renderSidebar();
     if (route.view === "project" && route.id === pid) renderCanvasCard();
     renderCanvas();
   } catch {
@@ -511,7 +485,6 @@ function showRoute() {
   } else if (wasProject) {
     fetchSeq++;
   }
-  renderSidebar();
 }
 
 // --- backdrop -----------------------------------------------------------
@@ -562,7 +535,6 @@ const watcher = new Watcher({
       if (r.jump) followJump(row.project, r.jump);
       drawLive();
     }
-    renderSidebar();
     if (row.kind === "project.opened" && !before) renderCanvas(); // the island shows the project's name once Lite knows it
     if (route.view === "project" && row.project === route.id && row.kind === "project.opened" && !before) {
       $("project-title").textContent = state.projects[route.id]?.name ?? route.id;

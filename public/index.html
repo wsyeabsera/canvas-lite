@@ -84,6 +84,7 @@
   #app, #locked { position: relative; z-index: 1; }
   #app { display: flex; flex-direction: column; gap: 16px; max-width: 1280px; margin: 0 auto; padding: 16px; min-height: 100dvh; }
   .bar { display: flex; align-items: center; gap: 14px; padding: 8px 10px 8px 20px; border-radius: 999px; flex-wrap: wrap; }
+  .bar-back { display: inline-flex; align-items: center; gap: 4px; color: var(--mu); font-weight: 500; }
   .brand { font-weight: 600; font-size: 16px; letter-spacing: -.02em; }
   #status { color: var(--mu); display: inline-flex; align-items: center; gap: 8px; min-width: 0; overflow-wrap: anywhere; }
   #status::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--mu); }
@@ -100,16 +101,6 @@
   #theme-toggle:hover { background: var(--sel); }
 
   .layout { display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch; flex: 1; min-height: 0; }
-  nav { flex: 1 1 220px; max-width: 280px; padding: 18px; align-self: flex-start; }
-  nav h2 { margin-bottom: 10px; }
-  #projects { display: flex; flex-direction: column; gap: 2px; }
-  #projects li { padding: 7px 10px; border-radius: 12px; cursor: pointer; overflow-wrap: anywhere; }
-  #projects li:hover, #projects li.sel, #projects li[aria-current] { background: var(--sel); }
-  #projects a { color: var(--tx); display: flex; align-items: baseline; gap: 8px; }
-  #projects li:has(> a[aria-current]) { background: var(--sel); font-weight: 500; }
-  #projects .count { margin-left: auto; color: var(--mu); font-size: 12px; }
-  #projects a > span:not(.count) { color: var(--mu); font-size: 12px; }
-  #projects a:hover { text-decoration: none; }
   main { flex: 999 1 560px; min-width: 0; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
 
   #view-activity { display: flex; flex-direction: column; min-height: 0; }
@@ -146,8 +137,6 @@
 
 
   /* canvases */
-  #projects li.sub { padding: 5px 10px 5px 24px; font-size: 13.5px; border-radius: 12px; }
-  #projects li.sub a { color: var(--tx); }
   .card ul.clist { display: flex; flex-direction: column; gap: 2px; font: inherit; max-height: none; }
   .clist a { display: flex; align-items: center; gap: 14px; padding: 10px 12px; border-radius: 14px; color: var(--tx); }
   .clist a:hover { background: var(--sel); text-decoration: none; }
@@ -340,6 +329,11 @@
   .ld-search:focus-within { box-shadow: var(--sh), 0 0 0 2px var(--ac); }
   .ld-search input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; color: var(--tx); font: inherit; }
   .ld-search input::placeholder { color: var(--mu); }
+  .ld-proj { display: flex; align-items: center; height: 38px; padding: 0 8px 0 14px; border-radius: 999px; color: var(--tx); }
+  .ld-proj:focus-within { box-shadow: var(--sh), 0 0 0 2px var(--ac); }
+  .ld-proj select { height: 100%; border: 0; outline: 0; background: transparent; color: var(--tx); font: inherit; cursor: pointer; max-width: 200px; }
+  .ld-proj select option { color: #111; }
+  .ld-plabel { color: var(--mu); font-size: 12px; overflow-wrap: anywhere; }
   .ld-tools #bar-tools { display: flex; align-items: center; gap: 12px; }
   .ld-tools #bar-tools a { color: var(--mu); }
   .landing h2 { margin-bottom: 10px; }
@@ -371,13 +365,6 @@
   .ld-chip { font: inherit; font-size: 13px; color: var(--mu); background: transparent; border: 0; border-radius: 999px; padding: 2px 11px; cursor: pointer; }
   .ld-chip:hover { color: var(--tx); }
   .ld-chip[aria-pressed=true] { color: var(--tx); background: var(--chip); font-weight: 500; }
-  .ld-group + .ld-group { margin-top: 18px; }
-  .ld-ghead { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
-  .ld-gtoggle { display: inline-flex; align-items: center; gap: 8px; font: inherit; font-weight: 600; color: var(--tx); background: transparent; border: 0; padding: 2px 4px; margin-left: -4px; border-radius: 8px; cursor: pointer; }
-  .ld-gtoggle svg { color: var(--mu); transition: transform .15s ease; }
-  .ld-gtoggle[aria-expanded=true] svg { transform: rotate(90deg); }
-  .ld-gcount { color: var(--mu); font-weight: 400; font-size: 13px; }
-  .ld-details { font-size: 12.5px; color: var(--mu); }
   .ld-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
   .ld-card { position: relative; overflow: hidden; display: flex; flex-direction: column; }
   .ld-card:hover, .ld-card:focus-within { box-shadow: var(--sh), 0 0 0 1px color-mix(in srgb, var(--ac) 55%, transparent); }
@@ -408,7 +395,6 @@
 
   @media (max-width: 640px) {
     .bar { border-radius: 28px; padding: 10px 14px; }
-    nav { max-width: none; flex-basis: 100%; }
     main { flex-basis: 100%; padding: 16px; }
     #events { max-height: 60dvh; }
   }
@@ -465,16 +451,13 @@
 <div id="backdrop" aria-hidden="true"></div>
 <div id="app">
   <header class="bar glass" id="top-bar">
+    <a class="bar-back" id="bar-back" href="#/" aria-label="Back to designs"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>Designs</a>
     <span class="brand">Lite</span>
     <span id="status" data-state="wait">connecting</span>
     <span class="ro">read-only</span>
     <div class="sp" id="bar-tools"><a href="/docs/">docs</a><button id="theme-toggle" type="button" aria-label="Theme: auto (click to change)">Theme: auto</button></div>
   </header>
   <div class="layout">
-    <nav class="glass" aria-label="Projects">
-      <h2>Projects</h2>
-      <ul id="projects"></ul>
-    </nav>
     <main class="glass">
       <section id="view-activity">
         <h1>Activity</h1>
@@ -492,6 +475,7 @@
     <header class="ld-top">
       <span class="ld-brand">Lite</span>
       <label class="ld-search glass"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg><input id="ld-search" type="search" placeholder="Search designs" aria-label="Search designs" autocomplete="off"></label>
+      <label class="ld-proj glass" id="ld-proj" hidden><select id="ld-project" aria-label="Project"></select></label>
       <div class="ld-tools" id="ld-tools"></div>
     </header>
     <div class="ld-banner glass" id="ld-banner" role="status" hidden></div>
@@ -506,7 +490,7 @@
     <div class="cv-surface" id="cv-surface"><div class="cv-world" id="cv-world"></div></div>
     <p class="cv-note" id="cv-note" aria-live="polite" hidden></p>
     <div class="island glass cv-tl">
-      <a class="ib" id="cv-back" href="#/" aria-label="Back to the project"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></a>
+      <a class="ib" id="cv-back" href="#/" aria-label="Back to designs"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></a>
       <nav class="crumb" id="cv-crumb" aria-label="Breadcrumb"></nav>
       <span class="live" id="cv-live" data-state="on">live</span>
     </div>
