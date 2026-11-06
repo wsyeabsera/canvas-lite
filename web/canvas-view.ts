@@ -31,8 +31,8 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
 };
 const dims = (s: { width: number; height: number }) => `${s.width} × ${s.height}`;
 
-/** `select(id)` moves to a screen's route (null: the canvas route); the page owns the hash. */
-export function createCanvasView(select: (id: string | null) => void) {
+/** `select(id)` moves to a screen's route (null: the canvas route); `play()` opens present mode (the Play pill, key P); the page owns the hash. */
+export function createCanvasView(select: (id: string | null) => void, play: () => void) {
   const $ = (id: string) => document.getElementById(id)!;
   const surface = $("cv-surface");
   const world = $("cv-world");
@@ -241,6 +241,10 @@ export function createCanvasView(select: (id: string | null) => void) {
       case "_":
         zoomBy(1 / ZOOM_STEP);
         break;
+      case "p":
+      case "P":
+        play();
+        break;
       case "ArrowLeft":
       case "ArrowRight": {
         const id = stepScreen(input?.detail?.screens ?? [], input?.selected ?? null, e.key === "ArrowRight" ? 1 : -1);
@@ -256,6 +260,7 @@ export function createCanvasView(select: (id: string | null) => void) {
   $("cv-in").addEventListener("click", () => zoomBy(ZOOM_STEP));
   pctBtn.addEventListener("click", actual);
   $("cv-fit").addEventListener("click", fitAll);
+  $("cv-play").addEventListener("click", play);
   apply(false);
 
   return {
@@ -266,6 +271,14 @@ export function createCanvasView(select: (id: string | null) => void) {
       needFit = true;
       fitAnimated = sameCanvas && frames.size > 0;
       if (!sameCanvas) reset();
+    },
+    /** Play covers the canvas: its keys stop but the view (pan, zoom, frames) stays as it was. */
+    pause() {
+      active = false;
+    },
+    /** Back from play to the same canvas: nothing is refitted. */
+    resume() {
+      active = true;
     },
     leave() {
       active = false;

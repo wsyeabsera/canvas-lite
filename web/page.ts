@@ -1,9 +1,10 @@
 // The read-only watch page: the CLI's Watcher and formatter, drawn into views. It only reads; the one message it sends is the Watcher's hello.
 import { clock, detail as eventDetail, type WatchRow } from "../cli/format.ts";
 import { Watcher, normalizeUrl } from "../cli/watch-core.ts";
-import { addRow, describeProject, hrefCanvas, hrefProject, hrefScreen, initialState, MAX_ROWS, parseRoute, routeProject, sortedProjects, visibleRows, type Route, type State } from "./state.ts";
+import { addRow, describeProject, hrefCanvas, hrefPlay, hrefProject, hrefScreen, initialState, MAX_ROWS, parseRoute, routeCanvas, routeProject, sortedProjects, visibleRows, type Route, type State } from "./state.ts";
 import { agoText, canvasEvent, describeCanvasDetail, describeCanvasList, dropCanvas, refetchPlan, screensLabel, type CanvasDetail, type CanvasSummary, type Pending } from "./canvas.ts";
 import { createCanvasView } from "./canvas-view.ts";
+import { createPlayView } from "./play-view.ts";
 import { initTheme } from "./theme.ts";
 import { hasWebGPU, parseTheme, shouldRun, shouldShow, themeColors } from "./backdrop.ts";
 import { tokenFromHash } from "./token.ts";
@@ -102,7 +103,7 @@ function renderSidebar() {
   const open = routeProject(route);
   for (const p of sortedProjects(state)) {
     item(hrefProject(p.id), p.name, state.counts[p.id] ?? 0, p.kind, route.view === "project" && route.id === p.id);
-    if (p.id === open) for (const c of canvasLists[p.id] ?? []) item(hrefCanvas(p.id, c.id), c.name, c.screens, null, (route.view === "canvas" || route.view === "screen") && route.canvas === c.id, true);
+    if (p.id === open) for (const c of canvasLists[p.id] ?? []) item(hrefCanvas(p.id, c.id), c.name, c.screens, null, routeCanvas(route) === c.id, true);
   }
   projectsEl.replaceChildren(frag);
 }
@@ -208,7 +209,7 @@ async function loadDetail(pid: string, cid: string) {
     detailState = "error";
   }
   for (const [id, p] of pending) if (p.at <= startedAt) pending.delete(id); // their html has arrived (or will not)
-  if ((route.view === "canvas" || route.view === "screen") && route.id === pid && route.canvas === cid) renderCanvas();
+  if (routeCanvas(route) === cid && routeProject(route) === pid) renderCanvas();
 }
 
 function scheduleRefetch(plan: { list: boolean; detail: boolean }) {
@@ -220,7 +221,8 @@ function scheduleRefetch(plan: { list: boolean; detail: boolean }) {
     const pid = routeProject(route);
     if (!pid) return;
     if (w.list) void loadList(pid);
-    if (w.detail && (route.view === "canvas" || route.view === "screen")) void loadDetail(pid, route.canvas);
+    const open = routeCanvas(route);
+    if (w.detail && open) void loadDetail(pid, open);
   }, 150);
 }
 
@@ -263,13 +265,30 @@ function renderCanvasCard() {
   );
 }
 
-const canvasView = createCanvasView((id) => {
-  if (route.view !== "canvas" && route.view !== "screen") return;
-  location.hash = id ? hrefScreen(route.id, route.canvas, id) : hrefCanvas(route.id, route.canvas);
+const canvasView = createCanvasView(
+  (id) => {
+    if (route.view !== "canvas" && route.view !== "screen") return;
+    location.hash = id ? hrefScreen(route.id, route.canvas, id) : hrefCanvas(route.id, route.canvas);
+  },
+  () => {
+    if (route.view === "canvas" || route.view === "screen") location.hash = hrefPlay(route.id, route.canvas, route.view === "screen" ? route.screen : null);
+  },
+);
+
+// Present mode (web/play-view.ts) sits over the canvas view; Esc / Exit goes back to where Play was pressed.
+let playReturn: string | null = null;
+const playView = createPlayView({
+  exit: () => {
+    if (route.view === "play") location.hash = playReturn ?? hrefCanvas(route.id, route.canvas);
+  },
+  moved: (screen) => {
+    // keep the address linkable without a history entry per click (replaceState fires no hashchange)
+    if (route.view === "play") history.replaceState(null, "", hrefPlay(route.id, route.canvas, screen));
+  },
 });
 
 function renderCanvas() {
-  if (route.view !== "canvas" && route.view !== "screen") return;
+  if (route.view === "activity" || route.view === "project") return;
   const pid = route.id;
   const cid = route.canvas;
   canvasView.render({
@@ -281,6 +300,7 @@ function renderCanvas() {
     pending,
     selected: route.view === "screen" ? route.screen : null,
   });
+  if (route.view === "play") playView.render({ detail, state: detailState }, route.screen);
 }
 
 setInterval(() => {
@@ -290,18 +310,19 @@ setInterval(() => {
 function showRoute() {
   const wasProject = route.view === "project";
   const prevProject = routeProject(route);
-  const prevCanvas = route.view === "canvas" || route.view === "screen" ? route.canvas : null;
+  const prevCanvas = routeCanvas(route);
+  const prev = route;
   route = parseRoute(location.hash);
   viewActivity.hidden = route.view !== "activity";
   viewProject.hidden = route.view !== "project";
-  const inCanvas = route.view === "canvas" || route.view === "screen";
+  const inCanvas = routeCanvas(route) !== null;
   viewCanvas.hidden = !inCanvas;
   app.classList.toggle("canvas-mode", inCanvas); // hides the top bar, sidebar and main panel
   if (!inCanvas) startBackdrop(); // never started (no GPU cost) while only the canvas has been shown
   (inCanvas ? cvTools : topBar).append(barTools);
   const pid = routeProject(route);
   if (pid && pid !== prevProject) void loadList(pid);
-  if (route.view === "canvas" || route.view === "screen") {
+  if (route.view === "canvas" || route.view === "screen" || route.view === "play") {
     const same = route.canvas === prevCanvas && pid === prevProject;
     if (!same) {
       detail = null;
@@ -309,12 +330,24 @@ function showRoute() {
       pending.clear();
       void loadDetail(route.id, route.canvas);
     }
-    canvasView.enter(same);
-    renderCanvas();
+    if (route.view === "play") {
+      if ((prev.view === "canvas" || prev.view === "screen") && same) playReturn = prev.view === "screen" ? hrefScreen(prev.id, prev.canvas, prev.screen) : hrefCanvas(prev.id, prev.canvas);
+      else if (prev.view !== "play" || !same) playReturn = null;
+      if (prev.view !== "play" || !same) canvasView.enter(same);
+      canvasView.pause(); // the canvas keeps its view under play
+      renderCanvas();
+      playView.open({ detail, state: detailState }, route.screen);
+    } else {
+      playView.close();
+      if (prev.view === "play" && same) canvasView.resume();
+      else canvasView.enter(same);
+      renderCanvas();
+    }
   } else {
     detailSeq++;
     detail = null;
     pending.clear();
+    playView.close();
     canvasView.leave();
   }
   if (route.view === "project") {

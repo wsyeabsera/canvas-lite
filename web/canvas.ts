@@ -1,10 +1,12 @@
 // Pure canvas logic for the watch page: no DOM. page.ts feeds it API JSON and events and draws what it returns.
 import type { WatchRow } from "../cli/format.ts";
-import type { Route } from "./state.ts";
+import { routeCanvas, type Route } from "./state.ts";
+import { TRANSITIONS, type Transition } from "./links.ts";
 
 export type CanvasSummary = { id: string; name: string; screens: number; updated_at: number };
 export type Screen = { id: string; name: string; width: number; height: number; x: number | null; y: number | null; updated_at: number; html: string };
-export type CanvasDetail = { canvas: { id: string; name: string; screens: number; created_at: number; updated_at: number }; screens: Screen[] };
+/** `start_screen` (null: the first screen) and `transition` (the default of links without their own) are the canvas flow. */
+export type CanvasDetail = { canvas: { id: string; name: string; screens: number; created_at: number; updated_at: number; start_screen: string | null; transition: Transition }; screens: Screen[] };
 
 const num = (v: unknown, d = 0) => (typeof v === "number" && Number.isFinite(v) ? v : d);
 const str = (v: unknown, d = "") => (typeof v === "string" ? v : d);
@@ -41,7 +43,7 @@ export function describeCanvasDetail(api: unknown): CanvasDetail | null {
       screens.push({ id: s.id, name: str(s.name, s.id), width, height, x: pos(s.x), y: pos(s.y), updated_at: num(s.updated_at), html: str(s.html) });
     }
   }
-  return { canvas: { id: c.id, name: str(c.name, c.id), screens: screens.length, created_at: num(c.created_at), updated_at: num(c.updated_at) }, screens };
+  return { canvas: { id: c.id, name: str(c.name, c.id), screens: screens.length, created_at: num(c.created_at), updated_at: num(c.updated_at), start_screen: typeof c.start_screen === "string" ? c.start_screen : null, transition: (TRANSITIONS as readonly string[]).includes(c.transition) ? c.transition : "none" }, screens };
 }
 
 /** "just now", "2 min ago", "3 h ago", "yesterday", "5 days ago". `now` is injected. */
@@ -126,7 +128,7 @@ export function refetchPlan(route: Route, row: Pick<WatchRow, "kind" | "project"
   const none = { list: false, detail: false };
   const ev = canvasEvent(row);
   if (!ev || route.view === "activity" || row.project !== route.id) return none;
-  const here = (route.view === "canvas" || route.view === "screen") && route.canvas === ev.canvas;
+  const here = routeCanvas(route) === ev.canvas;
   return { list: true, detail: here };
 }
 
