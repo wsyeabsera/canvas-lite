@@ -6,6 +6,7 @@ import { parseHello, replay } from "./events.ts";
 import { createCanvas, listCanvases, listCanvasesForPage, readCanvas, removeCanvas, removeScreen, setFlow, setScreen, setScreens, type ScreenFields, type ScreenInput } from "./canvases.ts";
 import { canvasAt, canvasTimeline } from "./timeline.ts";
 import { patchScreen, readCanvasForPage, readFlow, reviewFlow, setTour, validateFlow, type PatchEdit } from "./flow.ts";
+import { setScenarios } from "./scenarios.ts";
 import { goto, present, stopPresent } from "./present.ts";
 import { listProjects, openProject, readProject, removeProject, type OpenInput, type ProjectSummary } from "./projects.ts";
 import { appendEvent,migrate, type LiteEvent, type Sql } from "./store.ts";
@@ -123,7 +124,7 @@ export class Hub extends DurableObject<Env> {
     return reviewFlow(this.sql, project, canvas);
   }
 
-  /** The canvas as the watch page loads it: html, plus its tour and the project's presenter session. */
+  /** The canvas as the watch page loads it: html, plus its tour, scenarios and the project's presenter session. */
   readCanvasForPage(project: string, canvas: string) {
     return readCanvasForPage(this.sql, project, canvas);
   }
@@ -136,6 +137,12 @@ export class Hub extends DurableObject<Env> {
 
   setTour(project: string, canvas: string, steps: unknown) {
     const { event, ...result } = setTour(this.sql, project, canvas, steps);
+    this.broadcast(event);
+    return result;
+  }
+
+  setScenarios(project: string, canvas: string, scenarios: unknown) {
+    const { event, ...result } = setScenarios(this.sql, project, canvas, scenarios);
     this.broadcast(event);
     return result;
   }

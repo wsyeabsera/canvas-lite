@@ -6,6 +6,9 @@ import { z } from "zod";
 import { hub } from "./hub.ts";
 import { CANVAS_TEXT, MAX_SIZE, MIN_SIZE, SCREENS_PER_CALL, TRANSITIONS } from "./canvases.ts";
 import { FLOW_TEXT, PATCH_EDITS_MAX, TOUR_DWELL_MAX, TOUR_DWELL_MIN, TOUR_NOTE_MAX, TOUR_STEPS_MAX } from "./flow.ts";
+import {
+  SCENARIOS_MAX, SCENARIO_CAPTION_MAX, SCENARIO_DESCRIPTION_MAX, SCENARIO_DWELL_MAX, SCENARIO_DWELL_MIN, SCENARIO_NAME_MAX, SCENARIO_STEPS_MAX, SCENARIO_VIA_MAX,
+} from "./scenarios.ts";
 import { OPEN_PROJECT_TEXT } from "./projects.ts";
 
 function createServer(): McpServer {
@@ -219,6 +222,38 @@ function createServer(): McpServer {
       }),
     },
     ({ project, canvas, steps }) => guard(async () => hub(env).setTour(project, canvas, steps)),
+  );
+  server.registerTool(
+    "set_scenarios",
+    {
+      title: "Set scenarios",
+      description: FLOW_TEXT.set_scenarios,
+      inputSchema: z.object({
+        project,
+        canvas,
+        scenarios: z
+          .array(
+            z.object({
+              id: z.string().describe("Slug: lowercase letters, digits, -, at most 40."),
+              name: z.string().min(1).max(SCENARIO_NAME_MAX).describe("The user journey's name."),
+              description: z.string().max(SCENARIO_DESCRIPTION_MAX).optional().describe("One line about the journey."),
+              steps: z
+                .array(
+                  z.object({
+                    screen: z.string().describe("Screen id on the canvas."),
+                    via: z.string().max(SCENARIO_VIA_MAX).optional().describe("Part of the link text to click when several links in the previous screen go here."),
+                    dwell_ms: z.number().int().min(SCENARIO_DWELL_MIN).max(SCENARIO_DWELL_MAX).describe(`How long to show it, ${SCENARIO_DWELL_MIN} to ${SCENARIO_DWELL_MAX} ms.`),
+                    caption: z.string().max(SCENARIO_CAPTION_MAX).optional().describe("Plain-words narration shown while the step plays."),
+                  }),
+                )
+                .min(1).max(SCENARIO_STEPS_MAX),
+            }),
+          )
+          .max(SCENARIOS_MAX)
+          .describe(`0 to ${SCENARIOS_MAX} scenarios (write 2 to 4); empty clears them.`),
+      }),
+    },
+    ({ project, canvas, scenarios }) => guard(async () => hub(env).setScenarios(project, canvas, scenarios)),
   );
   server.registerTool(
     "present",

@@ -46,7 +46,7 @@ Beyond the `list_canvases` tool's fields the page list carries what the landing 
   "screens": [{ "id": "home", "name": "Home", "width": 400, "height": 300, "x": null, "y": null, "updated_at": 1767225600000, "bytes": 9, "html": "<p>hi</p>" }] }
 ```
 
-The answer also carries `"tour"` (`{steps:[{screen,dwell_ms,note?}], duration_ms, missing}` or null) and `"presenter"` (the project's session `{active, canvas, screen, transition}` or null); see [Prototype tools](prototype-tools.md).
+The answer also carries `"tour"` (`{steps:[{screen,dwell_ms,note?}], duration_ms, missing}` or null), `"scenarios"` (`[{id, name, description?, steps:[{screen,via?,dwell_ms,caption?}], duration_ms, missing}]`, `[]` when none) and `"presenter"` (the project's session `{active, canvas, screen, transition}` or null); see [Prototype tools](prototype-tools.md).
 
 `<canvas>` follows the same id rule.
 
