@@ -10,7 +10,7 @@ export const FILM_MIN_MS = 3000;
 
 type Box = { id: string; min: Vec3; max: Vec3 };
 
-/** Half extents of a solid, ignoring rotation. box: size [w, h, d]; sphere: [radius]; cylinder/cone/capsule: [radius, height]; torus: [radius, tube]. Others are not solid. Missing size = 1. */
+/** Half extents of a solid, ignoring rotation; size layout per kind is SIZE_LAYOUT in scene.ts (docs/scenes.md). Others are not solid. Missing size = 1. */
 function halfExtents(o: SceneObject): Vec3 | null {
   const s = o.size ?? [];
   const k = o.scale ?? [1, 1, 1];
@@ -62,6 +62,10 @@ export function validateScene(scene: Scene, films: Film[]): { ok: boolean; issue
             message: `film "${f.id}" shot ${n}: ${end}.look points at "${v.look}", which does not exist.`,
             fix: `Point ${end}.look at an existing object id or a [x, y, z] position (set_films).` });
       }
+      if (s.focus !== undefined && !ids.has(s.focus))
+        issues.push({ severity: "error", kind: "focus_missing", film: f.id, shot: n, object: s.focus,
+          message: `film "${f.id}" shot ${n}: focus points at "${s.focus}", which does not exist.`,
+          fix: `Set the focus of shot ${n} to an existing object id, or leave focus out (set_films).` });
     });
     if (filmDuration(f.shots) < FILM_MIN_MS)
       issues.push({ severity: "warning", kind: "film_too_short", film: f.id,

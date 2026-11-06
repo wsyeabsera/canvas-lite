@@ -28,10 +28,22 @@ type View = { pos: Vec3; look: Vec3 | string };            // a string is an obj
 type Scene = { name: string; objects: SceneObject[]; lights: Light[]; sky: Sky; camera: View & { fov: number } };
 ```
 
+- `size` has a fixed layout per kind (`SIZE_LAYOUT` in `src/scene.ts`); every value is 0 or more, and a list of the wrong length, a negative value or a size on a kind without one is rejected naming the path (`objects[0].size`). A missing size is 1 (cylinder, cone and capsule height 2, torus tube 0.3).
+
+  | kind | `size` |
+  |---|---|
+  | `box` | `[width, height, depth]` |
+  | `sphere` | `[radius]` |
+  | `cylinder`, `cone`, `capsule` | `[radius, height]` |
+  | `torus` | `[radius, tube]` (ring radius, tube radius) |
+  | `plane` | `[width, depth]` |
+  | `text` | `[height]` (letter height) |
+  | `group`, `repeat`, `terrain` | none (`terrain.size` is `[width, depth]` inside `terrain`) |
+
 - Colours are `#rrggbb`. `roughness`, `metalness` and `opacity` are 0 to 1. `rot` is in degrees.
 - Every number must be finite and sane (no NaN, Infinity or 1e12). The error names the path, for example `objects[0].pos[1]`.
 - A **group** places `children` under its own `pos`, `rot` and `scale`; the renderer applies group transforms.
-- A **repeater** (`kind: "repeat"`) copies `repeat.of` by `mode`: `grid`, `ring` (around `radius`) or `scatter` (seeded, so the same `seed` always gives the same layout; no `Math.random`). Copies get ids `<id>#<n>` (`tower#0` to `tower#8`); `expandObjects` returns the flattened drawable list. Expanded copies are not declared ids: a shot cannot look at `tower#3`, only at `tower`.
+- A **repeater** (`kind: "repeat"`) copies `repeat.of` by `mode`: `grid`, `ring` (around `radius`) or `scatter` (seeded, so the same `seed` always gives the same layout; no `Math.random`). Copies get ids `<id>#<n>` (`tower#0` to `tower#8`), and children of a copied group get the same suffix. A repeater inside a repeater adds one `#<n>` per level, outermost first: outer copy 1, inner copy 0 of template `c` is `c#1#0`, so every expanded id is unique and the same for the same scene. `expandObjects` returns the expanded tree (groups stay as nodes) and refuses, before building anything, input that would pass the object limit. Expanded copies are not declared ids: a shot cannot look at `tower#3`, only at `tower`.
 - **terrain** and **text** objects are validated now and drawn by the viewer plan.
 - A scene with zero objects is valid (a sky and lights alone). `validate_scene` reports it as an info note, never an error.
 - `look` as a string must be the id of a declared object (`objectIds`: every id in the scene, including nested children and `repeat.of`, not expanded copies).
@@ -51,13 +63,14 @@ type Film = { id: string; name: string; description?: string; shots: Shot[] };
 type FilmRead = Film & { duration_ms: number; missing: number[] };
 ```
 
-A shot moves the camera from `from` to `to` (through `waypoints`, if any) over `duration_ms`. `focus` and any string `look` must name an object that exists when the films are set (`checkFilms` throws `film "<id>" shot <n>: ...`). `FilmRead` adds the total `duration_ms` and `missing`: the indexes of shots whose `focus` or look-at object has since been removed or renamed. Removing an object a shot points at is allowed (`patch_scene` succeeds, nothing throws); `read_scene` lists the shot under `missing` and `validate_scene` reports `shot_looks_at_nothing`.
+A shot moves the camera from `from` to `to` (through `waypoints`, if any) over `duration_ms`. `focus` and any string `look` must name an object that exists when the films are set (`checkFilms` throws `film "<id>" shot <n>: ...`). `FilmRead` adds the total `duration_ms` and `missing`: the indexes of shots whose `focus` or look-at object has since been removed or renamed. Removing an object a shot points at is allowed (`patch_scene` succeeds, nothing throws); `read_scene` lists the shot under `missing` and `validate_scene` reports `shot_looks_at_nothing` (a look-at) or `focus_missing` (a focus).
 
 ## Limits
 
 | What | Limit |
 |---|---|
-| objects after repeaters expand | 2000 (`SCENE_OBJECTS_MAX`) |
+| objects after repeaters expand: every node, groups and repeater copies included (a copied group with one child is 2) | 2000 (`SCENE_OBJECTS_MAX`) |
+| any number, and every repeater copy's position | within ±1,000,000 (`SCENE_NUMBER_MAX`) |
 | scene JSON | 200,000 bytes (`SCENE_BYTES_MAX`) |
 | group nesting depth | 6 (`SCENE_NESTING_MAX`) |
 | ids (scene, object, light, film, shot) | slug `[a-z0-9-]`, up to 40 characters |
@@ -68,7 +81,7 @@ A shot moves the camera from `from` to `to` (through `waypoints`, if any) over `
 | shot duration | 500 to 60000 ms (`SHOT_MS_MIN`, `SHOT_MS_MAX`) |
 | waypoints per shot | 8 |
 
-A repeater that would pass the object limit is rejected before anything is stored, naming the object id and the expanded count. Duplicate ids anywhere (including across nested groups) are rejected naming the id. Nesting deeper than 6 is rejected.
+The expanded count is computed arithmetically from the declared tree (nothing is expanded to measure it), so a repeater of an empty group or nested repeaters with a tiny payload are counted in full. A repeater (or group) that would pass the object limit is rejected before anything is stored, naming the object id and the expanded count (`repeater "forest" expands to 2001 objects (limit 2000)`). A repeater whose copies could land beyond ±1,000,000 on any axis (its `pos`, shifted by any outer repeater, plus its grid extent or ring/scatter radius plus the template `pos`) is rejected naming its id. Duplicate ids anywhere (including across nested groups) are rejected naming the id. Nesting deeper than 6 is rejected.
 
 ## Tools
 
@@ -81,10 +94,14 @@ All take `project`; errors are `isError` results. Validation is done by the pure
 | `patch_scene` | `scene`, `edits:[{op: "set"\|"remove", id, object?}]` | `{scene: SceneSummary}`; edits top-level or nested objects by id (`set` replaces, or adds a top-level object when the id is new; `remove` needs an existing id), re-checks the whole scene |
 | `set_films` | `scene`, `films` (at most 8) | `{scene, count}`; replaces all films |
 | `read_scene` | `scene` | `{scene: Scene, films: FilmRead[], updated_at}` |
-| `list_scenes` | none | `{scenes: SceneSummary[]}`: `{id, name, objects, films, updated_at}`, newest first |
+| `list_scenes` | none | `{scenes: SceneSummary[]}`: `{id, name, objects, drawables, films, updated_at}`, newest first |
 | `validate_scene` | `scene` | `{ok, issues:[{severity, kind, message, fix, object?, film?, shot?}]}` |
 
-`validate_scene` kinds: `camera_inside_solid` (error; a shot's `from` or `to` position lies inside an object's axis-aligned bounding box, estimated from `size`, `scale` and `pos` with group offsets summed, rotation ignored), `shot_looks_at_nothing` (error; `look` is an id that does not exist), `no_lights` (warning), `film_too_short` (warning; under 3000 ms in total), `empty_scene` (info). `ok` means no errors. Build lights and a sky, write 2 to 4 films with captions in plain words, run `validate_scene` and fix every issue before showing anything.
+`SceneSummary` is `{id, name, objects, drawables, films, updated_at}`: `objects` counts the declared top-level objects only (a group or a repeater is 1), `drawables` the nodes after repeaters expand (groups and copies included; the number the 2000 limit applies to). The page API (`GET /api/projects/<id>/scenes`, see [API](api.md)) answers the same summaries.
+
+A `patch_scene` `set` also finds an id inside a repeater's template (`repeat.of`, at any depth) and replaces it there instead of appending a duplicate; removing a template itself is an error (set a new template, or remove the repeater). `create_scene` on the id of a removed scene revives that row in place (new data, no films); rows are never deleted.
+
+`validate_scene` kinds: `camera_inside_solid` (error; a shot's `from` or `to` position lies inside an object's axis-aligned bounding box, estimated from `size`, `scale` and `pos` with group offsets summed, rotation ignored), `shot_looks_at_nothing` (error; `look` is an id that does not exist), `focus_missing` (error; `focus` is an id that does not exist), `no_lights` (warning), `film_too_short` (warning; under 3000 ms in total), `empty_scene` (info). `ok` means no errors. Build lights and a sky, write 2 to 4 films with captions in plain words, run `validate_scene` and fix every issue before showing anything.
 
 Errors reuse `unknown project "<id>"` and add `unknown scene "<id>"`.
 
@@ -96,7 +113,7 @@ Envelope and replay are the usual (see [Progress](progress.md)). **No event carr
 |---|---|---|
 | `scene.set` | `{scene, name, bytes}` | `create_scene`, `set_scene`, `patch_scene` |
 | `films.set` | `{scene, count}` | `set_films` |
-| `scene.removed` | `{scene}` | a scene is removed |
+| `scene.removed` | `{scene}` | reserved: not emitted yet (no tool removes a scene in this version) |
 
 ## Storage
 
@@ -112,7 +129,7 @@ A square, a church, nine houses in a 3 by 3 grid, a ring of trees, a sun and an 
   "objects": [
     { "id": "ground", "kind": "plane", "name": "Ground", "size": [120, 120], "rot": [-90, 0, 0],
       "material": { "color": "#6b8f5a", "roughness": 1 } },
-    { "id": "square", "kind": "cylinder", "name": "Town square", "pos": [0, 0.1, 14], "size": [8, 0.2, 8],
+    { "id": "square", "kind": "cylinder", "name": "Town square", "pos": [0, 0.1, 14], "size": [8, 0.2],
       "material": { "color": "#b9ad98", "roughness": 0.9 } },
     { "id": "church", "kind": "group", "name": "Church", "pos": [22, 0, -8],
       "children": [

@@ -67,3 +67,20 @@ test("a shot looking at a vanished object is an error", () => {
   assert.equal(bad[0].object, "ghost");
   assert.equal(bad[0].shot, 0);
 });
+
+test("a shot whose focus object vanished is a focus_missing error", () => {
+  const f = film([20, 0, 0]);
+  f.shots[0].focus = "ghost";
+  const r = validateScene(mk([BOX]), [f]);
+  assert.equal(r.ok, false);
+  const bad = r.issues.filter((i) => i.kind === "focus_missing");
+  assert.equal(bad.length, 1);
+  assert.deepEqual([bad[0].severity, bad[0].object, bad[0].film, bad[0].shot], ["error", "ghost", "tour", 0]);
+  assert.match(bad[0].fix, /focus/);
+  f.shots[0].focus = "wall";
+  assert.equal(validateScene(mk([BOX]), [f]).ok, true);
+});
+
+test("a negative size cannot hide the camera inside a solid (sizes are checked)", () => {
+  assert.throws(() => mk([{ ...BOX, size: [-4, -4, -4] }]), /objects\[0\]\.size\[0\]/);
+});

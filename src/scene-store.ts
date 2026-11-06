@@ -2,23 +2,24 @@
 // input first, then stores it with its event in one transaction. Events never carry a scene body or films.
 import { checkId, requireProject } from "./canvases.ts";
 import { slugify } from "./projects.ts";
-import { checkScene, type Scene, type SceneObject } from "./scene.ts";
+import { checkScene, expandedCount, type Scene, type SceneObject } from "./scene.ts";
 import { validateScene } from "./scene-validate.ts";
 import { checkFilms, readFilms, type Film, type FilmRead } from "./shots.ts";
 import { appendEvent, type LiteEvent, type Sql } from "./store.ts";
 
-export type SceneSummary = { id: string; name: string; objects: number; films: number; updated_at: number };
+/** objects: declared top-level objects; drawables: nodes after repeaters expand (groups and copies included, the 2000 limit). */
+export type SceneSummary = { id: string; name: string; objects: number; drawables: number; films: number; updated_at: number };
 export type SceneEdit = { op: "set" | "remove"; id: string; object?: SceneObject };
 
 /** The MCP tool descriptions (docs/scenes.md). */
 export const SCENE_TEXT = {
-  create_scene: "Create an empty 3D scene (a sky and a camera, no lights or objects) in a project; id defaults to the slug of the name. A scene is data, never code: you describe objects, lights, a sky and a camera as JSON and nothing you write runs. Next: set_scene with objects, lights and a sky, then set_films. Answer {scene: {id, name, objects, films, updated_at}}. An existing id is an error.",
+  create_scene: "Create an empty 3D scene (a sky and a camera, no lights or objects) in a project; id defaults to the slug of the name. A scene is data, never code: you describe objects, lights, a sky and a camera as JSON and nothing you write runs. Next: set_scene with objects, lights and a sky, then set_films. Answer {scene: {id, name, objects, drawables, films, updated_at}} (objects: top-level objects; drawables: objects after repeaters expand). An existing id is an error.",
   set_scene: "Replace a whole scene with data {name, objects, lights, sky, camera}. A scene is data, never code. Build lights (a sun and an ambient light) and a sky, not just objects. Every object has a slug id: box, sphere, cylinder, cone, plane, torus, capsule, text, terrain, group (children) and repeat (grid, ring or scatter copies of one template), at most 2000 after repeaters expand, 200000 bytes, nesting 6. The whole input is checked first and an error names the path of the bad value; nothing is stored then. Films stay. Answer {scene: summary}.",
-  patch_scene: "Edit a scene's objects by id without resending it: edits [{op: 'set' or 'remove', id, object?}] (1 to 50), applied in order to top-level or nested objects. set replaces the object with that id, or adds a new top-level object when the id does not exist (object.id must equal id); remove needs an existing id. The whole scene is re-checked and nothing is stored if it is invalid. Removing an object a film's shot points at succeeds: read_scene lists those shots under missing. Answer {scene: summary}.",
+  patch_scene: "Edit a scene's objects by id without resending it: edits [{op: 'set' or 'remove', id, object?}] (1 to 50), applied in order to top-level or nested objects. set replaces the object with that id (also a repeater's template), or adds a new top-level object when the id does not exist (object.id must equal id); remove needs an existing id. The whole scene is re-checked and nothing is stored if it is invalid. Removing an object a film's shot points at succeeds: read_scene lists those shots under missing. Answer {scene: summary}.",
   set_films: "Replace all films of a scene (0 to 8; empty clears). A film is {id, name, description?, shots:[{id, name, from:{pos, look}, to:{pos, look}, duration_ms 500 to 60000, waypoints?, ease?, caption?, focus?}]}; look is a [x, y, z] point or an object id; focus must be an object id. WRITE 2 TO 4 FILMS for every scene and give every shot a caption in plain words that says what the viewer sees (no jargon, no ids). Answer {scene, count}.",
   read_scene: "Read a scene and its films: {scene, films, updated_at}. Each film has duration_ms and missing: the indexes of shots whose focus or look-at object no longer exists. Use it to find object ids before patch_scene or set_films.",
-  list_scenes: "List a project's scenes, newest updated first: {scenes:[{id, name, objects, films, updated_at}]}.",
-  validate_scene: "Review a scene and its films like a director. Answer {ok, issues:[{severity, kind, message, fix, object?, film?, shot?}]}: errors camera_inside_solid and shot_looks_at_nothing, warnings no_lights and film_too_short, info empty_scene. ALWAYS run it after set_scene and set_films and fix every issue (set_scene, patch_scene, set_films) before you show anything; ok means no errors.",
+  list_scenes: "List a project's scenes, newest updated first: {scenes:[{id, name, objects, drawables, films, updated_at}]}; objects counts top-level objects, drawables the objects after repeaters expand (limit 2000).",
+  validate_scene: "Review a scene and its films like a director. Answer {ok, issues:[{severity, kind, message, fix, object?, film?, shot?}]}: errors camera_inside_solid, shot_looks_at_nothing and focus_missing, warnings no_lights and film_too_short, info empty_scene. ALWAYS run it after set_scene and set_films and fix every issue (set_scene, patch_scene, set_films) before you show anything; ok means no errors.",
 } as const;
 
 type Row = { id: string; name: string; data: string; films: string; updated_at: number };
@@ -33,7 +34,9 @@ function requireScene(sql: Sql, project: string, id: string): Row {
   return r;
 }
 
-const summary = (id: string, scene: Scene, films: unknown[], updated_at: number): SceneSummary => ({ id, name: scene.name, objects: scene.objects.length, films: films.length, updated_at });
+const summary = (id: string, scene: Scene, films: unknown[], updated_at: number): SceneSummary => ({
+  id, name: scene.name, objects: scene.objects.length, drawables: expandedCount(scene.objects), films: films.length, updated_at,
+});
 
 function load(sql: Sql, project: string, id: string): { scene: Scene; films: Film[]; updated_at: number } {
   const r = requireScene(sql, project, id);
@@ -59,9 +62,13 @@ export function createScene(
   return sql.transaction(() => {
     if (sql.all("SELECT 1 FROM scenes WHERE project = ? AND id = ? AND removed = 0", project, id).length)
       throw new Error(`scene "${id}" already exists: use set_scene or patch_scene`);
-    sql.run("DELETE FROM scenes WHERE project = ? AND id = ? AND removed = 1", project, id);
     const data = JSON.stringify(scene);
-    sql.run("INSERT INTO scenes (project, id, name, data, films, updated_at) VALUES (?, ?, ?, ?, '[]', ?)", project, id, scene.name, data, now);
+    // A removed row with this id is revived in place (its data and films replaced), never deleted.
+    sql.run(
+      `INSERT INTO scenes (project, id, name, data, films, updated_at, removed) VALUES (?, ?, ?, ?, '[]', ?, 0)
+       ON CONFLICT (project, id) DO UPDATE SET name = excluded.name, data = excluded.data, films = '[]', updated_at = excluded.updated_at, removed = 0`,
+      project, id, scene.name, data, now,
+    );
     const event = appendEvent(sql, { project, kind: "scene.set", payload: { scene: id, name: scene.name, bytes: byteLength(data) } }, now);
     return { scene: summary(id, scene, [], now), event };
   });
@@ -77,7 +84,8 @@ export function setScene(sql: Sql, project: string, id: string, input: unknown, 
   });
 }
 
-type Found = { list: SceneObject[]; index: number };
+/** Where an object with that id sits: in a list (top-level or a group's children) or as a repeater's template (`repeat.of`). */
+type Found = { list: SceneObject[]; index: number } | { repeater: SceneObject };
 
 function find(objects: SceneObject[], id: string): Found | null {
   for (let i = 0; i < objects.length; i++) {
@@ -85,6 +93,11 @@ function find(objects: SceneObject[], id: string): Found | null {
     if (o.id === id) return { list: objects, index: i };
     const inner = find(o.children ?? [], id);
     if (inner) return inner;
+    if (o.repeat) {
+      if (o.repeat.of.id === id) return { repeater: o };
+      const t = find([o.repeat.of], id);
+      if (t) return t;
+    }
   }
   return null;
 }
@@ -102,11 +115,14 @@ export function patchScene(
       const hit = find(scene.objects, e.id);
       if (e.op === "remove") {
         if (!hit) throw new Error(`invalid edit ${i}: unknown object "${e.id}": use an id from read_scene`);
+        if ("repeater" in hit)
+          throw new Error(`invalid edit ${i}: cannot remove the repeater template "${e.id}" of "${hit.repeater.id}": set it to a new template, or remove the repeater "${hit.repeater.id}"`);
         hit.list.splice(hit.index, 1);
         return;
       }
       if (typeof e.object !== "object" || e.object === null) throw new Error(`invalid edit ${i}: set needs an object`);
-      if (hit) hit.list[hit.index] = e.object;
+      if (hit && "repeater" in hit) hit.repeater.repeat!.of = e.object;
+      else if (hit) hit.list[hit.index] = e.object;
       else if ((e.object as SceneObject).id === e.id) scene.objects.push(e.object);
       else throw new Error(`invalid edit ${i}: unknown object "${e.id}": to add one, give object.id the same id`);
     });

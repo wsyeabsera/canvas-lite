@@ -21,7 +21,12 @@ export const SCENE_NESTING_MAX = 6;
 export const SCENE_NAME_MAX = 80;
 export const SCENE_NUMBER_MAX = 1_000_000;
 const TEXT_MAX = 200;
-const SIZE_MAX = 4;
+
+/** `size` layout per kind (docs/scenes.md); kinds not listed take no size. */
+export const SIZE_LAYOUT: Partial<Record<ObjectKind, string[]>> = {
+  box: ["width", "height", "depth"], sphere: ["radius"], cylinder: ["radius", "height"], cone: ["radius", "height"],
+  capsule: ["radius", "height"], torus: ["radius", "tube"], plane: ["width", "depth"], text: ["height"],
+};
 
 const KINDS = ["box", "sphere", "cylinder", "cone", "plane", "torus", "capsule", "text", "group", "repeat", "terrain"];
 const LIGHT_KINDS = ["sun", "ambient", "point", "spot"];
@@ -85,8 +90,10 @@ function checkObject(o: unknown, path: string, depth: number, ids: Set<string>):
   if (o.rot !== undefined) out.rot = vec3(o.rot, `${path}.rot`);
   if (o.scale !== undefined) out.scale = vec3(o.scale, `${path}.scale`);
   if (o.size !== undefined) {
-    if (!Array.isArray(o.size) || o.size.length > SIZE_MAX) return fail(`${path}.size`, `must be a list of at most ${SIZE_MAX} numbers`);
-    out.size = o.size.map((n: unknown, i: number) => num(n, `${path}.size[${i}]`));
+    const layout = SIZE_LAYOUT[kind];
+    if (!layout) return fail(`${path}.size`, `a ${kind} has no size`);
+    if (!Array.isArray(o.size) || o.size.length !== layout.length) return fail(`${path}.size`, `a ${kind} size is [${layout.join(", ")}]`);
+    out.size = o.size.map((n: unknown, i: number) => num(n, `${path}.size[${i}]`, 0));
   }
   if (o.material !== undefined) out.material = checkMaterial(o.material, `${path}.material`);
   if (kind === "text") {
@@ -123,29 +130,54 @@ function checkObject(o: unknown, path: string, depth: number, ids: Set<string>):
   return out;
 }
 
-/** Drawables a node produces after repeaters expand (a group counts its children, not itself). */
+/**
+ * Nodes a node becomes once repeaters expand, counted arithmetically (nothing is expanded): a leaf or a group is one node (a group
+ * plus its children), a repeater is replaced by count copies of its template. Every node expandObjects would create is counted.
+ */
 function countOf(o: SceneObject): number {
-  if (o.kind === "group") return (o.children ?? []).reduce((t, c) => t + countOf(c), 0);
-  if (o.kind === "repeat") return o.repeat!.count * countOf(o.repeat!.of);
+  if (o.kind === "group") return (o.children ?? []).reduce((t, c) => t + countOf(c), 1);
+  if (o.kind === "repeat" && o.repeat) return o.repeat.count * countOf(o.repeat.of);
   return 1;
 }
 
+/** Pure: how many nodes (groups and repeater copies included) expandObjects returns for these objects, without expanding them. */
+export const expandedCount = (objects: SceneObject[]): number => objects.reduce((t, o) => t + countOf(o), 0);
+
+/** Largest |offset| per axis a repeater adds to its copies' pos (grid rows and columns, ring or scatter radius). */
+function layoutReach(r: Repeat): Vec3 {
+  if (r.mode === "grid") {
+    const cols = Math.ceil(Math.sqrt(r.count));
+    const s = r.spacing ?? 2;
+    return [(Math.min(cols, r.count) - 1) * s, 0, (Math.ceil(r.count / cols) - 1) * s];
+  }
+  const rad = r.radius ?? (r.mode === "ring" ? 5 : 10);
+  return [rad, 0, rad];
+}
+
+const absVec = (v: Vec3 | undefined): Vec3 => (v ? [Math.abs(v[0]), Math.abs(v[1]), Math.abs(v[2])] : [0, 0, 0]);
+
+/**
+ * Rejects any node whose expansion passes SCENE_OBJECTS_MAX (naming its id and the count) and any repeater whose copies' pos could
+ * pass SCENE_NUMBER_MAX (a bound per axis: the repeater's own pos, which outer repeaters shift, plus its layout reach plus the
+ * template pos). Arithmetic only; returns the total node count.
+ */
 function checkLimits(objects: SceneObject[], path: string): number {
-  let total = 0;
-  objects.forEach((o, i) => {
-    const at = `${path}[${i}]`;
-    const visit = (n: SceneObject, p: string) => {
-      if (n.kind === "group") (n.children ?? []).forEach((c, j) => visit(c, `${p}.children[${j}]`));
-      else if (n.kind === "repeat") {
-        const n2 = countOf(n);
-        if (n2 > SCENE_OBJECTS_MAX) fail(p, `repeater "${n.id}" expands to ${n2} objects (limit ${SCENE_OBJECTS_MAX})`);
-        visit(n.repeat!.of, `${p}.repeat.of`);
-      }
-    };
-    visit(o, at);
-    total += countOf(o);
-  });
-  return total;
+  const visit = (n: SceneObject, p: string, reach: Vec3) => {
+    const count = countOf(n);
+    if (count > SCENE_OBJECTS_MAX)
+      fail(p, `${n.kind === "repeat" ? "repeater" : n.kind} "${n.id}" expands to ${count} objects (limit ${SCENE_OBJECTS_MAX})`);
+    if (n.kind === "group") (n.children ?? []).forEach((c, j) => visit(c, `${p}.children[${j}]`, absVec(c.pos)));
+    else if (n.kind === "repeat" && n.repeat) {
+      const lay = layoutReach(n.repeat);
+      const tpl = absVec(n.repeat.of.pos);
+      const copies: Vec3 = [reach[0] + lay[0] + tpl[0], reach[1] + lay[1] + tpl[1], reach[2] + lay[2] + tpl[2]];
+      const far = Math.max(...copies);
+      if (far > SCENE_NUMBER_MAX) fail(p, `repeater "${n.id}" places copies up to ${far} from the origin (limit ${SCENE_NUMBER_MAX})`);
+      visit(n.repeat.of, `${p}.repeat.of`, copies);
+    }
+  };
+  objects.forEach((o, i) => visit(o, `${path}[${i}]`, absVec(o.pos)));
+  return expandedCount(objects);
 }
 
 /** Pure: input -> a validated copy. Throws `invalid scene <path>: ...` naming the path of the first bad value. */
@@ -217,20 +249,30 @@ function mulberry32(seed: number): () => number {
   };
 }
 
+/** Appends tag to the id of o and of everything under it (children and a nested repeater's template), so nested copies stay unique. */
 const suffix = (o: SceneObject, tag: string): SceneObject => ({
   ...o,
   id: `${o.id}${tag}`,
   ...(o.children && { children: o.children.map((c) => suffix(c, tag)) }),
+  ...(o.repeat && { repeat: { ...o.repeat, of: suffix(o.repeat.of, tag) } }),
 });
 
 /**
  * Pure: the scene tree with every repeater replaced by its copies (in place, as siblings). Copies are `<id>#<n>` (children of a copied
- * group get the same suffix), placed at repeat.pos + the layout offset + template.pos. Groups stay as nodes: their transforms are left
- * to the renderer. Expects a checked scene (checkScene enforces the limit before anything expands).
+ * group get the same suffix); a repeater inside a repeater appends one `#<n>` per level, outermost first (`c#1#0` = inner copy 0 of
+ * outer copy 1), so every expanded id is unique and deterministic. Copies sit at repeat.pos + the layout offset + template.pos.
+ * Groups stay as nodes: their transforms are left to the renderer. Refuses (throws, before allocating) input that would expand past
+ * SCENE_OBJECTS_MAX nodes, so it is safe on unchecked trees too; checkScene rejects such scenes first with the path.
  */
 export function expandObjects(objects: SceneObject[]): SceneObject[] {
+  const total = expandedCount(objects);
+  if (total > SCENE_OBJECTS_MAX) throw new Error(`invalid scene objects: expands to ${total} objects (limit ${SCENE_OBJECTS_MAX})`);
+  return expandTree(objects);
+}
+
+function expandTree(objects: SceneObject[]): SceneObject[] {
   return objects.flatMap((o): SceneObject[] => {
-    if (o.kind === "group") return [{ ...o, children: expandObjects(o.children ?? []) }];
+    if (o.kind === "group") return [{ ...o, children: expandTree(o.children ?? []) }];
     if (o.kind !== "repeat" || !o.repeat) return [o];
     const r = o.repeat;
     const base = o.pos ?? [0, 0, 0];
@@ -252,7 +294,7 @@ export function expandObjects(objects: SceneObject[]): SceneObject[] {
       }
       const tpl = r.of.pos ?? [0, 0, 0];
       const copy = suffix({ ...r.of, pos: [base[0] + off[0] + tpl[0], base[1] + off[1] + tpl[1], base[2] + off[2] + tpl[2]] }, `#${n}`);
-      out.push(...expandObjects([copy]));
+      out.push(...expandTree([copy]));
     }
     return out;
   });

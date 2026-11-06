@@ -27,7 +27,7 @@ test("create, set, patch, set_films, read and list end to end", () => {
   const r = readScene(sql, "tvdash", "small-town");
   assert.deepEqual((r.scene.objects[1] as any).pos, [22, 1, 0]);
   assert.deepEqual([r.films[0].duration_ms, r.films[0].missing, r.updated_at], [4000, [], 5]);
-  assert.deepEqual(listScenes(sql, "tvdash"), [{ id: "small-town", name: "Small town", objects: 2, films: 1, updated_at: 5 }]);
+  assert.deepEqual(listScenes(sql, "tvdash"), [{ id: "small-town", name: "Small town", objects: 2, drawables: 2, films: 1, updated_at: 5 }]);
   assert.deepEqual(validateStoredScene(sql, "tvdash", "small-town"), { ok: true, issues: [] });
   assert.deepEqual(eventsAfter(sql).filter((e) => e.kind.startsWith("scene") || e.kind === "films.set").map((e) => e.kind), ["scene.set", "scene.set", "scene.set", "films.set"]);
 });

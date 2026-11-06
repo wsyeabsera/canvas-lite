@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkScene, expandObjects, objectIds, SCENE_NESTING_MAX, type SceneObject } from "../src/scene.ts";
+import { checkScene, expandedCount, expandObjects, objectIds, SCENE_NESTING_MAX, type SceneObject } from "../src/scene.ts";
 
 const base = (objects: unknown[] = []) => ({
   name: "Town",
@@ -103,4 +103,63 @@ test("terrain and text objects are validated", () => {
   );
   assert.throws(() => checkScene(base([{ id: "hill", kind: "terrain", terrain: { size: [100, 100], height: 5, scale: 20, octaves: 99, seed: 1 } }])), /objects\[0\]\.terrain\.octaves/);
   assert.throws(() => checkScene(base([{ id: "sign", kind: "text" }])), /objects\[0\]\.text/);
+});
+
+test("a repeater of an empty group counts its group copies and is rejected (one level and nested)", () => {
+  const empty = { id: "g", kind: "group", children: [] };
+  assert.throws(
+    () => checkScene(base([{ id: "r", kind: "repeat", repeat: { mode: "grid", count: 1_000_000, of: empty } }])),
+    /repeater "r" expands to 1000000 objects \(limit 2000\)/,
+  );
+  const nested = { id: "o", kind: "repeat", repeat: { mode: "grid", count: 1_000_000, of: { id: "i", kind: "repeat", repeat: { mode: "grid", count: 1_000_000, of: empty } } } };
+  assert.throws(() => checkScene(base([nested])), /repeater "o" expands to 1000000000000 objects/);
+});
+
+test("a repeater of a group with one child counts both: 2000 copies are 4000 objects", () => {
+  const house = { id: "house", kind: "group", children: [box("wall")] };
+  assert.throws(
+    () => checkScene(base([{ id: "street", kind: "repeat", repeat: { mode: "grid", count: 2000, of: house } }])),
+    /repeater "street" expands to 4000 objects/,
+  );
+  assert.doesNotThrow(() => checkScene(base([{ id: "street", kind: "repeat", repeat: { mode: "grid", count: 1000, of: house } }])));
+  assert.equal(expandedCount(checkScene(base([{ id: "street", kind: "repeat", repeat: { mode: "grid", count: 3, of: house } }])).objects), 6);
+});
+
+test("expandObjects refuses on its own to expand past the limit, without allocating", () => {
+  const huge = [{ id: "r", kind: "repeat", repeat: { mode: "grid", count: 1_000_000, of: { id: "g", kind: "group", children: [] } } }] as SceneObject[];
+  assert.throws(() => expandObjects(huge), /expands to 1000000 objects \(limit 2000\)/);
+});
+
+test("nested repeaters give unique, deterministic expanded ids", () => {
+  const nested = { id: "outer", kind: "repeat", repeat: { mode: "grid", count: 2, of: { id: "inner", kind: "repeat", repeat: { mode: "grid", count: 2, of: box("c") } } } };
+  const out = expandObjects(checkScene(base([nested])).objects);
+  const ids = out.map((o) => o.id);
+  assert.deepEqual(ids, ["c#0#0", "c#0#1", "c#1#0", "c#1#1"]);
+  const deep = { id: "o2", kind: "repeat", repeat: { mode: "ring", count: 3, of: { id: "grp", kind: "group", children: [nested, box("d")] } } };
+  const all = flat(expandObjects(checkScene(base([deep])).objects)).map((o) => o.id);
+  assert.equal(new Set(all).size, all.length);
+  assert.equal(all.length, 3 * 5);
+});
+
+test("object sizes must have the right length per kind and be non-negative", () => {
+  const ok: [string, number[]][] = [["box", [1, 2, 3]], ["sphere", [1]], ["cylinder", [1, 2]], ["cone", [1, 2]], ["capsule", [1, 2]], ["torus", [2, 0.5]], ["plane", [10, 10]], ["text", [2]]];
+  for (const [kind, size] of ok) assert.doesNotThrow(() => checkScene(base([{ id: "a", kind, size, ...(kind === "text" ? { text: "Hi" } : {}) }])), kind);
+  assert.throws(() => checkScene(base([{ id: "a", kind: "cylinder", size: [8, 0.2, 8] }])), /objects\[0\]\.size: a cylinder size is \[radius, height\]/);
+  assert.throws(() => checkScene(base([{ id: "a", kind: "box", size: [1, 2] }])), /objects\[0\]\.size: a box size is \[width, height, depth\]/);
+  assert.throws(() => checkScene(base([box("a", { size: [1, -2, 3] })])), /objects\[0\]\.size\[1\]: must be from 0/);
+  assert.throws(() => checkScene(base([{ id: "g", kind: "group", children: [], size: [1] }])), /objects\[0\]\.size: a group has no size/);
+});
+
+test("a repeater whose copies would land past 1000000 from the origin is rejected, naming its id", () => {
+  assert.throws(
+    () => checkScene(base([{ id: "far", kind: "repeat", pos: [999_000, 0, 0], repeat: { mode: "ring", count: 4, radius: 2000, of: box("t") } }])),
+    /repeater "far" places copies up to 1001000 from the origin \(limit 1000000\)/,
+  );
+  assert.throws(
+    () => checkScene(base([{ id: "wide", kind: "repeat", repeat: { mode: "grid", count: 100, spacing: 200_000, of: box("t") } }])),
+    /repeater "wide" places copies up to 1800000/,
+  );
+  const nested = { id: "o", kind: "repeat", repeat: { mode: "ring", count: 2, radius: 600_000, of: { id: "i", kind: "repeat", repeat: { mode: "ring", count: 2, radius: 600_000, of: box("t") } } } };
+  assert.throws(() => checkScene(base([nested])), /repeater "i" places copies up to 1200000/);
+  assert.doesNotThrow(() => checkScene(base([{ id: "ok", kind: "repeat", pos: [990_000, 0, 0], repeat: { mode: "ring", count: 4, radius: 2000, of: box("t", { pos: [-5000, 0, 0] }) } }])));
 });

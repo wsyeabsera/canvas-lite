@@ -69,10 +69,10 @@ The answer also carries `floor`: the oldest seq whose canvas state can still be 
   "start_screen": null, "transition": "none" }
 ```
 
-`GET /api/projects/<id>/scenes` returns 200 (removed scenes are left out; see [3D scenes](scenes.md)): the `list_scenes` answer.
+`GET /api/projects/<id>/scenes` returns 200 (removed scenes are left out; see [3D scenes](scenes.md)): the `list_scenes` answer (`objects`: declared top-level objects; `drawables`: objects after repeaters expand).
 
 ```json
-{ "scenes": [{ "id": "town", "name": "Small town", "objects": 6, "films": 1, "updated_at": 1767225600000 }] }
+{ "scenes": [{ "id": "town", "name": "Small town", "objects": 6, "drawables": 28, "films": 1, "updated_at": 1767225600000 }] }
 ```
 
 `GET /api/projects/<id>/scenes/<sid>` returns 200: the `read_scene` answer, with each film's `duration_ms` and `missing` (shot indexes whose focus or look-at object no longer exists):
