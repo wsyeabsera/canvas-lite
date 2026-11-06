@@ -9,6 +9,7 @@ import { FLOW_TEXT, PATCH_EDITS_MAX, TOUR_DWELL_MAX, TOUR_DWELL_MIN, TOUR_NOTE_M
 import {
   SCENARIOS_MAX, SCENARIO_CAPTION_MAX, SCENARIO_DESCRIPTION_MAX, SCENARIO_DWELL_MAX, SCENARIO_DWELL_MIN, SCENARIO_NAME_MAX, SCENARIO_STEPS_MAX, SCENARIO_VIA_MAX,
 } from "./scenarios.ts";
+import { SCENE_TEXT, type SceneEdit } from "./scene-store.ts";
 import { OPEN_PROJECT_TEXT } from "./projects.ts";
 
 function createServer(): McpServer {
@@ -282,6 +283,62 @@ function createServer(): McpServer {
     "remove_canvas",
     { title: "Remove a canvas", description: CANVAS_TEXT.remove_canvas, inputSchema: z.object({ project, canvas }) },
     ({ project, canvas }) => guard(async () => hub(env).removeCanvas(project, canvas)),
+  );
+  const scene = z.string().describe("Scene id from list_scenes.");
+  server.registerTool(
+    "create_scene",
+    {
+      title: "Create a scene",
+      description: SCENE_TEXT.create_scene,
+      inputSchema: z.object({ project, name: z.string().min(1).max(80).describe("Scene name."), id: z.string().optional().describe("Slug: lowercase letters, digits, -, at most 40. Defaults to the slugified name.") }),
+    },
+    ({ project, ...input }) => guard(async () => hub(env).createScene(project, input)),
+  );
+  server.registerTool(
+    "set_scene",
+    {
+      title: "Set a scene",
+      description: SCENE_TEXT.set_scene,
+      inputSchema: z.object({ project, scene, data: z.record(z.string(), z.unknown()).describe("The scene: {name, objects, lights, sky, camera}. Checked by Lite; an error names the bad path.") }),
+    },
+    ({ project, scene, data }) => guard(async () => hub(env).setScene(project, scene, data)),
+  );
+  server.registerTool(
+    "patch_scene",
+    {
+      title: "Patch a scene",
+      description: SCENE_TEXT.patch_scene,
+      inputSchema: z.object({
+        project,
+        scene,
+        edits: z.array(z.object({ op: z.enum(["set", "remove"]), id: z.string().describe("Object id."), object: z.record(z.string(), z.unknown()).optional().describe("The new object (set only).") })).min(1).max(50),
+      }),
+    },
+    ({ project, scene, edits }) => guard(async () => hub(env).patchScene(project, scene, edits as SceneEdit[])),
+  );
+  server.registerTool(
+    "set_films",
+    {
+      title: "Set films",
+      description: SCENE_TEXT.set_films,
+      inputSchema: z.object({ project, scene, films: z.array(z.record(z.string(), z.unknown())).max(8).describe("0 to 8 films (write 2 to 4); empty clears them.") }),
+    },
+    ({ project, scene, films }) => guard(async () => hub(env).setFilms(project, scene, films)),
+  );
+  server.registerTool(
+    "read_scene",
+    { title: "Read a scene", description: SCENE_TEXT.read_scene, inputSchema: z.object({ project, scene }) },
+    ({ project, scene }) => guard(async () => hub(env).readScene(project, scene)),
+  );
+  server.registerTool(
+    "list_scenes",
+    { title: "List scenes", description: SCENE_TEXT.list_scenes, inputSchema: z.object({ project }) },
+    ({ project }) => guard(async () => hub(env).listScenes(project)),
+  );
+  server.registerTool(
+    "validate_scene",
+    { title: "Validate a scene", description: SCENE_TEXT.validate_scene, inputSchema: z.object({ project, scene }) },
+    ({ project, scene }) => guard(async () => hub(env).validateScene(project, scene)),
   );
   return server;
 }

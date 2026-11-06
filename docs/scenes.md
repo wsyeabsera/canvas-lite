@@ -76,12 +76,12 @@ All take `project`; errors are `isError` results. Validation is done by the pure
 
 | Tool | Input | Answer |
 |---|---|---|
-| `create_scene` | `name`, `id?` | `{scene: SceneSummary}` |
-| `set_scene` | `scene`, `data` (a Scene) | the summary; replaces the whole scene |
-| `patch_scene` | `scene`, `edits:[{op: "set"\|"remove", id, object?}]` | the summary; edits top-level or nested objects by id, re-checks the whole scene |
+| `create_scene` | `name`, `id?` | `{scene: SceneSummary}`; an existing id is an error |
+| `set_scene` | `scene`, `data` (a Scene) | `{scene: SceneSummary}`; replaces the whole scene (films stay) |
+| `patch_scene` | `scene`, `edits:[{op: "set"\|"remove", id, object?}]` | `{scene: SceneSummary}`; edits top-level or nested objects by id (`set` replaces, or adds a top-level object when the id is new; `remove` needs an existing id), re-checks the whole scene |
 | `set_films` | `scene`, `films` (at most 8) | `{scene, count}`; replaces all films |
 | `read_scene` | `scene` | `{scene: Scene, films: FilmRead[], updated_at}` |
-| `list_scenes` | none | `SceneSummary[]`: `{id, name, objects, films, updated_at}` |
+| `list_scenes` | none | `{scenes: SceneSummary[]}`: `{id, name, objects, films, updated_at}`, newest first |
 | `validate_scene` | `scene` | `{ok, issues:[{severity, kind, message, fix, object?, film?, shot?}]}` |
 
 `validate_scene` kinds: `camera_inside_solid` (error; a shot's `from` or `to` position lies inside an object's axis-aligned bounding box, estimated from `size`, `scale` and `pos` with group offsets summed, rotation ignored), `shot_looks_at_nothing` (error; `look` is an id that does not exist), `no_lights` (warning), `film_too_short` (warning; under 3000 ms in total), `empty_scene` (info). `ok` means no errors. Build lights and a sky, write 2 to 4 films with captions in plain words, run `validate_scene` and fix every issue before showing anything.
