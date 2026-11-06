@@ -5,7 +5,7 @@ slug: /database
 
 # Database
 
-One SQLite file, `~/.lite/lite.db` (WAL mode). `src/db.ts` owns it; nothing else opens it.
+One SQLite database. In production it is the Hub's Durable Object storage; `src/db.ts` holds the schema and migrations (being split into store logic and adapters in the move to the Durable Object).
 
 ## Tables
 
