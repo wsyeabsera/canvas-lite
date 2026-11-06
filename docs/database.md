@@ -17,6 +17,7 @@ queries over a tiny `Sql` interface; `src/hub.ts` adapts Durable Object storage 
 | `canvases` | `project`, `id` (primary key together), `name`, `created_at`, `updated_at`, `archived_at` (nullable ms; set by `remove_canvas`) |
 | `screens` | `project`, `canvas`, `id` (primary key together), `name`, `width`, `height`, `html`, `x`, `y` (nullable), `updated_at` |
 | `screen_versions` | `project`, `canvas`, `screen`, `seq` (primary key together), `name`, `width`, `height`, `html`, `x`, `y` (nullable), `removed` (0 or 1) |
+| `scenes` | `project`, `id` (primary key together), `name`, `data` (scene JSON), `films` (films JSON, default `'[]'`), `updated_at` (ms), `removed` (0 or 1) |
 | `events` | `seq` (autoincrement), `project` (nullable, references `projects`), `kind`, `payload` (JSON), `ts` (ms) |
 
 ## Event model
@@ -67,3 +68,5 @@ removal marker and still reads as removed. No migration: it is a plain `DELETE`.
 computes a **timeline floor** (`timelineFloor`): the highest oldest-kept seq among screens that have events older than their oldest kept
 version (pruned screens, and old screens backfilled above), or 0 when nothing was lost. Screens created after the floor add no constraint.
 Events are never pruned.
+
+Migration 7 adds `scenes` (see [3D scenes](scenes.md)): `project`, `id` (primary key together), `name`, `data` (the scene as JSON text), `films` (JSON text, NOT NULL, default `'[]'`), `updated_at` and `removed` (NOT NULL, default 0). A new table only: rows, events and triggers are untouched, and `migrate()` still only appends. Scene bodies live in the table and **never in events**: `scene.set` carries `{scene, name, bytes}`, `films.set` carries `{scene, count}` and `scene.removed` (reserved, not emitted yet) will carry `{scene}`. Events are append-only and never pruned, and a scene can be up to 200,000 bytes, so putting bodies in the log would grow it for ever and make every replayed event heavy; the table keeps exactly one current copy, which `src/scene-store.ts` (the only code that touches it) replaces in one transaction with its event. Unlike screens there is no version table in this migration, so there is no scene history yet. A removed scene keeps its row (`removed = 1`); `create_scene` with the same id revives that row in place.

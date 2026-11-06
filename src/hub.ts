@@ -7,6 +7,7 @@ import { createCanvas, listCanvases, listCanvasesForPage, readCanvas, removeCanv
 import { canvasAt, canvasTimeline } from "./timeline.ts";
 import { patchScreen, readCanvasForPage, readFlow, reviewFlow, setTour, validateFlow, type PatchEdit } from "./flow.ts";
 import { setScenarios } from "./scenarios.ts";
+import { createScene, listScenes, patchScene, readScene, setFilms, setScene, validateStoredScene, type SceneEdit } from "./scene-store.ts";
 import { goto, present, stopPresent } from "./present.ts";
 import { listProjects, openProject, readProject, removeProject, type OpenInput, type ProjectSummary } from "./projects.ts";
 import { appendEvent,migrate, type LiteEvent, type Sql } from "./store.ts";
@@ -145,6 +146,42 @@ export class Hub extends DurableObject<Env> {
     const { event, ...result } = setScenarios(this.sql, project, canvas, scenarios);
     this.broadcast(event);
     return result;
+  }
+
+  createScene(project: string, input: { name: string; id?: string }) {
+    const { event, ...result } = createScene(this.sql, project, input);
+    this.broadcast(event);
+    return result;
+  }
+
+  setScene(project: string, scene: string, data: unknown) {
+    const { event, ...result } = setScene(this.sql, project, scene, data);
+    this.broadcast(event);
+    return result;
+  }
+
+  patchScene(project: string, scene: string, edits: SceneEdit[]) {
+    const { event, ...result } = patchScene(this.sql, project, scene, edits);
+    this.broadcast(event);
+    return result;
+  }
+
+  setFilms(project: string, scene: string, films: unknown) {
+    const { event, result } = setFilms(this.sql, project, scene, films);
+    this.broadcast(event);
+    return result;
+  }
+
+  readScene(project: string, scene: string) {
+    return readScene(this.sql, project, scene);
+  }
+
+  listScenes(project: string) {
+    return { scenes: listScenes(this.sql, project) };
+  }
+
+  validateScene(project: string, scene: string) {
+    return validateStoredScene(this.sql, project, scene);
   }
 
   present(project: string, input: { canvas: string; screen?: string }) {

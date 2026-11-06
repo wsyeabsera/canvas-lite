@@ -69,6 +69,22 @@ The answer also carries `floor`: the oldest seq whose canvas state can still be 
   "start_screen": null, "transition": "none" }
 ```
 
+`GET /api/projects/<id>/scenes` returns 200 (removed scenes are left out; see [3D scenes](scenes.md)): the `list_scenes` answer (`objects`: declared top-level objects; `drawables`: objects after repeaters expand).
+
+```json
+{ "scenes": [{ "id": "town", "name": "Small town", "objects": 6, "drawables": 28, "films": 1, "updated_at": 1767225600000 }] }
+```
+
+`GET /api/projects/<id>/scenes/<sid>` returns 200: the `read_scene` answer, with each film's `duration_ms` and `missing` (shot indexes whose focus or look-at object no longer exists):
+
+```json
+{ "scene": { "name": "Small town", "objects": [], "lights": [], "sky": { "top": "#2c4a7a", "bottom": "#f0b27a" }, "camera": { "pos": [0, 20, 55], "look": [0, 0, 0], "fov": 50 } },
+  "films": [{ "id": "tour", "name": "Town tour", "shots": [], "duration_ms": 0, "missing": [] }],
+  "updated_at": 1767225600000 }
+```
+
+`<sid>` follows the same id rule. Both routes use the same token gate and 404/400 rules as the canvas routes: an unknown project or scene is 404, an invalid id is 400.
+
 Both need a live (not removed) canvas, else 404. Any other path below `/api/projects/<id>` is 400.
 
 ## Errors

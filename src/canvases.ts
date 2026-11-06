@@ -113,7 +113,7 @@ function checkName(name: unknown): string {
   return name;
 }
 
-export function checkId(kind: "canvas" | "screen", id: unknown): string {
+export function checkId(kind: "canvas" | "screen" | "scene", id: unknown): string {
   if (typeof id !== "string" || id.length > 40 || !ID_RE.test(id))
     throw new Error(`invalid ${kind} id "${String(id)}": use lowercase letters, digits and -, at most 40`);
   return id;

@@ -107,6 +107,18 @@ export const MIGRATIONS = [
                         AND json_extract(e.payload, '$.canvas') = s.canvas AND json_extract(e.payload, '$.id') = s.id), 0),
             s.name, s.width, s.height, s.html, s.x, s.y, 0
      FROM screens s ORDER BY s.rowid;`,
+  // 7: 3D scenes (docs/scenes.md). New table only: rows, events and triggers are untouched. One row per scene holds the current
+  // scene JSON in `data` and its films JSON in `films`; events never carry either (src/scene-store.ts is the only writer).
+  `CREATE TABLE scenes (
+     project    TEXT NOT NULL REFERENCES projects(id),
+     id         TEXT NOT NULL,
+     name       TEXT NOT NULL,
+     data       TEXT NOT NULL,
+     films      TEXT NOT NULL DEFAULT '[]',
+     updated_at INTEGER NOT NULL,
+     removed    INTEGER NOT NULL DEFAULT 0 CHECK (removed IN (0, 1)),
+     PRIMARY KEY (project, id)
+   );`,
 ];
 
 /** Runs pending migrations, each in its own transaction. Refuses a database written by a newer build. */
