@@ -149,3 +149,19 @@ test("tool text tells Claude to run it after validate_flow and loop to ok and sc
   assert.match(FLOW_TEXT.review_prototype, /score is at least 90/);
   assert.match(FLOW_TEXT.review_prototype, /never present a half-finished prototype/);
 });
+
+test("nav: unrelated content links that share a target are not chained into one fake bar", () => {
+  // A real 4-item toolbar on `home` and `home2`, and two browser screens that share three other targets: the old merging
+  // chained both groups through one shared target and asked every screen for all of the items.
+  const bar = nav("t1", "t2", "t3", "t4");
+  const r = reviewPrototype({
+    screens: [
+      s("home", bar), s("home2", bar),
+      s("b1", nav("x", "y", "t1")), s("b2", nav("x", "y", "t1", "z")),
+      s("t1", nav("home")), s("t2", nav("home")), s("t3", nav("home")), s("t4", nav("home")), s("x", nav("home")), s("y", nav("home")), s("z", nav("home")),
+    ],
+    start: "home",
+    tour: null,
+  });
+  assert.deepEqual(r.issues.filter((i) => i.kind === "nav_differs").map((i) => i.screen), []);
+});

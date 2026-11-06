@@ -20,6 +20,8 @@ export type ReviewInput = {
 export const PASS_SCORE = 90;
 export const PENALTY: Record<ReviewSeverity, number> = { error: 15, warning: 6, info: 1 };
 export const NAV_MIN_ITEMS = 3;
+/** A screen is compared with a nav bar only when it has at least this share of its items. */
+export const NAV_NEAR = 0.75;
 export const STATES_MIN_SCREENS = 4;
 export const SCENARIOS_MIN_SCREENS = 4;
 export const STATE_WORDS = /empty|loading|error|success|offline|confirm/i;
@@ -87,21 +89,20 @@ export function reviewPrototype(input: ReviewInput): Review {
   // Navigation consistency: a set of 3+ targets repeated across 2+ screens is a nav bar. Each screen counts its own id as a
   // member (the current tab usually does not link to itself), so a 4-item bar still overlaps in 4.
   const aug = new Map(screens.map((s) => [s.id, new Set([...targets.get(s.id)!, s.id])]));
-  const clusters: Set<string>[] = [];
+  // Each repeated set is its own candidate (never merged with an overlapping one: unrelated content links that share a
+  // target would chain into one fake bar); only maximal candidates count, and a screen differs only when it has most of
+  // a bar (at least NAV_NEAR of its items) but not all, i.e. it is a near miss, not a different screen.
+  const candidates = new Map<string, Set<string>>();
   for (let i = 0; i < screens.length; i++)
     for (let j = i + 1; j < screens.length; j++) {
       const common = [...aug.get(ids[i])!].filter((t) => aug.get(ids[j])!.has(t));
-      if (common.length < NAV_MIN_ITEMS) continue;
-      const merged = new Set(common);
-      for (const c of clusters.filter((c) => common.some((t) => c.has(t)))) {
-        c.forEach((t) => merged.add(t));
-        clusters.splice(clusters.indexOf(c), 1);
-      }
-      clusters.push(merged);
+      if (common.length >= NAV_MIN_ITEMS) candidates.set([...common].sort().join("\n"), new Set(common));
     }
+  const clusters = [...candidates.values()].filter((c) => ![...candidates.values()].some((o) => o !== c && o.size > c.size && [...c].every((t) => o.has(t))));
   stats.nav_sets = clusters.length;
   for (const nav of clusters) {
-    const members = screens.filter((s) => [...nav].filter((t) => aug.get(s.id)!.has(t)).length >= NAV_MIN_ITEMS);
+    const have = (s: { id: string }) => [...nav].filter((t) => aug.get(s.id)!.has(t)).length;
+    const members = screens.filter((s) => have(s) >= Math.ceil(nav.size * NAV_NEAR));
     if (members.length < 2) continue;
     for (const s of members) {
       const missing = [...nav].filter((t) => !aug.get(s.id)!.has(t));
