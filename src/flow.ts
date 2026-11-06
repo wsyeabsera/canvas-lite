@@ -4,6 +4,7 @@ import {
   checkId, extractLinks, hasBackLink, prepareScreen, readCanvas, requireCanvas, requireProject, writeScreen, SCREEN_HTML_LIMIT, TRANSITIONS,
   type ScreenResult, type ScreenSummary,
 } from "./canvases.ts";
+import { coverageOf, scanControls, unlinkedWarnings, unlinkedSummary, type Coverage } from "./coverage.ts";
 import { appendEvent, type LiteEvent, type Sql } from "./store.ts";
 import { presenterState, type PresenterState } from "./present.ts";
 
@@ -17,8 +18,8 @@ export type TourStep = { screen: string; dwell_ms: number; note?: string };
 
 export const FLOW_TEXT = {
   read_flow: `Read a canvas's prototype flow in one call, without html: start_screen (as set, or null), effective_start (what play really opens on: the start screen, else the first screen), transition (the default), every screen with its outgoing links ({to, transition, exists}) and whether it has a data-back control, the tour (steps, or null) and the presenter session when it is on this canvas. Use it to see how the screens connect before editing links.`,
-  validate_flow: `Check a canvas's prototype and list what is wrong. issues[] is {severity, kind, screen?, to?, message}: errors are dangling_link (data-to names no screen) and no_screens; warnings are no_start_screen (play uses the first screen), unreachable (no path from the start through data-to links) and bad_transition (data-transition is not one of ${TRANSITIONS.join(", ")}); info is dead_end (no data-to and no data-back, the user cannot leave). ok is true when there are no errors. Run it after set_screens and fix errors and warnings before present.`,
-  patch_screen: `Change a screen's html in place with find and replace, so adding a link is one small call instead of resending the screen. Give edits [{find, replace, all?}] (1 to ${PATCH_EDITS_MAX}), applied in order to the result of the previous one; or, for a single change, find and replace directly. Each find is plain text (not a pattern) and must occur exactly once, unless all is true (then every occurrence is replaced; it must still occur at least once). Atomic: if any edit fails nothing is written. Errors: edit <i>: find not found / found <n> times (add context or set all) / find is empty; unknown screen; screen too large (limit ${SCREEN_HTML_LIMIT} bytes). The screen keeps its name, size, position and place in the order; one screen.set event is appended. Answer {screen, bytes, replaced:[count per edit], warnings}; warnings are the same as set_screen's, including dangling data-to links.`,
+  validate_flow: `Check a canvas's prototype and list what is wrong. issues[] is {severity, kind, screen?, to?, message}: errors are dangling_link (data-to names no screen) and no_screens; warnings are no_start_screen (play uses the first screen), unreachable (no path from the start through data-to links) and bad_transition (data-transition is not one of ${TRANSITIONS.join(", ")}); info is dead_end (no data-to and no data-back, the user cannot leave). ok is true when there are no errors. Warnings also include unlinked_control (a button, a, input, select, summary, role=button|link|tab|menuitem, tabindex or cursor:pointer element with no data-to and no data-back; mark one that intentionally goes nowhere with data-inert). The answer also has coverage {screens, controls, linked, unlinked, ratio}. ALWAYS run it after writing screens and fix every warning (wire the control, or add data-inert) before showing anything with present.`,
+  patch_screen: `Change a screen's html in place with find and replace, so adding a link is one small call instead of resending the screen. Give edits [{find, replace, all?}] (1 to ${PATCH_EDITS_MAX}), applied in order to the result of the previous one; or, for a single change, find and replace directly. Each find is plain text (not a pattern) and must occur exactly once, unless all is true (then every occurrence is replaced; it must still occur at least once). Atomic: if any edit fails nothing is written. Errors: edit <i>: find not found / found <n> times (add context or set all) / find is empty; unknown screen; screen too large (limit ${SCREEN_HTML_LIMIT} bytes). The screen keeps its name, size, position and place in the order; one screen.set event is appended. Answer {screen, bytes, replaced:[count per edit], warnings}; warnings are the same as set_screen's, including dangling data-to links and unlinked controls.`,
   set_tour: `Store a scripted walkthrough on a canvas: steps [{screen, dwell_ms, note?}] (1 to ${TOUR_STEPS_MAX}). Play on the watch page runs it by itself: show each screen for dwell_ms (${TOUR_DWELL_MIN} to ${TOUR_DWELL_MAX} ms) with the canvas's default transition, and the note (at most ${TOUR_NOTE_MAX} characters) as a caption. Every screen must exist on the canvas (error: unknown screen "<id>" in step <i>). An empty steps array clears the tour. Replaces any earlier tour. Appends a tour.set event. Answer {canvas, steps, duration_ms}.`,
   present: `Start presenting a canvas: every open watch page that follows you opens play mode on screen (default: the effective start screen) at once. One presenter session per project; starting again replaces the old one. Answer {presenter:{active, canvas, screen, transition}}. Move it with goto, end it with stop_present.`,
   goto: `While presenting, move every following watch page to a screen of the presented canvas, playing transition (default: the canvas default transition; one of ${TRANSITIONS.join(", ")}). Error "not presenting: call present first" when no session is active; unknown screen "<id>" when the screen is not on the presented canvas. Answer {presenter:{active, canvas, screen, transition}}.`,
@@ -58,6 +59,10 @@ export function validateScreens(screens: { id: string; html: string }[], start: 
         issues.push({ severity: "warning", kind: "bad_transition", screen: s.id, to, message: `"${s.id}" -> "${to}" has data-transition "${transition}": it falls back to the canvas default` });
     }
   }
+  for (const s of screens) {
+    const c = scanControls(s.html);
+    if (c.unlinked > 0) issues.push({ severity: "warning", kind: "unlinked_control", screen: s.id, message: `"${s.id}" has ${unlinkedSummary(c.unlinked, c.items)}: wire each with data-to or data-back, or mark it data-inert` });
+  }
   for (const s of screens)
     if (!reach.has(s.id)) issues.push({ severity: "warning", kind: "unreachable", screen: s.id, message: `"${s.id}" cannot be reached from "${eff}"` });
   for (const s of screens)
@@ -88,12 +93,12 @@ export function readFlow(sql: Sql, project: string, canvas: string): FlowRead {
   };
 }
 
-export function validateFlow(sql: Sql, project: string, canvas: string): { canvas: string; ok: boolean; start_screen: string | null; effective_start: string | null; issues: Issue[] } {
+export function validateFlow(sql: Sql, project: string, canvas: string): { canvas: string; ok: boolean; start_screen: string | null; effective_start: string | null; issues: Issue[]; coverage: Coverage } {
   requireProject(sql, project);
   const c = requireCanvas(sql, project, canvas);
   const rows = screenRows(sql, project, canvas);
   const issues = validateScreens(rows, c.start_screen !== null && rows.some((r) => r.id === c.start_screen) ? c.start_screen : null);
-  return { canvas, ok: !issues.some((i) => i.severity === "error"), start_screen: c.start_screen, effective_start: effectiveStart(c.start_screen, rows.map((r) => r.id)), issues };
+  return { canvas, ok: !issues.some((i) => i.severity === "error"), start_screen: c.start_screen, effective_start: effectiveStart(c.start_screen, rows.map((r) => r.id)), issues, coverage: coverageOf(rows.map((r) => scanControls(r.html))) };
 }
 
 export type PatchEdit = { find: string; replace: string; all?: boolean };
@@ -133,6 +138,7 @@ export function patchScreen(
     const seen = new Set<string>();
     for (const { to } of extractLinks(html))
       if (!have.has(to) && !seen.has(to)) (seen.add(to), result.warnings.push(`dangling link: data-to="${to}" has no screen`));
+    result.warnings.push(...unlinkedWarnings(html));
     const { created: _c, bytes, warnings, ...screen } = result as ScreenResult;
     return { screen, bytes, replaced, warnings, event };
   });

@@ -253,6 +253,10 @@
   .pl-hs.focus { box-shadow: 0 0 0 calc(3px / var(--k)) #fff, 0 0 0 calc(6px / var(--k)) var(--plb), 0 0 calc(18px / var(--k)) rgba(79,134,255,.6); }
   .pl.show-links .pl-hs { outline: calc(1.5px / var(--k)) dashed rgba(122,162,255,.95); outline-offset: calc(2px / var(--k)); }
   .pl.show-links .pl-hs.dead { outline-color: var(--warn); }
+  /* unlinked controls: only while Shift is held, orange dashed, never clickable */
+  .pl-nolink { position: absolute; pointer-events: none; display: none; }
+  .pl.show-links .pl-nolink { display: block; outline: calc(1.5px / var(--k)) dashed #fb923c; outline-offset: calc(2px / var(--k)); }
+  .pl.show-links .pl-nolink .pl-chip { opacity: 1; color: #fb923c; }
   .pl-chip {
     position: absolute; left: 0; top: 100%; margin-top: calc(8px / var(--k)); transform: scale(calc(1 / var(--k))); transform-origin: 0 0; opacity: 0; pointer-events: none;
     white-space: nowrap; padding: 5px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; line-height: 1.2; color: #fff; background: rgba(14,17,28,.88);

@@ -2,7 +2,7 @@
 // focus geometry, fit, dots) are in play.ts and unit-tested. Screens render in `sandbox="allow-same-origin"` frames (never
 // allow-scripts); the page reads `[data-to]` from `frame.contentDocument` and lays hotspots over the frame from their boxes.
 import type { CanvasDetail, Screen } from "./canvas.ts";
-import { backTransition, barVisible, BAR_IDLE_MS, chipText, currentId, defaultFrame, fitStage, follow, gotoScreen, isToast, keyIntent, linkAction, moveFocus, nextFrame, planTransition, playFrameSpec, progress, reconcile, startScreen, startState, type DeviceFrame, type LinkAction, type PlayState, type PlayTransition, type Step, type Toast } from "./play.ts";
+import { backTransition, barVisible, BAR_IDLE_MS, chipText, currentId, defaultFrame, fitStage, follow, gotoScreen, isToast, isUnlinkedControl, keyIntent, linkAction, moveFocus, nextFrame, planTransition, playFrameSpec, progress, reconcile, startScreen, startState, UNLINKED_CHIP, UNLINKED_SELECTOR, type DeviceFrame, type LinkAction, type PlayState, type PlayTransition, type Step, type Toast } from "./play.ts";
 import type { Rect } from "./viewport.ts";
 
 export type PlayInput = { detail: CanvasDetail | null; state: "loading" | "ok" | "missing" | "error" };
@@ -17,7 +17,7 @@ export type PlayHooks = {
 export type GotoResult = "moved" | "same" | "missing" | "closed";
 
 type Hot = { action: LinkAction; rect: Rect; radius: string };
-type Layer = { id: string; html: string; root: HTMLElement; frame: HTMLIFrameElement; hots: Hot[] };
+type Layer = { id: string; html: string; root: HTMLElement; frame: HTMLIFrameElement; hots: Hot[]; unlinked: Rect[] };
 
 const div = (cls: string, text?: string) => {
   const e = document.createElement("div");
@@ -119,6 +119,7 @@ export function createPlayView(hooks: PlayHooks) {
     const doc = l.frame.contentDocument;
     const win = l.frame.contentWindow;
     l.hots = [];
+    l.unlinked = [];
     if (!doc || !win) return;
     const w = l.root.clientWidth, h = l.root.clientHeight;
     for (const e of doc.querySelectorAll<HTMLElement>("[data-to],[data-back]")) {
@@ -129,6 +130,17 @@ export function createPlayView(hooks: PlayHooks) {
       const rect = { x: r.left + win.scrollX, y: r.top + win.scrollY, w: r.width, h: r.height };
       if (rect.x >= w || rect.y >= h) continue; // below or beside the frame: not reachable
       l.hots.push({ action, rect, radius: win.getComputedStyle(e).borderRadius });
+    }
+    // Control-looking elements that go nowhere: outlined on Shift, never clickable.
+    for (const e of doc.querySelectorAll<HTMLElement>(UNLINKED_SELECTOR)) {
+      const anc: ((n: string) => string | null)[] = [];
+      for (let p = e.parentElement; p; p = p.parentElement) anc.push((n) => p.getAttribute(n));
+      if (!isUnlinkedControl(e.tagName, (n) => e.getAttribute(n), anc)) continue;
+      const r = e.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1) continue;
+      const rect = { x: r.left + win.scrollX, y: r.top + win.scrollY, w: r.width, h: r.height };
+      if (rect.x >= w || rect.y >= h) continue;
+      l.unlinked.push(rect);
     }
   }
 
@@ -154,6 +166,14 @@ export function createPlayView(hooks: PlayHooks) {
       d.addEventListener("click", () => activate(i));
       hot.append(d);
     });
+    for (const u of layer.unlinked) {
+      const d = div("pl-nolink");
+      d.style.cssText = `left:${u.x}px;top:${u.y}px;width:${u.w}px;height:${u.h}px`;
+      const chip = div("pl-chip", UNLINKED_CHIP);
+      if (u.y + u.h > stageSize.h - 56) chip.classList.add("above");
+      d.append(chip);
+      hot.append(d);
+    }
     if (mode === "remote") {
       focusIdx = moveFocus(layer.hots.map((h) => h.rect), null, "right");
       setRings();
@@ -178,7 +198,7 @@ export function createPlayView(hooks: PlayHooks) {
     f.srcdoc = spec.srcdoc;
     el.append(f);
     clip.append(el);
-    const l: Layer = { id: s.id, html: s.html, root: el, frame: f, hots: [] };
+    const l: Layer = { id: s.id, html: s.html, root: el, frame: f, hots: [], unlinked: [] };
     return { layer: l, ready };
   }
 
