@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { listProjects, openProject, readProject, type OpenInput } from "../src/projects.ts";
+import { listProjects, MANIFEST_LIMIT, OPEN_PROJECT_TEXT, openProject, readProject, removeProject, type OpenInput } from "../src/projects.ts";
 import { eventsAfter, migrate, type Sql } from "../src/store.ts";
 import { nodeSql } from "./node-sql.ts";
 
@@ -78,7 +78,7 @@ test("same id twice: one row replaced, two events", () => {
   const { projects } = listProjects(sql);
   assert.deepEqual(projects, [{ id: "tvdash", name: "tvdash 2", kind: "web", repo: null, opened_at: 2, files: 1 }]);
   assert.deepEqual(eventsAfter(sql).map((e) => e.kind), ["project.opened", "project.opened"]);
-  assert.deepEqual(readProject(sql, "tvdash").manifest, { tree: ["a"], files: {} });
+  assert.deepEqual(readProject(sql, "tvdash", true).manifest, { tree: ["a"], files: {} });
 });
 
 test("the event is written in the same transaction as the project", () => {
@@ -116,7 +116,7 @@ test("read_project returns summary, manifest and its latest events; unknown id e
   const sql = fresh();
   openProject(sql, input({ name: "other" }), 1);
   for (let i = 0; i < 25; i++) openProject(sql, input(), 100 + i);
-  const r = readProject(sql, "tvdash");
+  const r = readProject(sql, "tvdash", true);
   assert.deepEqual(r.manifest, manifest);
   assert.equal(r.project.files, 3);
   assert.equal(r.events.length, 20);
@@ -124,4 +124,92 @@ test("read_project returns summary, manifest and its latest events; unknown id e
   assert.ok(r.events[0].seq < r.events[19].seq);
   assert.equal(r.events[19].ts, 124);
   assert.throws(() => readProject(sql, "nope"), { message: 'unknown project "nope"' });
+});
+
+test("open_project guidance interpolates the limit and covers the manifest recipe", () => {
+  const { description, tree, files, manifest: m } = OPEN_PROJECT_TEXT;
+  for (const t of [description, tree, files, m]) assert.ok(t.includes(String(MANIFEST_LIMIT)), t);
+  assert.ok(description.includes(`manifest too large: <bytes> bytes, limit ${MANIFEST_LIMIT}`));
+  assert.match(description, /repo-relative/);
+  assert.match(description, /TREE ENTRIES/);
+  assert.match(description, /1500/);
+  assert.match(description, /line boundary/);
+  assert.match(description, /collapse/i);
+});
+
+test("read_project leaves the manifest out by default and includes it on request", () => {
+  const sql = fresh();
+  openProject(sql, input(), 1);
+  const d = readProject(sql, "tvdash");
+  assert.deepEqual(Object.keys(d).sort(), ["events", "project"]);
+  assert.equal(readProject(sql, "tvdash", false).manifest, undefined);
+  const t = readProject(sql, "tvdash", true);
+  assert.deepEqual(Object.keys(t).sort(), ["events", "manifest", "project"]);
+  assert.deepEqual(t.manifest, manifest);
+  assert.deepEqual(t.project, d.project);
+  assert.deepEqual(t.events, d.events);
+});
+
+test("remove_project archives in one transaction and appends project.removed", () => {
+  const sql = fresh();
+  openProject(sql, input(), 1);
+  const r = removeProject(sql, "tvdash", 50);
+  assert.equal(r.project.archived_at, 50);
+  assert.equal(r.event?.kind, "project.removed");
+  assert.equal(r.event?.project, "tvdash");
+  assert.deepEqual(r.event?.payload, { name: "tvdash" });
+  assert.deepEqual(eventsAfter(sql).map((e) => e.kind), ["project.opened", "project.removed"]);
+  assert.throws(() => removeProject(sql, "nope"), { message: 'unknown project "nope"' });
+  assert.equal(eventsAfter(sql).length, 2);
+});
+
+test("remove_project is atomic: a failing event leaves the project unarchived", () => {
+  const sql = fresh();
+  openProject(sql, input(), 1);
+  const failing: Sql = {
+    ...sql,
+    all: (q, ...p) => {
+      if (q.startsWith("INSERT INTO events")) throw new Error("disk full");
+      return sql.all(q, ...p);
+    },
+  };
+  assert.throws(() => removeProject(failing, "tvdash", 9), /disk full/);
+  assert.equal(listProjects(sql).projects.length, 1);
+  assert.equal(readProject(sql, "tvdash").project.archived_at, undefined);
+});
+
+test("remove_project twice is an idempotent no-op without a second event", () => {
+  const sql = fresh();
+  openProject(sql, input(), 1);
+  const first = removeProject(sql, "tvdash", 50);
+  const second = removeProject(sql, "tvdash", 99);
+  assert.deepEqual(second.project, first.project);
+  assert.equal(second.event, null);
+  assert.equal(eventsAfter(sql).filter((e) => e.kind === "project.removed").length, 1);
+});
+
+test("archived projects are hidden from the list but still readable", () => {
+  const sql = fresh();
+  openProject(sql, input({ name: "a" }), 1);
+  openProject(sql, input({ name: "b" }), 2);
+  removeProject(sql, "a", 3);
+  assert.deepEqual(listProjects(sql).projects.map((p) => p.id), ["b"]);
+  assert.ok(listProjects(sql).projects.every((p) => !("archived_at" in p)));
+  const r = readProject(sql, "a", true);
+  assert.equal(r.project.archived_at, 3);
+  assert.deepEqual(r.manifest, manifest);
+  assert.deepEqual(r.events.map((e) => e.kind), ["project.opened", "project.removed"]);
+});
+
+test("open_project on an archived id un-archives it", () => {
+  const sql = fresh();
+  openProject(sql, input(), 1);
+  removeProject(sql, "tvdash", 2);
+  assert.equal(listProjects(sql).projects.length, 0);
+  const r = openProject(sql, input(), 3);
+  assert.ok(!("archived_at" in r.project));
+  assert.deepEqual(listProjects(sql).projects.map((p) => [p.id, p.opened_at]), [["tvdash", 3]]);
+  assert.equal(readProject(sql, "tvdash").project.archived_at, undefined);
+  assert.deepEqual(eventsAfter(sql).map((e) => e.kind), ["project.opened", "project.removed", "project.opened"]);
+  assert.equal(removeProject(sql, "tvdash", 4).event?.kind, "project.removed"); // can be removed again
 });

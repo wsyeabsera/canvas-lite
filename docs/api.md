@@ -5,8 +5,8 @@ slug: /api
 
 # Project API
 
-A read-only JSON API the watch page uses. It returns what the `list_projects` and `read_project` tools return
-(see [Open a project](open-project.md)). Same-origin only: no CORS headers are sent.
+A read-only JSON API the watch page uses. It returns what the `list_projects` tool and `read_project` with `include_manifest: true` return
+(see [Open a project](open-project.md)); `GET /api/projects/<id>` always includes the manifest. Same-origin only: no CORS headers are sent.
 
 ## Auth
 
@@ -15,7 +15,7 @@ Every response is `Content-Type: application/json` with `Cache-Control: no-store
 
 ## Endpoints
 
-`GET /api/projects` returns 200:
+`GET /api/projects` returns 200 (archived projects are left out):
 
 ```json
 { "projects": [{ "id": "tvdash", "name": "tvdash", "kind": "web", "repo": "https://github.com/yab/tvdash", "opened_at": 1767225600000, "files": 42 }] }

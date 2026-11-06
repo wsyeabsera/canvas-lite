@@ -3,7 +3,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { tokenOk } from "./auth.ts";
 import { parseHello, replay } from "./events.ts";
-import { listProjects, openProject, readProject, type OpenInput, type ProjectSummary } from "./projects.ts";
+import { listProjects, openProject, readProject, removeProject, type OpenInput, type ProjectSummary } from "./projects.ts";
 import { appendEvent,migrate, type LiteEvent, type Sql } from "./store.ts";
 
 type Attachment = { authed: boolean };
@@ -43,12 +43,18 @@ export class Hub extends DurableObject<Env> {
     return result;
   }
 
+  removeProject(id: string): { project: ProjectSummary } {
+    const { project, event } = removeProject(this.sql, id);
+    if (event) this.broadcast(event);
+    return { project };
+  }
+
   listProjects() {
     return listProjects(this.sql);
   }
 
-  readProject(id: string) {
-    return readProject(this.sql, id);
+  readProject(id: string, includeManifest = false) {
+    return readProject(this.sql, id, includeManifest);
   }
 
   ping(note?: string): LiteEvent {

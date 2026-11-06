@@ -24,7 +24,7 @@ export default {
       const route = routeApi(request.method, pathname);
       if (route.kind === "error") return json(route.status, { error: route.message }, route.headers);
       try {
-        return json(200, route.kind === "list" ? await hub(env).listProjects() : await hub(env).readProject(route.id));
+        return json(200, route.kind === "list" ? await hub(env).listProjects() : await hub(env).readProject(route.id, true));
       } catch (e) {
         return hubErrorResponse(e);
       }

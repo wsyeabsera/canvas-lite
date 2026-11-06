@@ -46,6 +46,9 @@ export const MIGRATIONS = [
    );
    INSERT INTO projects (id, name, kind, repo, manifest, opened_at) SELECT id, name, kind, NULL, NULL, opened_at FROM projects_v1;
    DROP TABLE projects_v1;`,
+  // 3: remove_project archives instead of deleting (events are append-only and reference projects). Plain ADD COLUMN:
+  // no rebuild, no pragma, rows, events and triggers are untouched.
+  `ALTER TABLE projects ADD COLUMN archived_at INTEGER;`,
 ];
 
 /** Runs pending migrations, each in its own transaction. Refuses a database written by a newer build. */

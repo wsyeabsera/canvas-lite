@@ -4,6 +4,7 @@ import { createMcpHandler } from "agents/mcp/server";
 import { env } from "cloudflare:workers";
 import { z } from "zod";
 import { hub } from "./hub.ts";
+import { OPEN_PROJECT_TEXT } from "./projects.ts";
 
 function createServer(): McpServer {
   const server = new McpServer({ name: "lite", version: "0.1.0" });
@@ -29,8 +30,7 @@ function createServer(): McpServer {
     "open_project",
     {
       title: "Open a project",
-      description:
-        "Register or refresh a project in Lite from a summary you read locally (file tree plus a few key files). Use it when you start work on a checkout; calling it again with the same id replaces the stored summary.",
+      description: OPEN_PROJECT_TEXT.description,
       inputSchema: z.object({
         id: z.string().optional().describe("Slug: lowercase letters, digits, -, at most 40. Defaults to the slugified name."),
         name: z.string().min(1).max(100).describe("Project name."),
@@ -38,10 +38,10 @@ function createServer(): McpServer {
         repo: z.string().max(2000).optional().describe("URL of the remote repository."),
         manifest: z
           .object({
-            tree: z.array(z.string()).describe("Relative paths; a trailing / marks a directory."),
-            files: z.record(z.string(), z.string()).describe("A few key files (README, package.json) as path to text, each cut to what matters."),
+            tree: z.array(z.string()).describe(OPEN_PROJECT_TEXT.tree),
+            files: z.record(z.string(), z.string()).describe(OPEN_PROJECT_TEXT.files),
           })
-          .describe("The project summary. At most 65536 bytes as JSON."),
+          .describe(OPEN_PROJECT_TEXT.manifest),
       }),
     },
     (input) => guard(() => hub(env).openProject(input)),
@@ -59,10 +59,24 @@ function createServer(): McpServer {
     "read_project",
     {
       title: "Read a project",
-      description: "Return a project's summary, its stored manifest and its latest events. Use it to see what Lite was told about a project.",
+      description:
+        "Return a project's summary and its latest events. The stored manifest (tree and excerpts, up to 65536 bytes) is left out unless you set include_manifest to true; ask for it only when you need the file tree.",
+      inputSchema: z.object({
+        id: z.string().describe("Project id from list_projects."),
+        include_manifest: z.boolean().optional().describe("Also return the stored manifest. Default false."),
+      }),
+    },
+    ({ id, include_manifest }) => guard(() => hub(env).readProject(id, include_manifest ?? false)),
+  );
+  server.registerTool(
+    "remove_project",
+    {
+      title: "Remove a project",
+      description:
+        "Archive a project: it disappears from list_projects and the watch page's project list, and a project.removed event is recorded. Nothing is deleted: read_project still works on the id, and open_project with the same id brings it back. Removing an already archived project does nothing.",
       inputSchema: z.object({ id: z.string().describe("Project id from list_projects.") }),
     },
-    ({ id }) => guard(() => hub(env).readProject(id)),
+    ({ id }) => guard(() => hub(env).removeProject(id)),
   );
   return server;
 }
