@@ -20,7 +20,8 @@ export type Route =
   | { view: "walk"; id: string; canvas: string } // walkthrough mode of play: `#/project/<id>/canvas/<cid>/walk`
   | { view: "watch"; id: string; canvas: string; scenario: string | null } // scenario video player: `#/project/<id>/canvas/<cid>/watch[/<scenarioId>]` (null: the picker)
   | { view: "play"; id: string; canvas: string; screen: string | null } // present mode; `screen` = where to start (null: the start screen)
-  | { view: "scene"; id: string; scene: string }; // a 3D scene in Orbit mode: `#/project/<id>/scene/<sid>` (web/scene-view.ts)
+  | { view: "scene"; id: string; scene: string } // a 3D scene in Orbit mode: `#/project/<id>/scene/<sid>` (web/scene-view.ts)
+  | { view: "scene-page"; id: string; scene: string }; // the scene's scrolling page: `#/project/<id>/scene/<sid>/page` (web/scene-page-view.ts)
 
 export const initialState = (): State => ({ rows: [], projects: {}, counts: {}, total: 0 });
 
@@ -63,6 +64,8 @@ export function parseRoute(hash: string): Route {
   if (hash === "#/activity") return { view: "activity" };
   const sc = /^#\/project\/([^/?#]+)\/scene\/([^/?#]+)$/.exec(hash);
   if (sc) return validId(sc[1]) && validId(sc[2]) ? { view: "scene", id: sc[1], scene: sc[2] } : { view: "activity" };
+  const sp = /^#\/project\/([^/?#]+)\/scene\/([^/?#]+)\/page$/.exec(hash);
+  if (sp) return validId(sp[1]) && validId(sp[2]) ? { view: "scene-page", id: sp[1], scene: sp[2] } : { view: "activity" };
   const vw = /^#\/project\/([^/?#]+)\/canvas\/([^/?#]+)\/watch(?:\/([^/?#]+))?$/.exec(hash);
   if (vw) return validId(vw[1]) && validId(vw[2]) && (vw[3] === undefined || validId(vw[3])) ? { view: "watch", id: vw[1], canvas: vw[2], scenario: vw[3] ?? null } : { view: "activity" };
   const w = /^#\/project\/([^/?#]+)\/canvas\/([^/?#]+)\/walk$/.exec(hash);
@@ -85,17 +88,19 @@ export const routeProject = (route: Route): string | null => (route.view === "ac
 export const routeCanvas = (route: Route): string | null => (route.view === "canvas" || route.view === "screen" || route.view === "play" || route.view === "walk" || route.view === "watch" ? route.canvas : null);
 
 /** The scene a route shows (the scene route), else null. */
-export const routeScene = (route: Route): string | null => (route.view === "scene" ? route.scene : null);
+export const routeScene = (route: Route): string | null => (route.view === "scene" || route.view === "scene-page" ? route.scene : null);
 
-/** True when an event changes the scene the route shows (`scene.set` or `films.set` for it), so the view refetches it. */
+/** True when an event changes the scene the route shows (`scene.set` or `films.set` for it; on the page route also `page.set`), so the view refetches it. */
 export function sceneEventHits(route: Route, row: Pick<WatchRow, "project" | "kind" | "payload">): boolean {
-  if (route.view !== "scene" || row.project !== route.id) return false;
-  if (row.kind !== "scene.set" && row.kind !== "films.set" && row.kind !== "scene.removed") return false;
+  if ((route.view !== "scene" && route.view !== "scene-page") || row.project !== route.id) return false;
+  const kinds = route.view === "scene-page" ? ["scene.set", "films.set", "scene.removed", "page.set"] : ["scene.set", "films.set", "scene.removed"];
+  if (!kinds.includes(row.kind)) return false;
   return (row.payload as { scene?: unknown } | null)?.scene === route.scene;
 }
 
 export const hrefLanding = "#/";
 export const hrefScene = (id: string, scene: string) => `#/project/${id}/scene/${scene}`;
+export const hrefScenePage = (id: string, scene: string) => `#/project/${id}/scene/${scene}/page`;
 export const hrefActivity = "#/activity";
 export const hrefWalk = (id: string, canvas: string) => `#/project/${id}/canvas/${canvas}/walk`;
 export const hrefProject = (id: string) => `#/project/${id}`;

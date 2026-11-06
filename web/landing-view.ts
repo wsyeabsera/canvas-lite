@@ -6,8 +6,15 @@ import { CANVAS_KINDS, describeCanvasDetail, iframeSpec, type CanvasDetail } fro
 import {
   applyFilter, badgeOf, bannerModel, continueModel, describeEntries, FILTER_LABEL, FILTERS, filterCounts, filterByProject, foldSession, LAST_KEY, metaLine, parseLast, PROJECT_KEY, projectOptions,
   rememberRoute, rememberScreen, resolveProject, searchEntries, showProjectPicker, sortEntries, startScreenOf, thumbFit, type Entry, type Filter, type Last, type Sessions,
+  describeSceneEntries, isScene, POSTER_CONCURRENCY, posterFresh, sceneActions, sceneChips, scenePosterAtKey, scenePosterKey,
 } from "./landing.ts";
-import { hrefActivity, hrefCanvas, hrefPlay, hrefWalk, hrefWatch, type ProjectInfo } from "./state.ts";
+import { hrefActivity, hrefCanvas, hrefPlay, hrefScene, hrefWalk, hrefWatch, type ProjectInfo } from "./state.ts";
+import type { Scene } from "../src/scene.ts";
+import { hasWebGL2 } from "./webgl.ts";
+
+const SCENE_KINDS = ["scene.set", "films.set", "page.set", "scene.removed"];
+const POSTER_WIDTH = 480;
+type SceneDetail = { scene: Scene; hasPage: boolean };
 
 export type LandingDeps = {
   headers: () => Record<string, string>;
@@ -147,6 +154,184 @@ export function createLandingView(deps: LandingDeps) {
         }, { rootMargin: "200px" })
       : null;
 
+  // --- scene cards: detail (sky, page) and a lazily rendered poster ------------------
+  const sceneDetails = new Map<string, Promise<SceneDetail | null>>(); // by project/scene/updated_at
+  function loadSceneDetail(e: Entry): Promise<SceneDetail | null> {
+    const key = `${e.pid}/${e.id}/${e.updated_at}`;
+    let p = sceneDetails.get(key);
+    if (!p) {
+      p = fetch(`/api/projects/${e.pid}/scenes/${e.id}`, { headers: deps.headers() })
+        .then(async (res) => {
+          if (res.status === 401 || res.status === 403) deps.locked();
+          if (!res.ok) return null;
+          const body = (await res.json()) as { scene?: Scene; page?: { sections?: unknown[] } | null };
+          if (!body.scene || !body.scene.sky) return null;
+          return { scene: body.scene, hasPage: Array.isArray(body.page?.sections) && body.page.sections.length > 0 };
+        })
+        .catch(() => null);
+      sceneDetails.set(key, p);
+      void p.then((d) => {
+        if (d === null) sceneDetails.delete(key);
+      });
+    }
+    return p;
+  }
+
+  const store = {
+    get(k: string): string | null {
+      try {
+        return localStorage.getItem(k);
+      } catch {
+        return null;
+      }
+    },
+    set(k: string, v: string) {
+      try {
+        localStorage.setItem(k, v);
+      } catch {
+        /* storage full or blocked: no cached poster */
+      }
+    },
+  };
+
+  function showPoster(box: HTMLElement, src: string) {
+    const img = el("img", "ld-poster");
+    img.alt = "";
+    img.src = src;
+    box.querySelector(".ld-poster")?.remove();
+    box.append(img);
+    box.classList.add("ready");
+  }
+
+  // Posters are rendered offscreen with the scene renderer, at most POSTER_CONCURRENCY at a time and never while the landing or the tab is hidden.
+  type PosterJob = { box: HTMLElement; e: Entry; scene: Scene };
+  const posterQueue: PosterJob[] = [];
+  let rendering = 0;
+  let sceneRender: Promise<typeof import("./scene-render.ts")> | null = null;
+  function pumpPosters() {
+    while (rendering < POSTER_CONCURRENCY && posterQueue.length && visible && !document.hidden) {
+      const job = posterQueue.shift()!;
+      if (!job.box.isConnected) continue;
+      rendering++;
+      void renderPoster(job).finally(() => {
+        rendering--;
+        pumpPosters();
+      });
+    }
+  }
+  document.addEventListener("visibilitychange", pumpPosters);
+
+  async function renderPoster({ box, e, scene }: PosterJob): Promise<void> {
+    if (!hasWebGL2()) return;
+    let m: typeof import("./scene-render.ts");
+    try {
+      m = await (sceneRender ??= import("./scene-render.ts"));
+    } catch {
+      sceneRender = null;
+      return;
+    }
+    if (!box.isConnected || !visible || document.hidden) return void posterQueue.push({ box, e, scene });
+    const host = el("div", "ld-offscreen");
+    document.body.append(host);
+    let url = "";
+    try {
+      const v = m.createSceneView(host, scene);
+      v.resize();
+      url = v.poster();
+      v.dispose();
+    } catch {
+      /* a lost or refused context: keep the sky gradient */
+    } finally {
+      host.remove();
+    }
+    if (!url) return;
+    const small = await new Promise<string>((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement("canvas");
+        c.width = POSTER_WIDTH;
+        c.height = Math.max(1, Math.round((POSTER_WIDTH * img.height) / Math.max(1, img.width)));
+        c.getContext("2d")?.drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL("image/jpeg", 0.8));
+      };
+      img.onerror = () => resolve(url);
+      img.src = url;
+    });
+    store.set(scenePosterKey(e.pid, e.id), small);
+    store.set(scenePosterAtKey(e.pid, e.id), String(e.updated_at));
+    if (box.isConnected) showPoster(box, small);
+  }
+
+  /** Fills a scene card once its detail arrives: sky gradient, chips, hover buttons, then the cached or a newly rendered poster. */
+  function fillScene(box: HTMLElement, e: Entry, d: SceneDetail | null) {
+    if (!d) return;
+    box.style.background = `linear-gradient(${d.scene.sky.top}, ${d.scene.sky.bottom})`;
+    const card = box.closest(".ld-card");
+    const chips = card?.querySelector(".ld-schips");
+    if (chips) chips.replaceChildren(...sceneChips(e, d.hasPage).map((t) => el("span", "ld-schip", t)));
+    const scrim = card?.querySelector(".ld-scrim");
+    if (scrim) scrim.replaceChildren(...sceneButtons(e, d.hasPage));
+    const cached = store.get(scenePosterKey(e.pid, e.id));
+    if (cached && posterFresh(cached, store.get(scenePosterAtKey(e.pid, e.id)), e.updated_at)) return showPoster(box, cached);
+    posterQueue.push({ box, e, scene: d.scene });
+    pumpPosters();
+  }
+
+  function sceneButtons(e: Entry, hasPage: boolean): HTMLElement[] {
+    return sceneActions(e, hasPage).map((a, i) => {
+      const b = link(a.href, i === 0 ? "ld-btn blue" : "ld-btn glassy", "", `${a.label} ${e.name}`);
+      if (a.label === "Watch") b.append(icon(PLAY_ICON, 12, true));
+      b.append(document.createTextNode(a.label));
+      return b;
+    });
+  }
+
+  const sceneIo =
+    typeof IntersectionObserver !== "undefined"
+      ? new IntersectionObserver((items) => {
+          for (const it of items) {
+            if (!it.isIntersecting) continue;
+            sceneIo!.unobserve(it.target);
+            const box = it.target as HTMLElement & { _entry?: Entry };
+            const e = box._entry;
+            if (e) void loadSceneDetail(e).then((d) => fillScene(box, e, d));
+          }
+        }, { rootMargin: "100px" })
+      : null;
+
+  function sceneThumb(e: Entry): HTMLElement {
+    const box = el("div", "ld-thumb ld-sthumb") as HTMLElement & { _entry?: Entry };
+    box._entry = e;
+    box.append(el("span", "ld-sname", e.name));
+    if (sceneIo) sceneIo.observe(box);
+    else void loadSceneDetail(e).then((d) => fillScene(box, e, d));
+    return box;
+  }
+
+  function sceneCard(e: Entry): HTMLElement {
+    const c = el("article", "ld-card glass ld-scene");
+    const scrim = el("div", "ld-scrim");
+    scrim.append(...sceneButtons(e, false));
+    const wrap = el("div", "ld-thumbwrap");
+    wrap.append(sceneThumb(e), scrim);
+    const body = el("div", "ld-body");
+    const name = link(hrefScene(e.pid, e.id), "ld-name", e.name); // its ::after covers the card: a click opens Orbit
+    const label = project === "" ? el("div", "ld-plabel", e.project) : null;
+    const meta = el("div", "ld-meta", metaLine(e, now()));
+    meta.dataset.kind = "scene";
+    meta.dataset.drawables = String(e.drawables ?? 0);
+    meta.dataset.ts = String(e.updated_at);
+    const chips = el("div", "ld-schips");
+    chips.append(...sceneChips(e, false).map((t) => el("span", "ld-schip", t)));
+    const b = badgeOf(e);
+    const row = el("div", "ld-srow");
+    row.append(el("span", `ld-badge ${b.kind}`, b.text), chips);
+    if (label) body.append(name, label, meta, row);
+    else body.append(name, meta, row);
+    c.append(wrap, body);
+    return c;
+  }
+
   function thumb(e: Entry, eager: boolean): HTMLElement {
     const box = el("div", "ld-thumb") as HTMLElement & { _entry?: Entry };
     box._entry = e;
@@ -163,9 +348,14 @@ export function createLandingView(deps: LandingDeps) {
     const lists = await Promise.all(
       projects.map(async (p) => {
         try {
-          const res = await fetch(`/api/projects/${p.id}/canvases`, { headers: deps.headers() });
+          const [res, sres] = await Promise.all([
+            fetch(`/api/projects/${p.id}/canvases`, { headers: deps.headers() }),
+            fetch(`/api/projects/${p.id}/scenes`, { headers: deps.headers() }).catch(() => null),
+          ]);
           if (res.status === 401 || res.status === 403) deps.locked();
-          return res.ok ? describeEntries(p.id, p.name, await res.json()) : [];
+          const designs = res.ok ? describeEntries(p.id, p.name, await res.json()) : [];
+          const scenes = sres?.ok ? describeSceneEntries(p.id, p.name, await sres.json()) : []; // an older server without scenes: none
+          return [...designs, ...scenes];
         } catch {
           return [];
         }
@@ -239,6 +429,7 @@ export function createLandingView(deps: LandingDeps) {
   }
 
   function card(e: Entry): HTMLElement {
+    if (isScene(e)) return sceneCard(e);
     const c = el("article", "ld-card glass");
     const t = thumb(e, false);
     const scrim = el("div", "ld-scrim");
@@ -298,7 +489,10 @@ export function createLandingView(deps: LandingDeps) {
   // The gallery redraws on data and on filter/search changes; relative times tick in place so thumbnails never reload.
   setInterval(() => {
     if (!visible) return;
-    for (const m of galleryEl.querySelectorAll<HTMLElement>(".ld-meta")) m.textContent = metaLine({ screens: Number(m.dataset.screens), updated_at: Number(m.dataset.ts) }, now());
+    for (const m of galleryEl.querySelectorAll<HTMLElement>(".ld-meta")) {
+      const kind = m.dataset.kind === "scene" ? ("scene" as const) : undefined;
+      m.textContent = metaLine({ screens: Number(m.dataset.screens ?? 0), updated_at: Number(m.dataset.ts), kind, drawables: Number(m.dataset.drawables ?? 0) }, now());
+    }
     tickContinue();
   }, 30_000);
 
@@ -337,6 +531,7 @@ export function createLandingView(deps: LandingDeps) {
     show() {
       visible = true;
       render();
+      pumpPosters();
       if (dirty || entries.length === 0) schedule(0);
     },
     hide() {
@@ -350,7 +545,7 @@ export function createLandingView(deps: LandingDeps) {
         sessions = next;
         if (visible) drawBanner();
       }
-      if (row.kind === "project.opened" || row.kind === "project.removed" || CANVAS_KINDS.includes(row.kind)) schedule(row.kind.startsWith("project.") ? 150 : 400);
+      if (row.kind === "project.opened" || row.kind === "project.removed" || CANVAS_KINDS.includes(row.kind) || SCENE_KINDS.includes(row.kind)) schedule(row.kind.startsWith("project.") ? 150 : 400);
     },
     /** The first websocket connection is up: after the backfill settles, an empty gallery may say so. */
     connected() {

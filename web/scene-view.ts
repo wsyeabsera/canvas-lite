@@ -5,6 +5,30 @@ import { checkScene, type Scene } from "../src/scene.ts";
 import { fromOrbit, orbitPan, orbitRotate, orbitZoom, toOrbit, type Orbit } from "./scene-math.ts";
 import { hasWebGL2 } from "./webgl.ts";
 import type { SceneView } from "./scene-render.ts";
+import { scenePosterKey } from "./landing.ts";
+import { hrefScene, hrefScenePage } from "./state.ts";
+
+/** The scene modes of the chip's segmented control, in order (one line each; Watch adds itself here). */
+export const MODES: readonly { id: string; label: string; href: (project: string, scene: string) => string }[] = [
+  { id: "orbit", label: "Orbit", href: hrefScene },
+  { id: "page", label: "Page", href: hrefScenePage },
+];
+
+/** The `Orbit | Page` segmented control for the scene chip; `current` is the mode on show (aria-current). */
+export function modeSegments(project: string, scene: string, current: string): HTMLElement {
+  const nav = document.createElement("nav");
+  nav.className = "sc-modes";
+  nav.setAttribute("aria-label", "Scene mode");
+  for (const m of MODES) {
+    const a = document.createElement("a");
+    a.className = "sc-mode";
+    a.textContent = m.label;
+    a.href = m.href(project, scene);
+    if (m.id === current) a.setAttribute("aria-current", "page");
+    nav.append(a);
+  }
+  return nav;
+}
 
 export interface SceneScreen {
   /** Shows a scene (fetches it); opening the one already shown does nothing. */
@@ -17,7 +41,7 @@ export interface SceneScreen {
 
 type Deps = { headers: () => Record<string, string>; exit: () => void; locked: () => void };
 
-const POSTER_KEY = (p: string, s: string) => `lite.scene.poster.${p}/${s}`;
+const POSTER_KEY = scenePosterKey;
 const POSTER_WIDTH = 480;
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string): HTMLElementTagNameMap[K] {
@@ -31,7 +55,7 @@ export function createSceneScreen(host: HTMLElement, deps: Deps): SceneScreen {
   const stage = el("div", "sc-stage");
   const chip = el("div", "sc-chip sc-g");
   const chipName = el("span", "sc-chip-n", "Scene");
-  const chipMode = el("span", "sc-chip-m", "Orbit");
+  let chipMode: HTMLElement = el("span", "sc-chip-m", "Orbit"); // replaced by the mode segments once a scene opens
   const exitBtn = el("button", "sc-exit");
   exitBtn.type = "button";
   exitBtn.title = "Back to designs (Esc)";
@@ -233,6 +257,9 @@ export function createSceneScreen(host: HTMLElement, deps: Deps): SceneScreen {
       scene = null;
       dropView();
       chipName.textContent = s;
+      const seg = modeSegments(p, s, "orbit");
+      chipMode.replaceWith(seg);
+      chipMode = seg;
       showMsg("Loading the scene…");
       void load(true);
     },

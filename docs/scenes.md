@@ -5,7 +5,7 @@ slug: /scenes
 
 # 3D scenes and films (model, store, tools and the Orbit viewer)
 
-A project holds **scenes**; a scene holds objects, lights, a sky and a default camera, plus up to eight **films** (shot lists that move a camera through it). Claude writes scenes as plain JSON with MCP tools. A scene is **data only**: no Claude-written code runs anywhere, and there is no game logic, physics, external model or texture in this version. The watch page draws a scene with its own bundled renderer (see [Renderer](#renderer)) and lets you orbit it at `#/project/<id>/scene/<sid>` (see [The watch page](ui.md#scenes)); film playback (Watch) and Page mode come later and build on the same renderer.
+A project holds **scenes**; a scene holds objects, lights, a sky and a default camera, plus up to eight **films** (shot lists that move a camera through it). Claude writes scenes as plain JSON with MCP tools. A scene is **data only**: no Claude-written code runs anywhere, and there is no game logic, physics, external model or texture in this version. The watch page draws a scene with its own bundled renderer (see [Renderer](#renderer)) and lets you orbit it at `#/project/<id>/scene/<sid>` (see [The watch page](ui.md#scenes)) and scroll its page at `#/project/<id>/scene/<sid>/page` (see [Page mode](ui.md#page-mode)); film playback (Watch) builds on the same renderer. The landing page shows scenes as cards beside the designs.
 
 The code is `src/scene.ts` (model, `checkScene`, repeaters), `src/shots.ts` (films, `checkFilms`), `src/scene-validate.ts` (`validateScene`) and `src/scene-store.ts` (the only code that touches the table), with thin Hub, MCP and API wiring.
 
@@ -180,6 +180,8 @@ A section is `{id, title?, html, shot, align?, height_vh?, gap_vh?}`:
 **Limits:** at most 12 sections; html at most 20000 bytes per section and 100000 per page; title 80 characters. Overlay html is rejected, naming the section, when it contains `<script>`, an `on*` attribute, a `javascript:` url, or `<iframe>`, `<object>`, `<embed>` or `<form>`. Every referenced shot id must exist in some film (`invalid section "<id>": unknown shot "<id>"`). `set_page` checks against the stored scene and films, so set films first. Setting new films later does not re-check the page; `cameraAt` skips dead shots and `pageCoverage` lists shots no section uses (information for the review, never an error).
 
 Write sections like a landing page: a headline, one idea per section, each bound to a shot; run `validate_scene` and `review_scene` first.
+
+**Viewer.** The watch page plays a page at `#/project/<id>/scene/<sid>/page` ([Page mode](ui.md#page-mode)): the scroll offset of a transparent container over the renderer is fed to `cameraAt`, string look-at ids are resolved to points with the renderer's `lookPoint` first so looks blend, and each section's html is shown in a `sandbox=""` srcdoc frame (no scripts, no same-origin) in a glass card of fixed height `min(70vh, 520px)` (the frame cannot be measured from outside, so it does not grow with its content; write overlays that fit). The pure layout helpers are in `web/scene-page.ts`.
 
 ## Events
 
