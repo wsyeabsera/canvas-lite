@@ -18,6 +18,7 @@
     --sh: inset 0 1px 0 rgba(255,255,255,.18), 0 18px 50px rgba(0,0,0,.35);
     --surf: rgba(6,8,14,.45); --line: rgba(255,255,255,.08); --fsh: 0 12px 30px rgba(0,0,0,.4); --dash: rgba(255,255,255,.22);
     --sk: rgba(255,255,255,.05); --skhi: rgba(255,255,255,.09); --skbar: rgba(255,255,255,.07); --pill: rgba(14,17,28,.72);
+    --cv: #0b0d14; --dot: rgba(255,255,255,.07); --frl: rgba(255,255,255,.14); --frsh: rgba(0,0,0,.45);
   }
   /* Light before JS runs: follow the system unless the user picked dark. */
   @media (prefers-color-scheme: light) {
@@ -30,6 +31,7 @@
       --sh: inset 0 1px 0 rgba(255,255,255,.9), 0 18px 40px rgba(40,50,90,.14);
       --surf: rgba(255,255,255,.4); --line: rgba(20,22,29,.08); --fsh: 0 12px 28px rgba(40,50,90,.18); --dash: rgba(20,22,29,.25);
       --sk: rgba(20,22,29,.05); --skhi: rgba(255,255,255,.75); --skbar: rgba(20,22,29,.06); --pill: rgba(255,255,255,.82);
+    --cv: #eceff7; --dot: rgba(20,22,29,.11); --frl: rgba(20,22,29,.12); --frsh: rgba(40,50,90,.16);
     }
   }
   :root[data-theme=light] {
@@ -41,6 +43,7 @@
     --sh: inset 0 1px 0 rgba(255,255,255,.9), 0 18px 40px rgba(40,50,90,.14);
     --surf: rgba(255,255,255,.4); --line: rgba(20,22,29,.08); --fsh: 0 12px 28px rgba(40,50,90,.18); --dash: rgba(20,22,29,.25);
     --sk: rgba(20,22,29,.05); --skhi: rgba(255,255,255,.75); --skbar: rgba(20,22,29,.06); --pill: rgba(255,255,255,.82);
+    --cv: #eceff7; --dot: rgba(20,22,29,.11); --frl: rgba(20,22,29,.12); --frsh: rgba(40,50,90,.16);
   }
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     :root { --g: rgba(34,38,56,.92); }
@@ -147,60 +150,61 @@
   .clist .mu { min-width: 84px; }
   .clist .chev { color: var(--mu); }
   #canvas-empty { margin: 4px 8px 8px; color: var(--mu); }
-  #view-canvas { display: flex; flex-direction: column; gap: 16px; }
-  .cv-head { padding: 14px 18px 14px 22px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
-  .crumb { display: flex; align-items: center; gap: 8px; font-size: 18px; flex-wrap: wrap; }
-  .crumb a { color: var(--mu); }
-  .crumb .sep { color: var(--mu); }
-  .crumb h1 { font-size: 18px; overflow-wrap: anywhere; }
-  .live { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px; border-radius: 999px; background: var(--chip); font-size: 12.5px; font-weight: 500; }
-  .live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); }
-  .live[data-state=off]::before { background: var(--warn); box-shadow: none; }
-  .surf { padding: 22px; border-radius: 22px; background: var(--surf); border: 1px solid var(--line); }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 22px; }
-  .tile { display: flex; flex-direction: column; gap: 8px; border-radius: 14px; color: var(--tx); }
-  .tile:hover { text-decoration: none; }
-  .thumb { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 10px; border: 1px solid var(--gb); box-shadow: var(--fsh); background: var(--sk); }
-  .tile.newest .thumb { border-color: color-mix(in srgb, var(--ac) 70%, transparent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ac) 18%, transparent), var(--fsh); }
-  .tile:hover .thumb { border-color: color-mix(in srgb, var(--ac) 55%, transparent); }
-  .fwrap { position: absolute; left: 0; top: 0; transform-origin: 0 0; background: #fff; }
-  .fwrap iframe { display: block; width: 100%; height: 100%; border: 0; }
-  .thumb .fwrap iframe { pointer-events: none; }
-  .cap { display: flex; align-items: baseline; gap: 8px; padding: 0 2px; }
-  .cap .nm { font-weight: 500; overflow-wrap: anywhere; }
-  .cap .dim, .dim { margin-left: auto; font: 400 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--mu); white-space: nowrap; }
-  .cap .wr { font-size: 12px; color: var(--mu); }
-  .writing .thumb { border-color: color-mix(in srgb, var(--ac) 55%, transparent); background-color: var(--sk); background-image: linear-gradient(100deg, transparent 30%, var(--skhi) 50%, transparent 70%); background-size: 200% 100%; }
-  .writing .bar1, .writing .bar2, .writing .bar3 { position: absolute; border-radius: 6px; background: var(--skbar); }
-  .writing .bar1 { left: 12%; top: 24%; width: 26%; aspect-ratio: 1; border-radius: 8px; }
-  .writing .bar2 { left: 45%; top: 34%; width: 38%; height: 9%; }
-  .writing .bar3 { left: 45%; top: 50%; width: 28%; height: 6%; }
-  .writing .wpill { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; white-space: nowrap; max-width: 92%; overflow: hidden; text-overflow: ellipsis; padding: 5px 12px; border-radius: 999px; background: var(--pill); border: 1px solid var(--gb); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); font-size: 12.5px; font-weight: 500; }
-  .writing .wpill::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--ac); }
+
+  /* canvas: one full-screen surface (web/canvas-view.ts) */
+  @property --k { syntax: "<number>"; inherits: true; initial-value: 1; }
+  #app.canvas-mode > .bar, #app.canvas-mode > .layout { display: none; }
+  body:has(#app.canvas-mode:not([hidden])) { overflow: hidden; }
+  #view-canvas { position: fixed; inset: 0; z-index: 1; }
+  .cv-surface {
+    position: absolute; inset: 0; overflow: hidden; cursor: grab; user-select: none; -webkit-user-select: none; touch-action: none;
+    background: radial-gradient(circle, var(--dot) 1px, transparent 1.5px) 0 0 / 24px 24px, var(--cv);
+  }
+  .cv-surface.grabbing { cursor: grabbing; }
+  .cv-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+  .cv-world.anim { transition: transform 220ms cubic-bezier(.2,.7,.2,1), --k 220ms cubic-bezier(.2,.7,.2,1); }
+  @media (prefers-reduced-motion: reduce) { .cv-world.anim { transition: none; } }
+  .scr { position: absolute; }
+  .scr .frame {
+    width: 100%; height: 100%; overflow: hidden; background: #fff; border-radius: calc(8px / var(--k));
+    box-shadow: 0 0 0 calc(1px / var(--k)) var(--frl), 0 calc(10px / var(--k)) calc(36px / var(--k)) var(--frsh);
+  }
+  .scr.sel .frame { box-shadow: 0 0 0 calc(2px / var(--k)) var(--ac), 0 calc(10px / var(--k)) calc(36px / var(--k)) var(--frsh); }
+  .scr iframe { display: block; border: 0; width: 100%; height: 100%; pointer-events: none; background: #fff; }
+  /* the label row is counter-scaled: always 13px on screen, as wide as the frame looks */
+  .scr .lbl {
+    position: absolute; left: 0; bottom: 100%; width: calc(var(--fw) * var(--k) * 1px); transform: scale(calc(1 / var(--k))); transform-origin: 0 100%;
+    display: flex; align-items: baseline; gap: 10px; padding-bottom: 8px; font-size: 13px; line-height: 1.3; white-space: nowrap;
+  }
+  .scr .lbl .nm { font-weight: 500; overflow: hidden; text-overflow: ellipsis; min-width: 0; display: inline-flex; align-items: center; gap: 6px; }
+  .scr.recent .lbl .nm::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--ac); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ac) 25%, transparent); }
+  .scr .lbl .dim { margin-left: auto; flex: none; font: 400 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--mu); }
+  .cv-note { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); margin: 0; color: var(--mu); font-size: 14px; pointer-events: none; text-align: center; }
+  .island { position: absolute; z-index: 2; display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: 999px; font-size: 13px; }
+  .cv-tl { top: 14px; left: 14px; padding-right: 14px; }
+  .cv-tr { top: 14px; right: 14px; padding-left: 14px; }
+  .cv-writing { top: 14px; left: 50%; transform: translateX(-50%); padding: 7px 14px; font-weight: 500; white-space: nowrap; }
+  .cv-writing::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--ac); }
   @media (prefers-reduced-motion: no-preference) {
-    .writing .thumb { animation: lite-shimmer 1.8s ease-in-out infinite; }
-    .writing .wpill::before { animation: lite-pulse 1.4s ease-in-out infinite; }
-    @keyframes lite-shimmer { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+    .cv-writing::before { animation: lite-pulse 1.4s ease-in-out infinite; }
     @keyframes lite-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
   }
-  .empty-cv { min-height: 460px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; text-align: center; }
-  .empty-cv .ph { width: 100%; max-width: 420px; aspect-ratio: 16 / 9; border-radius: 14px; border: 1.5px dashed var(--dash); display: flex; align-items: center; justify-content: center; color: var(--mu); }
-  .empty-cv p { margin: 0; }
-  .empty-cv .t { font-size: 16px; font-weight: 500; }
-  .empty-cv code { font: 400 13px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 1px 6px; border-radius: 6px; background: var(--chip); }
-  .note { text-align: center; color: var(--mu); padding: 40px 0; }
-  .focus { display: flex; flex-direction: column; align-items: center; gap: 18px; }
-  .focus .top, .focus .bot { align-self: stretch; display: flex; align-items: center; gap: 12px; }
-  .focus .top .k { margin-left: auto; color: var(--mu); font-size: 13px; }
-  .pillbtn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 999px; background: var(--chip); font-size: 13px; font-weight: 500; color: var(--tx); }
-  .pillbtn:hover { text-decoration: none; filter: brightness(1.12); }
-  .pillbtn[aria-disabled=true] { opacity: .35; pointer-events: none; }
-  .fbox { width: 100%; display: flex; justify-content: center; }
-  .fbox .thumbf { position: relative; overflow: hidden; border-radius: 14px; border: 1px solid var(--gb); box-shadow: var(--fsh); background: var(--sk); }
-  .focus .mid { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
-  .focus .mid .nm { font-weight: 600; font-size: 15px; overflow-wrap: anywhere; }
-  .dim-inline { font: 400 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
-  .focus .mid .sub { color: var(--mu); font-size: 12.5px; }
+  .cv-zoom { bottom: 16px; left: 50%; transform: translateX(-50%); gap: 2px; padding: 4px; }
+  .ib {
+    display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 30px; padding: 0 8px; border-radius: 999px;
+    border: 0; background: transparent; color: var(--tx); font: inherit; font-weight: 500; cursor: pointer;
+  }
+  .ib:hover { background: var(--sel); text-decoration: none; }
+  #cv-pct { min-width: 56px; font-variant-numeric: tabular-nums; }
+  .cv-tl .crumb { display: flex; align-items: center; gap: 7px; min-width: 0; flex: none; max-width: none; padding: 0; align-self: auto; }
+  .cv-tl .crumb .pj, .cv-tl .crumb .sep { color: var(--mu); }
+  .cv-tl .crumb .cn { font-weight: 600; }
+  .live { display: inline-flex; align-items: center; gap: 7px; padding: 2px 10px; border-radius: 999px; background: var(--chip); font-size: 12px; font-weight: 500; }
+  .live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); }
+  .live[data-state=off]::before { background: var(--warn); box-shadow: none; }
+  .cv-tr #bar-tools { display: flex; align-items: center; gap: 12px; }
+  .cv-tr #bar-tools a { color: var(--mu); }
+  .cv-tr #theme-toggle { padding: 4px 12px; }
 
   #locked { max-width: 460px; margin: 18vh auto 0; padding: 28px; text-align: center; width: calc(100% - 32px); }
   #locked h1 { margin-bottom: 10px; }
@@ -217,11 +221,11 @@
 </head>
 <body>
 <div id="app">
-  <header class="bar glass">
+  <header class="bar glass" id="top-bar">
     <span class="brand">Lite</span>
     <span id="status" data-state="wait">connecting</span>
     <span class="ro">read-only</span>
-    <div class="sp"><a href="/docs/">docs</a><button id="theme-toggle" type="button" aria-label="Theme: auto (click to change)">Theme: auto</button></div>
+    <div class="sp" id="bar-tools"><a href="/docs/">docs</a><button id="theme-toggle" type="button" aria-label="Theme: auto (click to change)">Theme: auto</button></div>
   </header>
   <div class="layout">
     <nav class="glass" aria-label="Projects">
@@ -239,12 +243,25 @@
         <div class="card glass"><h2>Files</h2><ul id="project-files"></ul></div>
         <div class="card glass"><h2>Events</h2><ul id="project-events"></ul></div>
       </section>
-      <section id="view-canvas" hidden>
-        <div class="cv-head glass"><nav class="crumb" id="cv-crumb" aria-label="Breadcrumb"></nav><span class="mu" id="cv-meta"></span><span class="live" id="cv-live" data-state="on">live</span></div>
-        <div class="surf" id="cv-body"></div>
-      </section>
     </main>
   </div>
+  <section id="view-canvas" hidden aria-label="Canvas">
+    <div class="cv-surface" id="cv-surface"><div class="cv-world" id="cv-world"></div></div>
+    <p class="cv-note" id="cv-note" aria-live="polite" hidden></p>
+    <div class="island glass cv-tl">
+      <a class="ib" id="cv-back" href="#/" aria-label="Back to the project"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></a>
+      <nav class="crumb" id="cv-crumb" aria-label="Breadcrumb"></nav>
+      <span class="live" id="cv-live" data-state="on">live</span>
+    </div>
+    <div class="island glass cv-tr" id="cv-tools"></div>
+    <div class="island glass cv-writing" id="cv-writing" aria-live="polite" hidden></div>
+    <div class="island glass cv-zoom" role="toolbar" aria-label="Zoom">
+      <button class="ib" id="cv-out" type="button" aria-label="Zoom out">−</button>
+      <button class="ib" id="cv-pct" type="button" aria-label="Zoom to 100%">100%</button>
+      <button class="ib" id="cv-in" type="button" aria-label="Zoom in">+</button>
+      <button class="ib" id="cv-fit" type="button" aria-label="Fit all screens">Fit</button>
+    </div>
+  </section>
 </div>
 <section id="locked" class="glass" hidden>
   <h1>Open Lite with your token</h1>

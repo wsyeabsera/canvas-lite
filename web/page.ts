@@ -2,7 +2,8 @@
 import { clock, detail as eventDetail, type WatchRow } from "../cli/format.ts";
 import { Watcher, normalizeUrl } from "../cli/watch-core.ts";
 import { addRow, describeProject, hrefCanvas, hrefProject, hrefScreen, initialState, MAX_ROWS, parseRoute, routeProject, sortedProjects, visibleRows, type Route, type State } from "./state.ts";
-import { agoText, canvasEvent, canvasMeta, describeCanvasDetail, describeCanvasList, dropCanvas, fitScale, focusSize, iframeSpec, mergeTiles, newestScreenId, prevNext, refetchPlan, screensLabel, type CanvasDetail, type CanvasSummary, type Pending, type Screen } from "./canvas.ts";
+import { agoText, canvasEvent, describeCanvasDetail, describeCanvasList, dropCanvas, refetchPlan, screensLabel, type CanvasDetail, type CanvasSummary, type Pending } from "./canvas.ts";
+import { createCanvasView } from "./canvas-view.ts";
 import { initTheme } from "./theme.ts";
 import { tokenFromHash } from "./token.ts";
 
@@ -17,6 +18,9 @@ const viewProject = $("view-project");
 const viewCanvas = $("view-canvas");
 const eventsEl = $("events");
 const projectEventsEl = $("project-events");
+const topBar = $("top-bar");
+const barTools = $("bar-tools"); // docs link and theme button: in the top bar, or the canvas's top-right island
+const cvTools = $("cv-tools");
 
 let token = tokenFromHash(location.hash);
 try {
@@ -29,7 +33,7 @@ try {
 }
 
 let state: State = initialState();
-let route: Route = parseRoute(location.hash);
+let route: Route = { view: "activity" }; // showRoute() reads the hash, so a first load counts as a route change
 
 const setStatus = (text: string, s: "ok" | "wait" | "bad") => {
   status.textContent = text;
@@ -162,7 +166,7 @@ let listSeq = 0;
 let detailSeq = 0;
 let refetchTimer: ReturnType<typeof setTimeout> | undefined;
 let want = { list: false, detail: false };
-const cvHead = { crumb: $("cv-crumb"), meta: $("cv-meta"), live: $("cv-live"), body: $("cv-body") };
+const cvLive = $("cv-live");
 const headers = (): Record<string, string> => (token ? { Authorization: `Bearer ${token}` } : {});
 
 async function loadList(pid: string) {
@@ -177,6 +181,7 @@ async function loadList(pid: string) {
     canvasLists[pid] = list;
     renderSidebar();
     if (route.view === "project" && route.id === pid) renderCanvasCard();
+    renderCanvas();
   } catch {
     /* keep what we have */
   }
@@ -202,7 +207,7 @@ async function loadDetail(pid: string, cid: string) {
     detailState = "error";
   }
   for (const [id, p] of pending) if (p.at <= startedAt) pending.delete(id); // their html has arrived (or will not)
-  if ((route.view === "canvas" || route.view === "screen") && route.id === pid && route.canvas === cid) renderCanvasViews();
+  if ((route.view === "canvas" || route.view === "screen") && route.id === pid && route.canvas === cid) renderCanvas();
 }
 
 function scheduleRefetch(plan: { list: boolean; detail: boolean }) {
@@ -257,225 +262,28 @@ function renderCanvasCard() {
   );
 }
 
-// Thumbnails and the focused view scale an iframe of the screen's own size with a CSS transform.
-const fits = new Map<Element, () => void>();
-const ro = new ResizeObserver((entries) => {
-  for (const e of entries) fits.get(e.target)?.();
+const canvasView = createCanvasView((id) => {
+  if (route.view !== "canvas" && route.view !== "screen") return;
+  location.hash = id ? hrefScreen(route.id, route.canvas, id) : hrefCanvas(route.id, route.canvas);
 });
-const watchSize = (box: Element, fn: () => void) => {
-  fits.set(box, fn);
-  ro.observe(box);
-  fn();
-};
-const forgetAll = () => {
-  for (const box of fits.keys()) ro.unobserve(box);
-  fits.clear();
-};
 
-function makeFrame(s: Screen): HTMLDivElement {
-  const spec = iframeSpec(s);
-  const wrap = el("div", undefined, "fwrap");
-  wrap.style.width = `${spec.width}px`;
-  wrap.style.height = `${spec.height}px`;
-  const f = document.createElement("iframe");
-  f.setAttribute("sandbox", spec.sandbox); // empty: no scripts, forms or same-origin access
-  f.setAttribute("referrerpolicy", spec.referrerpolicy);
-  f.setAttribute("loading", spec.loading);
-  f.title = spec.title;
-  f.srcdoc = spec.srcdoc; // a property: the html is never parsed into this page
-  f.tabIndex = -1;
-  wrap.append(f);
-  return wrap;
-}
-
-const dims = (s: { width: number; height: number }) => `${s.width} × ${s.height}`;
-const tileCache = new Map<string, { sig: string; node: HTMLElement; thumb: HTMLElement; screen: Screen }>();
-
-function fitThumb(thumb: HTMLElement, s: Screen) {
-  const frame = thumb.firstElementChild as HTMLElement | null;
-  if (!frame) return;
-  const f = fitScale(thumb.clientWidth, thumb.clientHeight, s.width, s.height);
-  frame.style.transform = `translate(${f.left}px, ${f.top}px) scale(${f.scale})`;
-}
-
-function captionOf(name: string, dim: string, extra?: string) {
-  const cap = el("div", undefined, "cap");
-  cap.append(el("span", name, "nm"));
-  if (extra) cap.append(el("span", extra, "wr"));
-  cap.append(el("span", dim, "dim"));
-  return cap;
-}
-
-function makeTile(s: Screen, pid: string, cid: string) {
-  const a = el("a", undefined, "tile");
-  a.href = hrefScreen(pid, cid, s.id);
-  a.setAttribute("aria-label", `${s.name}, ${s.width} by ${s.height}`);
-  const thumb = el("div", undefined, "thumb");
-  thumb.append(makeFrame(s));
-  a.append(thumb, captionOf(s.name, dims(s)));
-  return { node: a as HTMLElement, thumb };
-}
-
-function makeWriting(name: string, w: number, h: number): HTMLElement {
-  const d = el("div", undefined, "tile writing");
-  d.setAttribute("aria-live", "polite");
-  d.setAttribute("aria-busy", "true");
-  const thumb = el("div", undefined, "thumb");
-  thumb.append(el("span", undefined, "bar1"), el("span", undefined, "bar2"), el("span", undefined, "bar3"), el("span", `Claude is writing ${name}…`, "wpill"));
-  d.append(thumb, captionOf(name, dims({ width: w, height: h }), "writing"));
-  return d;
-}
-
-function backLink(pid: string, cid: string) {
-  const a = el("a", undefined, "pillbtn");
-  a.href = hrefCanvas(pid, cid);
-  a.append(svg("M15 6l-6 6 6 6"), "All screens");
-  return a;
-}
-
-function stepLink(label: string, target: Screen | null, pid: string, cid: string, next: boolean) {
-  const a = el("a", undefined, "pillbtn");
-  if (!target) a.setAttribute("aria-disabled", "true");
-  else {
-    a.href = hrefScreen(pid, cid, target.id);
-    a.setAttribute("aria-label", `${label}: ${target.name}`);
-  }
-  const text = target?.name ?? (next ? "Next" : "Previous");
-  if (next) a.append(text, svg("M9 6l6 6-6 6"));
-  else a.append(svg("M15 6l-6 6 6 6"), text);
-  return a;
-}
-
-function renderCanvasViews() {
+function renderCanvas() {
   if (route.view !== "canvas" && route.view !== "screen") return;
   const pid = route.id;
   const cid = route.canvas;
-  const now = Date.now();
-  const projName = state.projects[pid]?.name ?? pid;
-  const listed = canvasLists[pid]?.find((c) => c.id === cid);
-  const cname = detail?.canvas.name ?? listed?.name ?? cid;
-  const sep = () => el("span", "/", "sep");
-  const crumb: Node[] = [];
-  const pl = el("a", projName);
-  pl.href = hrefProject(pid);
-  crumb.push(pl, sep());
-  if (route.view === "screen") {
-    const cl = el("a", cname);
-    cl.href = hrefCanvas(pid, cid);
-    crumb.push(cl, sep());
-  }
-  const nav = route.view === "screen" && detail ? prevNext(detail.screens, route.screen) : null;
-  const last = el("h1", route.view === "screen" ? (nav?.screen.name ?? route.screen) : cname);
-  last.setAttribute("aria-current", "page");
-  crumb.push(last);
-  cvHead.crumb.replaceChildren(...crumb);
-  cvHead.meta.textContent = route.view === "canvas" && detail && detailState === "ok" ? canvasMeta(detail, now) : "";
-
-  const body = cvHead.body;
-  forgetAll();
-  body.replaceChildren();
-  const note = (text: string, withLink = true) => {
-    const p = el("p", text, "note");
-    if (withLink) {
-      p.append(" ");
-      const a = el("a", "Back to canvases");
-      a.href = hrefProject(pid);
-      p.append(a);
-    }
-    body.replaceChildren(p);
-  };
-  if (detailState === "missing") return note("This canvas does not exist or was removed.");
-  if (!detail) return note(detailState === "error" ? "Could not load this canvas." : "Loading…", detailState === "error");
-
-  if (route.view === "canvas") {
-    const tiles = mergeTiles(detail.screens, pending);
-    if (tiles.length === 0) {
-      tileCache.clear();
-      const box = el("div", undefined, "empty-cv");
-      const ph = el("div", undefined, "ph");
-      ph.setAttribute("aria-hidden", "true");
-      ph.append(svg("M3 5h18v12H3zM8 21h8M12 17v4", 34));
-      const t = el("div");
-      t.setAttribute("aria-live", "polite");
-      const p2 = el("p", undefined, "mu");
-      p2.append("Screens appear here the moment Claude calls ", el("code", "set_screen"), ". No need to reload.");
-      t.append(el("p", "Waiting for Claude to set the first screen", "t"), p2);
-      box.append(ph, t);
-      body.append(box);
-      return;
-    }
-    const newest = newestScreenId(detail.screens);
-    const grid = el("div", undefined, "grid");
-    grid.setAttribute("aria-label", "Screens");
-    const keep = new Set<string>();
-    for (const t of tiles) {
-      if (t.kind === "writing") {
-        grid.append(makeWriting(t.name, t.width, t.height));
-        continue;
-      }
-      const s = t.screen;
-      const sig = `${s.updated_at}|${s.name}|${s.width}|${s.height}|${s.html.length}`;
-      let c = tileCache.get(s.id);
-      if (!c || c.sig !== sig) {
-        const made = makeTile(s, pid, cid);
-        c = { sig, node: made.node, thumb: made.thumb, screen: s };
-        tileCache.set(s.id, c);
-      }
-      const { thumb, screen } = c;
-      watchSize(thumb, () => fitThumb(thumb, screen));
-      c.node.classList.toggle("newest", s.id === newest);
-      keep.add(s.id);
-      grid.append(c.node);
-    }
-    for (const id of [...tileCache.keys()]) if (!keep.has(id)) tileCache.delete(id);
-    body.append(grid);
-    return;
-  }
-
-  // focused screen
-  tileCache.clear();
-  if (!nav) {
-    note("This screen does not exist or was removed.", false);
-    body.append(backLink(pid, cid));
-    return;
-  }
-  const s = nav.screen;
-  const focus = el("div", undefined, "focus");
-  const top = el("div", undefined, "top");
-  top.append(backLink(pid, cid), el("span", `${nav.index} of ${nav.total}`, "k"));
-  const fbox = el("div", undefined, "fbox");
-  const tf = el("div", undefined, "thumbf");
-  const frame = makeFrame(s);
-  tf.append(frame);
-  fbox.append(tf);
-  watchSize(fbox, () => {
-    const sz = focusSize(fbox.clientWidth, window.innerHeight * 0.65, s.width, s.height);
-    tf.style.width = `${sz.width}px`;
-    tf.style.height = `${sz.height}px`;
-    frame.style.transform = `scale(${sz.scale})`;
+  canvasView.render({
+    pid,
+    projectName: state.projects[pid]?.name ?? pid,
+    canvasName: detail?.canvas.name ?? canvasLists[pid]?.find((c) => c.id === cid)?.name ?? cid,
+    detail,
+    state: detailState,
+    pending,
+    selected: route.view === "screen" ? route.screen : null,
   });
-  const bot = el("div", undefined, "bot");
-  const mid = el("div", undefined, "mid");
-  const sub = el("span", undefined, "sub");
-  sub.append(el("span", dims(s), "dim-inline"), ` · updated ${agoText(s.updated_at, now)} · sandboxed, no scripts`);
-  mid.append(el("span", s.name, "nm"), sub);
-  bot.append(stepLink("Previous screen", nav.prev, pid, cid, false), mid, stepLink("Next screen", nav.next, pid, cid, true));
-  focus.append(top, fbox, bot);
-  body.append(focus);
 }
 
-window.addEventListener("resize", () => {
-  for (const fn of fits.values()) fn();
-});
-window.addEventListener("keydown", (e) => {
-  if (route.view !== "screen" || !detail || e.altKey || e.ctrlKey || e.metaKey) return;
-  const n = prevNext(detail.screens, route.screen);
-  const t = e.key === "ArrowLeft" ? n?.prev : e.key === "ArrowRight" ? n?.next : null;
-  if (t) location.hash = hrefScreen(route.id, route.canvas, t.id);
-});
 setInterval(() => {
   if (route.view === "project") renderCanvasCard();
-  else if (route.view === "canvas" && detail && detailState === "ok") cvHead.meta.textContent = canvasMeta(detail, Date.now());
 }, 30_000);
 
 function showRoute() {
@@ -485,22 +293,27 @@ function showRoute() {
   route = parseRoute(location.hash);
   viewActivity.hidden = route.view !== "activity";
   viewProject.hidden = route.view !== "project";
-  viewCanvas.hidden = route.view !== "canvas" && route.view !== "screen";
+  const inCanvas = route.view === "canvas" || route.view === "screen";
+  viewCanvas.hidden = !inCanvas;
+  app.classList.toggle("canvas-mode", inCanvas); // hides the top bar, sidebar and main panel
+  (inCanvas ? cvTools : topBar).append(barTools);
   const pid = routeProject(route);
   if (pid && pid !== prevProject) void loadList(pid);
   if (route.view === "canvas" || route.view === "screen") {
-    if (route.canvas !== prevCanvas || pid !== prevProject) {
+    const same = route.canvas === prevCanvas && pid === prevProject;
+    if (!same) {
       detail = null;
       detailState = "loading";
       pending.clear();
-      tileCache.clear();
       void loadDetail(route.id, route.canvas);
     }
-    renderCanvasViews();
+    canvasView.enter(same);
+    renderCanvas();
   } else {
     detailSeq++;
     detail = null;
-    tileCache.clear();
+    pending.clear();
+    canvasView.leave();
   }
   if (route.view === "project") {
     const p = state.projects[route.id];
@@ -543,19 +356,21 @@ const watcher = new Watcher({
       const plan = refetchPlan(route, row);
       if (plan.detail && ce.kind === "screen.set" && ce.id) {
         pending.set(ce.id, { name: ce.name, width: ce.width, height: ce.height, at: ++eventCounter });
-        renderCanvasViews();
+        canvasView.markRecent(ce.id);
+        renderCanvas();
       } else if (plan.detail) eventCounter++;
       if (plan.list || plan.detail) scheduleRefetch(plan);
     }
     renderSidebar();
+    if (row.kind === "project.opened" && !before) renderCanvas(); // the island shows the project's name once Lite knows it
     if (route.view === "project" && row.project === route.id && row.kind === "project.opened" && !before) {
       $("project-title").textContent = state.projects[route.id]?.name ?? route.id;
     }
   },
   onStatus: (line) => {
     setStatus(line, line === "connected" ? "ok" : "wait");
-    cvHead.live.dataset.state = line === "connected" ? "on" : "off";
-    cvHead.live.textContent = line === "connected" ? "live" : "reconnecting";
+    cvLive.dataset.state = line === "connected" ? "on" : "off";
+    cvLive.textContent = line === "connected" ? "live" : "reconnecting";
     if (line === "connected") setLocked(false);
   },
   onRefused: () => {
