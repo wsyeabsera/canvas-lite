@@ -29,7 +29,7 @@ All tools take `project` (an existing, not archived project id; otherwise `unkno
 | `remove_screen` | `canvas`, `id` | `{screen}`; idempotent no-op if already gone |
 | `remove_canvas` | `canvas` | archives it, keeps the log; idempotent |
 
-Unknown canvas: `unknown canvas "<id>"`; unknown screen on read: `unknown screen "<id>"`. Tool descriptions tell Claude: one self-contained HTML document per screen, inline CSS, no scripts, no external requests (they are not loaded), size the root to `width` x `height`.
+Unknown canvas: `unknown canvas "<id>"`; unknown screen on read: `unknown screen "<id>"`. Tool descriptions tell Claude: one self-contained HTML document per screen, inline CSS, no scripts; images may be `https` URLs or `data:` URIs and nothing else is loaded; size the root to `width` x `height`.
 
 ## Events
 
@@ -44,7 +44,7 @@ Appended in the same transaction as the change, with `project` set; the payload 
 
 ## Showing a screen safely
 
-Screen html is untrusted input, written by a model that may have read hostile text. The page shows it only in `<iframe sandbox="" srcdoc="...">` (empty sandbox: no scripts, no forms, no same-origin access). The page's Content-Security-Policy, inherited by the srcdoc frame, allows `style-src 'unsafe-inline'`, `img-src data:` and `font-src data:` and nothing else, so a screen cannot load or send anything. Open question for the owner: allow `https:` images? Default is no.
+Screen html is untrusted input, written by a model that may have read hostile text. The page shows it only in `<iframe sandbox="" srcdoc="...">` (empty sandbox: no scripts, no forms, no same-origin access). The page's Content-Security-Policy, inherited by the srcdoc frame, allows `style-src 'unsafe-inline'`, `img-src data: https:` and `font-src data:` and nothing else, so a screen cannot run code, fetch data or load anything but images. The owner chose to allow `https:` images (2026-11-06). Known trade-off: an image URL can carry data out in its query string, so a screen written by a model that read hostile text could leak what that model knows. Revisit if Lite ever holds anything sensitive.
 
 ## API for the page
 
