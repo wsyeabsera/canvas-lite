@@ -1,7 +1,7 @@
 // Canvases and screens as pure functions over `Sql` (docs/canvas.md). Every change appends its event in the same
 // transaction and returns it for the Hub to broadcast. Events never carry html.
 import { appendEvent, type LiteEvent, type Sql } from "./store.ts";
-import { unlinkedWarnings } from "./coverage.ts";
+import { scanControls, unlinkedWarnings } from "./coverage.ts";
 import { slugify } from "./projects.ts";
 import { layoutScreens } from "./layout.ts";
 import { recordVersion } from "./timeline.ts";
@@ -153,6 +153,33 @@ export function listCanvases(sql: Sql, project: string): { canvases: Pick<Canvas
   requireProject(sql, project);
   const rows = sql.all<CanvasRow>(`${CANVAS_SELECT} WHERE c.project = ? AND c.archived_at IS NULL ORDER BY c.updated_at DESC, c.id`, project);
   return { canvases: rows.map((r) => ({ id: r.id, name: r.name, screens: r.screens, updated_at: r.updated_at })) };
+}
+
+export type PageCanvasEntry = Pick<CanvasSummary, "id" | "name" | "screens" | "updated_at"> & { start_screen: string | null; dangling: number; unlinked: number };
+
+/** Link health of one canvas: `dangling` = links to a screen that does not exist (each target once per screen, as validate_flow counts),
+ *  `unlinked` = controls with no data-to/data-back/data-inert (the same scan as the write-time warning). Pure. */
+export function linkStats(screens: { id: string; html: string }[]): { dangling: number; unlinked: number } {
+  const ids = new Set(screens.map((s) => s.id));
+  let dangling = 0, unlinked = 0;
+  for (const s of screens) {
+    dangling += new Set(extractLinks(s.html).map((l) => l.to).filter((to) => !ids.has(to))).size;
+    unlinked += scanControls(s.html).unlinked;
+  }
+  return { dangling, unlinked };
+}
+
+/** `listCanvases` plus what the landing page needs in one call: `start_screen` (null = first screen), `dangling`, `unlinked`.
+ *  Kept apart from `listCanvases` so the `list_canvases` tool answer does not change. */
+export function listCanvasesForPage(sql: Sql, project: string): { canvases: PageCanvasEntry[] } {
+  requireProject(sql, project);
+  const rows = sql.all<CanvasRow>(`${CANVAS_SELECT} WHERE c.project = ? AND c.archived_at IS NULL ORDER BY c.updated_at DESC, c.id`, project);
+  return {
+    canvases: rows.map((r) => ({
+      id: r.id, name: r.name, screens: r.screens, updated_at: r.updated_at, start_screen: r.start_screen,
+      ...linkStats(sql.all<{ id: string; html: string }>("SELECT id, html FROM screens WHERE project = ? AND canvas = ?", project, r.id)),
+    })),
+  };
 }
 
 type ScreenRow = ScreenSummary & { bytes: number; layout: { x: number; y: number }; html?: string };

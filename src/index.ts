@@ -27,7 +27,7 @@ export default {
         const h = hub(env);
         if (route.kind === "list") return json(200, await h.listProjects());
         if (route.kind === "read") return json(200, await h.readProject(route.id, true));
-        if (route.kind === "canvases") return json(200, await h.listCanvases(route.id));
+        if (route.kind === "canvases") return json(200, await h.listCanvasesForPage(route.id));
         if (route.kind === "timeline") return json(200, await h.canvasTimeline(route.id, route.canvas));
         if (route.kind === "at") return json(200, await h.canvasAt(route.id, route.canvas, route.seq));
         return json(200, await h.readCanvasForPage(route.id, route.canvas));

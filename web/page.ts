@@ -1,12 +1,13 @@
 // The read-only watch page: the CLI's Watcher and formatter, drawn into views. It only reads; the one message it sends is the Watcher's hello.
 import { clock, detail as eventDetail, type WatchRow } from "../cli/format.ts";
 import { Watcher, normalizeUrl } from "../cli/watch-core.ts";
-import { addRow, describeProject, hrefCanvas, hrefPlay, hrefProject, hrefScreen, initialState, MAX_ROWS, parseRoute, routeCanvas, routeProject, sortedProjects, visibleRows, type Route, type State } from "./state.ts";
+import { addRow, describeProject, hrefActivity, hrefCanvas, hrefLanding, hrefPlay, hrefProject, hrefScreen, initialState, MAX_ROWS, parseRoute, routeCanvas, routeProject, sortedProjects, visibleRows, type Route, type State } from "./state.ts";
 import { agoText, canvasEvent, describeCanvasDetail, describeCanvasList, dropCanvas, refetchPlan, screensLabel, type CanvasDetail, type CanvasSummary, type Pending } from "./canvas.ts";
 import { createCanvasView } from "./canvas-view.ts";
 import { createPlayView } from "./play-view.ts";
 import { createReplayView } from "./replay-view.ts";
 import { createLiveView } from "./live-view.ts";
+import { createLandingView } from "./landing-view.ts";
 import { initialFollow, onCanvasLoad, onPresenterEvent, pillModel, resumeFollow, takeOver, tourCaption, tourLabel, tourPause, tourResume, tourStart, tourTick, type FollowState, type Target, type TourRun } from "./follow.ts";
 import { initTheme } from "./theme.ts";
 import { hasWebGPU, parseTheme, shouldRun, shouldShow, themeColors } from "./backdrop.ts";
@@ -19,6 +20,7 @@ const locked = $("locked");
 const status = $("status");
 const projectsEl = $("projects");
 const viewActivity = $("view-activity");
+const viewLanding = $("view-landing");
 const viewProject = $("view-project");
 const viewCanvas = $("view-canvas");
 const eventsEl = $("events");
@@ -97,12 +99,13 @@ function renderSidebar() {
     a.href = href;
     a.append(label);
     if (kind) a.append(" ", el("span", kind));
-    a.append(" ", el("span", String(count), "count"));
+    if (count >= 0) a.append(" ", el("span", String(count), "count"));
     if (current) a.setAttribute("aria-current", "page");
     li.append(a);
     frag.append(li);
   };
-  item("#/", "All activity", state.total, null, route.view === "activity");
+  item(hrefLanding, "Designs", -1, null, false);
+  item(hrefActivity, "All activity", state.total, null, route.view === "activity");
   const open = routeProject(route);
   for (const p of sortedProjects(state)) {
     item(hrefProject(p.id), p.name, state.counts[p.id] ?? 0, p.kind, route.view === "project" && route.id === p.id);
@@ -376,7 +379,10 @@ const playView = createPlayView({
   },
   moved: (screen) => {
     // keep the address linkable without a history entry per click (replaceState fires no hashchange)
-    if (route.view === "play") history.replaceState(null, "", hrefPlay(route.id, route.canvas, screen));
+    if (route.view === "play") {
+      history.replaceState(null, "", hrefPlay(route.id, route.canvas, screen));
+      landing.rememberScreen(route.id, route.canvas, screen);
+    }
   },
 });
 
@@ -386,7 +392,7 @@ $("cv-replay").addEventListener("click", () => {
 });
 
 function renderCanvas() {
-  if (route.view === "activity" || route.view === "project") return;
+  if (route.view === "activity" || route.view === "landing" || route.view === "project" || route.view === "walk") return;
   const pid = route.id;
   const cid = route.canvas;
   canvasView.render({
@@ -410,19 +416,32 @@ setInterval(() => {
   if (route.view === "project") renderCanvasCard();
 }, 30_000);
 
+// The landing page (web/landing-view.ts): `#/`, the gallery. Declared before the play view because `moved` remembers the screen.
+const landing = createLandingView({ headers, projects: () => sortedProjects(state), locked: () => setLocked(true) });
+
 function showRoute() {
   const wasProject = route.view === "project";
   const prevProject = routeProject(route);
   const prevCanvas = routeCanvas(route);
   const prev = route;
   route = parseRoute(location.hash);
+  if (route.view === "walk") {
+    // The walkthrough handler lands with the play layer (web/play-view.ts); until it does, the route opens Play on the canvas.
+    location.replace(hrefPlay(route.id, route.canvas));
+    return;
+  }
+  landing.remember(route);
+  viewLanding.hidden = route.view !== "landing";
+  app.classList.toggle("landing-mode", route.view === "landing");
+  if (route.view === "landing") landing.show();
+  else landing.hide();
   viewActivity.hidden = route.view !== "activity";
   viewProject.hidden = route.view !== "project";
   const inCanvas = routeCanvas(route) !== null;
   viewCanvas.hidden = !inCanvas;
   app.classList.toggle("canvas-mode", inCanvas); // hides the top bar, sidebar and main panel
   if (!inCanvas) startBackdrop(); // never started (no GPU cost) while only the canvas has been shown
-  (inCanvas ? cvTools : topBar).append(barTools);
+  (inCanvas ? cvTools : route.view === "landing" ? landing.toolsSlot : topBar).append(barTools);
   const pid = routeProject(route);
   if (pid && pid !== prevProject) {
     void loadList(pid);
@@ -504,6 +523,7 @@ const watcher = new Watcher({
     if (next === state) return;
     const before = state.projects[row.project ?? ""];
     state = next;
+    landing.onRow(row);
     append(eventsEl, row);
     if (route.view === "project" && row.project === route.id) {
       append(projectEventsEl, row);
@@ -536,7 +556,10 @@ const watcher = new Watcher({
     setStatus(line, line === "connected" ? "ok" : "wait");
     cvLive.dataset.state = line === "connected" ? "on" : "off";
     cvLive.textContent = line === "connected" ? "live" : "reconnecting";
-    if (line === "connected") setLocked(false);
+    if (line === "connected") {
+      setLocked(false);
+      landing.connected();
+    }
   },
   onRefused: () => {
     setStatus(token ? "refused: the token is wrong" : "refused: open this page with #token=<your token>", "bad");

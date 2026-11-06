@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addRow, initialState, parseRoute, visibleRows, describeProject, readmeLine, MAX_ROWS, sortedProjects, type State } from "../web/state.ts";
+import { addRow, initialState, parseRoute, routeProject, visibleRows, describeProject, readmeLine, MAX_ROWS, sortedProjects, type State } from "../web/state.ts";
 import type { WatchRow } from "../cli/format.ts";
 
 const row = (seq: number, project: string | null, kind = "ping", payload: unknown = {}): WatchRow => ({ seq, project, kind, payload, ts: seq });
@@ -36,10 +36,18 @@ test("projects come from project.opened, latest wins, with counts", () => {
   assert.deepEqual(sortedProjects(s).map((p) => p.id), ["tvdash", "alpha"]);
 });
 
+test("parseRoute: landing, activity and walk routes", () => {
+  for (const h of ["", "#", "#/"]) assert.deepEqual(parseRoute(h), { view: "landing" }, h);
+  assert.deepEqual(parseRoute("#/activity"), { view: "activity" });
+  assert.deepEqual(parseRoute("#/project/tv/canvas/main/walk"), { view: "walk", id: "tv", canvas: "main" });
+  assert.deepEqual(parseRoute("#/project/tv/canvas/Main/walk"), { view: "activity" });
+  assert.equal(routeProject({ view: "landing" }), null);
+});
+
 test("parseRoute accepts only valid project ids", () => {
   assert.deepEqual(parseRoute("#/project/tvdash"), { view: "project", id: "tvdash" });
   assert.deepEqual(parseRoute("#/project/a-1"), { view: "project", id: "a-1" });
-  for (const bad of ["", "#", "#/", "#/project/", "#/project/-x", "#/project/A", "#/project/a/b", "#/project/a_b", `#/project/${"a".repeat(41)}`, "#/other", "#token=x"])
+  for (const bad of ["#/project/", "#/project/-x", "#/project/A", "#/project/a/b", "#/project/a_b", `#/project/${"a".repeat(41)}`, "#/other", "#token=x"])
     assert.deepEqual(parseRoute(bad), { view: "activity" }, bad);
   assert.deepEqual(parseRoute(`#/project/${"a".repeat(40)}`), { view: "project", id: "a".repeat(40) });
 });
