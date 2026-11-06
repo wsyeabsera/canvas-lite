@@ -67,23 +67,36 @@ export function searchEntries(entries: readonly Entry[], query: string): Entry[]
   });
 }
 
-export type Group = { pid: string; project: string; entries: Entry[]; count: number };
-
-/** Soft groups: projects by name, designs inside by most recently updated, then name. Projects with no entry left are dropped. */
-export function groupByProject(entries: readonly Entry[]): Group[] {
-  const by = new Map<string, Group>();
-  for (const e of entries) {
-    const g = by.get(e.pid) ?? { pid: e.pid, project: e.project, entries: [], count: 0 };
-    g.entries.push(e);
-    by.set(e.pid, g);
-  }
-  const groups = [...by.values()];
-  for (const g of groups) {
-    g.entries.sort((a, b) => b.updated_at - a.updated_at || a.name.localeCompare(b.name));
-    g.count = g.entries.length;
-  }
-  return groups.sort((a, b) => a.project.localeCompare(b.project) || a.pid.localeCompare(b.pid));
+/** The flat gallery order: most recently updated first, then name, then project and id so the order is stable. */
+export function sortEntries(entries: readonly Entry[]): Entry[] {
+  return entries.slice().sort((a, b) => b.updated_at - a.updated_at || a.name.localeCompare(b.name) || a.pid.localeCompare(b.pid) || a.id.localeCompare(b.id));
 }
+
+// --- project dropdown (the only project control on the landing) -----------------------------------
+
+export const PROJECT_KEY = "lite.project";
+export type ProjectOption = { value: string; label: string }; // value "" = All projects
+
+/** `All projects` first, then every project that has at least one design, by name, labelled `name (count)`. */
+export function projectOptions(entries: readonly Entry[]): ProjectOption[] {
+  const by = new Map<string, { name: string; n: number }>();
+  for (const e of entries) {
+    const p = by.get(e.pid) ?? { name: e.project, n: 0 };
+    p.n++;
+    by.set(e.pid, p);
+  }
+  const rest = [...by.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name) || a[0].localeCompare(b[0])).map(([value, p]) => ({ value, label: `${p.name} (${p.n})` }));
+  return [{ value: "", label: "All projects" }, ...rest];
+}
+
+/** The dropdown is only worth showing when there is more than one project to choose between. */
+export const showProjectPicker = (options: readonly ProjectOption[]) => options.length > 2;
+
+/** The saved choice if that project still has designs, else "" (All projects). */
+export const resolveProject = (saved: string | null | undefined, options: readonly ProjectOption[]) => (saved && options.some((o) => o.value === saved) ? saved : "");
+
+/** Keeps only the designs of one project; "" keeps all. */
+export const filterByProject = (entries: readonly Entry[], pid: string): Entry[] => (pid ? entries.filter((e) => e.pid === pid) : entries.slice());
 
 /** `12 screens · updated 1 h ago` */
 export const metaLine = (e: Pick<Entry, "screens" | "updated_at">, now: number) => `${screensLabel(e.screens)} · updated ${agoText(e.updated_at, now)}`;

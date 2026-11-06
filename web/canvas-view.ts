@@ -1,6 +1,6 @@
 // The canvas view: one full-screen surface, screens at their real size on a world moved by one CSS transform.
 // DOM only; the math lives in viewport.ts and layout.ts, the diffing in canvas.ts (all unit-tested).
-import { hrefProject } from "./state.ts";
+import { hrefLanding } from "./state.ts";
 import { diffScreens, iframeSpec, stepScreen, writingText, type CanvasDetail, type Pending, type Screen, type Shown } from "./canvas.ts";
 import { layoutScreens, type Box } from "./layout.ts";
 import { boundsOf, fitRect, panBy, pct, wheelZoomFactor, zoomAt, zoomTo, ZOOM_STEP, type View } from "./viewport.ts";
@@ -118,8 +118,8 @@ export function createCanvasView(select: (id: string | null) => void, play: () =
 
   function render(next: CanvasInput) {
     input = next;
-    back.href = hrefProject(next.pid);
-    crumb.replaceChildren(el("span", "pj", next.projectName), el("span", "sep", "/"), el("span", "cn", next.canvasName));
+    back.href = hrefLanding;
+    crumb.replaceChildren(el("span", "cn", next.canvasName));
 
     const screens = next.detail?.screens ?? [];
     const d = diffScreens(new Map([...frames].map(([id, f]) => [id, f.shown])), screens);

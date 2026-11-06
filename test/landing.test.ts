@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  applyFilter, badgeOf, bannerModel, continueModel, describeEntries, filterCounts, foldSession, groupByProject, metaLine, parseLast, rememberRoute, rememberScreen,
-  searchEntries, startScreenOf, thumbFit, type Entry, type Sessions,
+  applyFilter, badgeOf, bannerModel, continueModel, describeEntries, filterCounts, filterByProject, foldSession, metaLine, parseLast, projectOptions, rememberRoute, rememberScreen, resolveProject,
+  searchEntries, showProjectPicker, sortEntries, startScreenOf, thumbFit, type Entry, type Sessions,
 } from "../web/landing.ts";
 
 const e = (o: Partial<Entry> = {}): Entry => ({ pid: "tv", project: "TV", id: "main", name: "Main", screens: 3, updated_at: 1000, start_screen: null, dangling: 0, unlinked: 0, ...o });
@@ -38,12 +38,32 @@ test("search matches every word in design or project name, case-insensitive", ()
   assert.equal(searchEntries(list, "  ").length, 2);
 });
 
-test("groupByProject: projects by name, designs newest first, empty groups gone", () => {
-  const list = [e({ pid: "z", project: "Zed", id: "1", updated_at: 1 }), e({ pid: "a", project: "Alpha", id: "old", updated_at: 1 }), e({ pid: "a", project: "Alpha", id: "new", updated_at: 9 })];
-  const g = groupByProject(list);
-  assert.deepEqual(g.map((x) => [x.project, x.count]), [["Alpha", 2], ["Zed", 1]]);
-  assert.deepEqual(g[0].entries.map((x) => x.id), ["new", "old"]);
-  assert.deepEqual(groupByProject([]), []);
+test("sortEntries: one flat list, newest first, ties by name then project", () => {
+  const list = [e({ pid: "z", project: "Zed", id: "1", name: "B", updated_at: 1 }), e({ pid: "a", project: "Alpha", id: "old", name: "A", updated_at: 1 }), e({ pid: "a", project: "Alpha", id: "new", name: "C", updated_at: 9 })];
+  assert.deepEqual(sortEntries(list).map((x) => x.id), ["new", "old", "1"]);
+  assert.deepEqual(list.map((x) => x.id), ["1", "old", "new"], "input untouched");
+  assert.deepEqual(sortEntries([]), []);
+});
+
+test("search also matches the project name", () => {
+  const list = [e({ id: "a", name: "TV prototype", project: "tvdash" }), e({ id: "b", name: "Home", project: "Shop" })];
+  assert.deepEqual(searchEntries(list, "tvdash").map((x) => x.id), ["a"]);
+  assert.deepEqual(searchEntries(list, "home shop").map((x) => x.id), ["b"]);
+});
+
+test("project dropdown: options with counts, hidden for one project, saved choice, filtering", () => {
+  const list = [e({ pid: "z", project: "Zed", id: "1" }), e({ pid: "a", project: "tvdash", id: "2" }), e({ pid: "a", project: "tvdash", id: "3" })];
+  const o = projectOptions(list);
+  assert.deepEqual(o, [{ value: "", label: "All projects" }, { value: "a", label: "tvdash (2)" }, { value: "z", label: "Zed (1)" }]);
+  assert.equal(showProjectPicker(o), true);
+  assert.equal(showProjectPicker(projectOptions([list[0]])), false);
+  assert.equal(showProjectPicker(projectOptions([])), false);
+  assert.equal(resolveProject("a", o), "a");
+  assert.equal(resolveProject("gone", o), "");
+  assert.equal(resolveProject(null, o), "");
+  assert.deepEqual(filterByProject(list, "a").map((x) => x.id), ["2", "3"]);
+  assert.equal(filterByProject(list, "").length, 3);
+  assert.equal(filterCounts(filterByProject(list, "z")).all, 1);
 });
 
 test("metaLine and thumbFit", () => {
