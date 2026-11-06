@@ -340,6 +340,11 @@ function createServer(): McpServer {
     { title: "Validate a scene", description: SCENE_TEXT.validate_scene, inputSchema: z.object({ project, scene }) },
     ({ project, scene }) => guard(async () => hub(env).validateScene(project, scene)),
   );
+  server.registerTool(
+    "review_scene",
+    { title: "Review a scene", description: SCENE_TEXT.review_scene, inputSchema: z.object({ project, scene }) },
+    ({ project, scene }) => guard(async () => hub(env).reviewScene(project, scene)),
+  );
   return server;
 }
 

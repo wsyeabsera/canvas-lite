@@ -3,6 +3,7 @@
 import { checkId, requireProject } from "./canvases.ts";
 import { slugify } from "./projects.ts";
 import { checkScene, expandedCount, type Scene, type SceneObject } from "./scene.ts";
+import { reviewScene } from "./scene-review.ts";
 import { validateScene } from "./scene-validate.ts";
 import { checkFilms, readFilms, type Film, type FilmRead } from "./shots.ts";
 import { appendEvent, type LiteEvent, type Sql } from "./store.ts";
@@ -19,7 +20,8 @@ export const SCENE_TEXT = {
   set_films: "Replace all films of a scene (0 to 8; empty clears). A film is {id, name, description?, shots:[{id, name, from:{pos, look}, to:{pos, look}, duration_ms 500 to 60000, waypoints?, ease?, caption?, focus?}]}; look is a [x, y, z] point or an object id; focus must be an object id. WRITE 2 TO 4 FILMS for every scene and give every shot a caption in plain words that says what the viewer sees (no jargon, no ids). Answer {scene, count}.",
   read_scene: "Read a scene and its films: {scene, films, updated_at}. Each film has duration_ms and missing: the indexes of shots whose focus or look-at object no longer exists. Use it to find object ids before patch_scene or set_films.",
   list_scenes: "List a project's scenes, newest updated first: {scenes:[{id, name, objects, drawables, films, updated_at}]}; objects counts top-level objects, drawables the objects after repeaters expand (limit 2000).",
-  validate_scene: "Review a scene and its films like a director. Answer {ok, issues:[{severity, kind, message, fix, object?, film?, shot?}]}: errors camera_inside_solid, shot_looks_at_nothing and focus_missing, warnings no_lights and film_too_short, info empty_scene. ALWAYS run it after set_scene and set_films and fix every issue (set_scene, patch_scene, set_films) before you show anything; ok means no errors.",
+  validate_scene: "Review a scene and its films like a director. Answer {ok, issues:[{severity, kind, message, fix, object?, film?, shot?}]}: errors camera_inside_solid, shot_looks_at_nothing and focus_missing, warnings no_lights and film_too_short, info empty_scene. ALWAYS run it after set_scene and set_films and fix every issue (set_scene, patch_scene, set_films) before you show anything; ok means no errors. Then run review_scene.",
+  review_scene: "Review a 3D scene like a director: is it composed, lit and filmed like a finished piece, not just valid? Answer {scene, score (0-100), ok, issues:[{severity, kind, message, fix, object?, film?, shot?}], stats}. It includes everything validate_scene reports, plus warnings unseen_object (no shot shows it), flat_palette (one material colour across 4+ objects), flat_sky, path_through_solid (the camera flies through geometry), thin_film (a single shot) and info no_films, missing_caption and static_shot. Run it after validate_scene, apply each issue's fix (set_scene, patch_scene, set_films) and run it again. Keep going until ok is true and score >= 90, and fix every issue before you show anything; never present a half-finished scene.",
 } as const;
 
 type Row = { id: string; name: string; data: string; films: string; updated_at: number };
@@ -152,6 +154,12 @@ export function readScene(sql: Sql, project: string, id: string): { scene: Scene
 export function validateStoredScene(sql: Sql, project: string, id: string) {
   const { scene, films } = load(sql, project, id);
   return validateScene(scene, films);
+}
+
+/** review_scene on the stored scene and films: {scene, score, ok, issues, stats}. */
+export function reviewStoredScene(sql: Sql, project: string, id: string) {
+  const { scene, films } = load(sql, project, id);
+  return { scene: id, ...reviewScene({ scene, films }) };
 }
 
 /** Live scenes, newest updated first. */
