@@ -147,7 +147,7 @@ test("set_screen is an upsert: created false, keeps order, replaces fields, touc
   assert.equal((r.event.payload as any).created, false);
   const read = readCanvas(sql, "tvdash", "main", true);
   assert.deepEqual(read.screens.map((s) => s.id), ["a", "b", "c"]);
-  assert.deepEqual({ ...read.screens[0] }, { id: "a", name: "A2", width: 500, height: 300, x: null, y: null, updated_at: 60, html: "<b>new</b>" });
+  assert.deepEqual({ ...read.screens[0] }, { id: "a", name: "A2", width: 500, height: 300, x: null, y: null, updated_at: 60, bytes: 10, html: "<b>new</b>" });
   assert.equal(read.canvas.updated_at, 60);
   assert.equal(read.canvas.screens, 3);
 });
@@ -190,6 +190,19 @@ test("screen limit: 50 per canvas; replacing an existing one at the limit is fin
   assert.equal(setScreen(sql, "tvdash", scr({ name: "s0", html: "<i></i>" })).created, false);
   removeScreen(sql, "tvdash", "main", "s1");
   assert.equal(setScreen(sql, "tvdash", scr({ name: "extra" })).created, true);
+});
+
+test("read_canvas: bytes per screen is the UTF-8 size, with or without html", () => {
+  const sql = withCanvas();
+  setScreen(sql, "tvdash", scr({ name: "ascii", html: "<p>hi</p>" }));
+  setScreen(sql, "tvdash", scr({ name: "multi", html: "é€😀" }));
+  setScreen(sql, "tvdash", scr({ name: "empty", html: "" }));
+  const lean = readCanvas(sql, "tvdash", "main");
+  assert.deepEqual(lean.screens.map((s) => s.bytes), [9, 9, 0]);
+  assert.ok(lean.screens.every((s) => !("html" in s)));
+  const full = readCanvas(sql, "tvdash", "main", true);
+  assert.deepEqual(full.screens.map((s) => s.bytes), [9, 9, 0]);
+  assert.deepEqual(full.screens.map((s) => s.html), ["<p>hi</p>", "é€😀", ""]);
 });
 
 test("read_canvas: html only on request; unknown canvas", () => {

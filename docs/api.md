@@ -37,11 +37,11 @@ Every response is `Content-Type: application/json` with `Cache-Control: no-store
 { "canvases": [{ "id": "main", "name": "Main", "screens": 2, "updated_at": 1767225600000 }] }
 ```
 
-`GET /api/projects/<id>/canvases/<canvas>` returns 200, with each screen's `html` included (the `read_canvas` tool leaves it out by default):
+`GET /api/projects/<id>/canvases/<canvas>` returns 200, with each screen's `html` included (the `read_canvas` tool leaves it out by default) and its `bytes`, the UTF-8 byte length of the html (also reported by the tool whether or not html is included):
 
 ```json
 { "canvas": { "id": "main", "name": "Main", "screens": 1, "created_at": 1767225500000, "updated_at": 1767225600000 },
-  "screens": [{ "id": "home", "name": "Home", "width": 400, "height": 300, "x": null, "y": null, "updated_at": 1767225600000, "html": "<p>hi</p>" }] }
+  "screens": [{ "id": "home", "name": "Home", "width": 400, "height": 300, "x": null, "y": null, "updated_at": 1767225600000, "bytes": 9, "html": "<p>hi</p>" }] }
 ```
 
 `<canvas>` follows the same id rule. Any other path below `/api/projects/<id>` is 400.
