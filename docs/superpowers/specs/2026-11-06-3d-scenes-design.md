@@ -91,7 +91,9 @@ Mirroring the 2D tools. Names are proposals.
 - The scene is data, rendered by a fixed renderer, rather than Claude-written code.
 - The renderer is a bundled open-source 3D library (Three.js, MIT) loaded lazily, like the existing backdrop code, rather
   than hand-written WebGL. The builder confirms the size and CSP behaviour with a spike before committing to it.
-- Scenes are event-sourced like scenarios and tours (no new table in the first version), with a size limit per scene.
+- Scenes are stored in a table (migration 7), with small body-free events, the way screens are. The first draft said
+  "event-sourced like scenarios", but event payloads are sent to every open page and a scene can be up to 200 KB, so the
+  body stays out of the event log. Corrected while writing the implementation plan.
 - A scene appears on the landing page as a card beside the designs, with a rendered first frame as its thumbnail.
 
 ## Added after the builder check (answered by the project, or my calls)
