@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "lite": {
+      "type": "http",
+      "url": "https://<your-worker>/mcp",
+      "headers": {
+        "Authorization": "Bearer ${LITE_TOKEN}"
+      }
+    }
+  }
+}

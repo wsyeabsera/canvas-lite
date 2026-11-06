@@ -22,6 +22,7 @@ All take `project`; errors are `isError` results with the message shown.
 | `set_flow` | `canvas`, `start_screen?` (id or null), `transition?` | `{canvas, flow:{start_screen, transition}}` (unchanged, see Prototype) |
 | `read_flow` | `canvas` | `{canvas, start_screen, effective_start, transition, screens:[{id, name, links:[{to, transition, exists}], back}], tour, presenter}` |
 | `validate_flow` | `canvas` | `{canvas, ok, start_screen, effective_start, issues:[{severity, kind, screen?, to?, message}], coverage:{screens, controls, linked, unlinked, ratio}}` |
+| `review_prototype` | `canvas` | `{canvas, score, ok, issues:[{severity, kind, screen?, message, fix}], stats:{screens, links, controls, linked, unlinked, reachable, nav_sets, tour_steps, tour_screens}}` |
 | `patch_screen` | `canvas`, `id`, `edits:[{find, replace, all?}]` (1 to 20), or `find`, `replace`, `all?` for one edit | `{screen:{id,name,width,height,x,y,updated_at}, bytes, replaced:[n per edit], warnings}` |
 | `set_tour` | `canvas`, `steps:[{screen, dwell_ms, note?}]` (0 to 50) | `{canvas, steps, duration_ms}` |
 | `present` | `canvas`, `screen?` | `{presenter:{active, canvas, screen, transition}}` |
@@ -36,6 +37,8 @@ All take `project`; errors are `isError` results with the message shown.
 - `present`: opens on `screen`, else the effective start. Replaces an earlier session. Errors `unknown screen`, `canvas "<id>" has no screens to present`.
 - `goto`: the transition defaults to the canvas default. Errors `not presenting: call present first`, `unknown screen "<id>" on canvas "<canvas>"`, `invalid transition "<t>": use none, fade, slide-left, slide-right, push`.
 - `stop_present`: nothing to stop is not an error and writes no event.
+
+- `review_prototype` (`src/review.ts`, pure `reviewPrototype({screens:[{id,name,html}], start, tour})`) asks whether the canvas is wired like a product, which `validate_flow` does not. Errors: `no_screens`, `dangling_link`. Warnings: `no_start_screen`, `unreachable` (no `data-to` path from the start), `no_inbound_link` (no screen links to it, other than the start), `dead_end` (no link out and no `data-back`), `unlinked_control` (same scan as coverage), `nav_differs` (a set of 3+ `data-to` targets repeated on 2+ screens is a nav bar; a screen that lacks an item of it is reported, a screen's own tab may be absent). Info: `no_way_back` (not the start, no `data-back`, no link towards the start), `missing_state` (4+ screens, none whose id or name matches empty, loading, error, success, offline or confirm), `no_tour`, `tour_skips_screen`. Every issue carries a `fix` text. `score = max(0, 100 - 15 per error - 6 per warning - 1 per info)`; `ok` means no errors and no warnings (info never blocks). Run it after `validate_flow` and keep fixing until `ok` and `score >= 90` before presenting. The Claude Code plugin ([Plugin](plugin.md)) packages this process as a skill and a `/prototype` command.
 
 ## Events
 

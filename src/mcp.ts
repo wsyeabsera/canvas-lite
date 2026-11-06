@@ -170,6 +170,11 @@ function createServer(): McpServer {
     ({ project, canvas }) => guard(async () => hub(env).validateFlow(project, canvas)),
   );
   server.registerTool(
+    "review_prototype",
+    { title: "Review a prototype", description: FLOW_TEXT.review_prototype, inputSchema: z.object({ project, canvas }) },
+    ({ project, canvas }) => guard(async () => hub(env).reviewPrototype(project, canvas)),
+  );
+  server.registerTool(
     "patch_screen",
     {
       title: "Patch a screen",

@@ -13,8 +13,11 @@ How to build a clickable prototype in Lite in one pass. Specs: [Prototype](proto
 2. `set_screens` once with every screen, each with an explicit `id`. Read the warnings.
 3. `set_flow` with `start_screen` (and a default `transition`).
 4. `validate_flow`. ALWAYS run it after writing screens and fix every warning before showing anything: wire the control (`data-to` or `data-back`), or add `data-inert` when it intentionally goes nowhere. Use `patch_screen` for small fixes and repeat until `ok` and no warnings.
-5. Optional: `set_tour` for a walkthrough that plays by itself.
-6. `present` to show it live, `goto` to move, `stop_present` to end.
+5. `review_prototype`. ALWAYS run it after `validate_flow`: it checks reachability, inbound links, dead ends, nav consistency, a way back, missing states and tour coverage, and every issue has a `fix`. Keep fixing until `ok` is true and `score` is at least 90.
+6. `set_tour` for a walkthrough per user journey (it plays by itself).
+7. `present` to show it live, `goto` to move, `stop_present` to end. Never present a half-finished prototype.
+
+The process around these steps (brief and journeys first, a screen and state inventory, one shared nav) is the `lite-prototyping` skill, shipped as a Claude Code plugin with a `/prototype` command: see [Plugin](plugin.md).
 
 ## Writing screens
 
