@@ -6,6 +6,10 @@ Read `docs/ARCHITECTURE.md` first (the "Fast loop" section covers this file's ru
 
 Only unit tests (node:test, plain Node). Never add Playwright, e2e or smoke tests. Anything that needs workerd or a browser is verified by hand once and its logic is kept in pure functions that unit tests cover.
 
+## Scope
+
+Desktop browsers only. Phones and tablets are out of scope for now: do not design, test, or spend time on narrow widths. (Existing responsive CSS stays; just don't extend or verify it.)
+
 ## The loop
 
 | Command | What it does | Time |

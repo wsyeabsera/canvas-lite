@@ -14,7 +14,9 @@ slug: /ui
 | `#/` | **Activity**: every event, newest at the bottom, live. The sidebar's first item. |
 | `#/project/<id>` | One project: kind, repo link, a line from its README, the file list Claude told Lite about, and its events. |
 
-The **Projects** sidebar lists every project Lite has been told about (from `project.opened` events), each with its event count. It stacks above the main panel on a phone.
+The **Projects** sidebar lists every project Lite has been told about (from `project.opened` events), each with its event count.
+
+The page targets desktop browsers; narrow screens are not a goal yet.
 
 ## Opening it with the token
 
