@@ -51,16 +51,17 @@ Envelope and replay are the usual (see [Progress](progress.md)). None carries ht
 
 ## Live play: what the page does
 
-The page keeps a **Follow** toggle (default on) and shows a "Claude is presenting" pill while a session is active.
+Built in `web/follow.ts` (pure, unit tested in `test/follow.test.ts`), `web/live-view.ts` (DOM) and thin wiring in `web/page.ts`. The page keeps a **Follow** state (default on) per project.
 
-- On a **live** `presenter.started` or `presenter.goto` (not one replayed while connecting) with Follow on: open play mode on `payload.canvas`, jump to `payload.screen` and play `payload.transition`. Target within a second of the tool call. With Follow off nothing moves; the pill stays and offers to follow.
-- On `presenter.stopped`: remove the pill. The viewer stays on the screen they are on.
-- A click by the user in play mode is taking over: Follow turns off until they switch it on again.
-- On load or reconnect, fold the stored state instead of replaying jumps: `GET /api/projects/<id>/canvases/<canvas>` now also returns `tour` and `presenter` (null when none). Pill on when `presenter.active`.
-- A `presenter.goto` for a screen the page does not have yet is held until the next `screen.set` refetch lands.
-- **Tour play** is a client timer over `tour.steps`: pause, resume, restart, progress dots, the note as a caption, each step entered with the canvas default transition. `tourPosition(steps, t)` in `src/flow.ts` gives the step, the time into it and the progress at time `t` (past the end: the last step, `done`).
+- **Live events only.** A `presenter.started` or `presenter.goto` jumps the page only when it is live: its `ts` is not older than the page load (minus 2 s of clock-skew slack). Events replayed by the websocket backfill still fold into the session state (so the pill is right) but never move the viewer. The page follows only events of the project it is showing.
+- **Follow on:** open Play on `payload.canvas` if it is not open (navigates to `#/project/<id>/canvas/<canvas>/play/<screen>`), then jump to `payload.screen` with `payload.transition`. A goto for a screen the page does not have yet is held and retried after the next refetch. A new `presenter.started` turns Follow back on.
+- **The pill.** While a session is active on this canvas and Follow is on, a glass pill at the top centre of the play stage replaces the normal bar: green live dot, "Claude is presenting", `<screen name>, step n of m`, progress dots and a **Take over** button. `n` and `m` come from the canvas tour when the screen is in it, else from the screens visited this session out of the canvas's screens; dots are hidden above 12.
+- **Take over.** The Take over button, or the viewer following a link, pressing Back or Restart (mouse or key) in the stage, stops following. Claude's session is untouched; the normal bar returns with a small **Follow** button that follows again and jumps to where Claude is now.
+- **`presenter.stopped`:** the pill (or Follow button) goes; Play stays open on the screen the viewer is on.
+- **On load or reconnect:** `GET /api/projects/<id>/canvases/<canvas>` also returns `tour` (`{steps, duration_ms, missing}` or null) and `presenter` (the project's session or null). On the first load of a canvas, an active session on it with Follow on opens Play on its screen (not when the URL deep-links a screen, or Play is on another screen).
+- **Tour play.** When the canvas has a tour, the Play bar gets a **Tour** button (not shown under the live pill). It runs a client timer (100 ms ticks) over `tour.steps`: each step is entered with `goto` and the canvas default transition and stays for `dwell_ms`; the step's `note` shows as a caption chip under the stage. The button reads `Pause · 2/5` while playing and `Resume · 2/5` while paused; after the last step the run stops on it and the button reads `Tour` again (a click restarts from the top). Any viewer link, Back or Restart pauses the tour. A new `tour.set` refetches the canvas and stops a running tour. Leaving Play or changing canvas stops it.
 
-The pure helpers the page imports (they need no Worker runtime): `applyPresenterEvent(state, event)` folds `presenter.*` events into `{active, canvas, screen, transition}`, and `followTarget(event, following)` returns the `{canvas, screen, transition}` to open, or null.
+The pure pieces: `onPresenterEvent(state, event, loadedAt)` folds a `presenter.*` event and returns the jump (if any); `onCanvasLoad`, `takeOver`, `resumeFollow`, `pillModel`, and for the tour `tourStart`, `tourTick(run, dt)` (returns the step to enter), `tourPause`, `tourResume`, `tourCaption`, `tourLabel`, `tourPosition(steps, t)`. The page keeps its own small copy of the presenter fold and `tourPosition` because `src/present.ts` and `src/flow.ts` import the Worker store; `test/follow.test.ts` checks both copies give the same answers.
 
 ## Limits
 

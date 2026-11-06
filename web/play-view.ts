@@ -10,6 +10,8 @@ export type PlayHooks = {
   exit: () => void;
   /** The screen on show changed (a link, back, restart or `goto`): the page keeps the route in step. */
   moved: (screenId: string) => void;
+  /** The viewer moved by hand (a link, Back or Restart, by mouse or key): the page treats it as taking over from Claude or a tour. Never called for `goto`. */
+  userAction?: () => void;
 };
 /** What `goto` did: moved, was already there, no such screen (a toast shows), or play is not open. */
 export type GotoResult = "moved" | "same" | "missing" | "closed";
@@ -242,12 +244,14 @@ export function createPlayView(hooks: PlayHooks) {
   function activate(i: number | null) {
     const h = i === null ? undefined : layer?.hots[i];
     if (!h || !st) return;
+    hooks.userAction?.();
     apply(follow(st, h.action, ids(), flow().transition, reduced()));
   }
 
   function restart() {
     const id = startId();
     if (!id) return;
+    hooks.userAction?.();
     st = startState(id);
     void show(id, "none");
   }
@@ -282,7 +286,7 @@ export function createPlayView(hooks: PlayHooks) {
       if (!layer) return;
       focusIdx = moveFocus(layer.hots.map((h) => h.rect), focusIdx, intent.move);
       setRings();
-    } else if (intent === "back") { if (st) apply(follow(st, { kind: "back" }, ids(), flow().transition, reduced())); }
+    } else if (intent === "back") { if (st) { hooks.userAction?.(); apply(follow(st, { kind: "back" }, ids(), flow().transition, reduced())); } }
     else if (intent === "exit") hooks.exit();
     else if (intent === "restart") restart();
     else if (intent === "follow") activate(focusIdx ?? hoverIdx);
@@ -307,7 +311,7 @@ export function createPlayView(hooks: PlayHooks) {
   }
 
   const click = (id: string, fn: () => void) => $(id).addEventListener("click", (e) => { (e.currentTarget as HTMLElement).blur(); fn(); });
-  click("pl-back", () => st && apply(follow(st, { kind: "back" }, ids(), flow().transition, reduced())));
+  click("pl-back", () => { if (st) { hooks.userAction?.(); apply(follow(st, { kind: "back" }, ids(), flow().transition, reduced())); } });
   click("pl-restart", restart);
   click("pl-mode", () => setMode(mode === "mouse" ? "remote" : "mouse"));
   click("pl-exit", () => hooks.exit());
