@@ -16,7 +16,7 @@ const byteLength = (s: string) => new TextEncoder().encode(s).length;
 export const CANVAS_TEXT = {
   create_canvas: `Create a canvas in a project: a named board that holds screens (UI designs) the watch page shows live. Idempotent by id: creating an existing canvas changes nothing; creating a removed one brings it back. At most ${CANVASES_PER_PROJECT} canvases per project (error "too many canvases: limit ${CANVASES_PER_PROJECT}").`,
   list_canvases: `List a project's canvases (id, name, screen count, updated_at), removed ones hidden.`,
-  read_canvas: `Return a canvas and its screens (id, name, width, height, x, y, updated_at). The html of each screen is left out unless include_html is true; ask for it only when you need to edit a screen's markup.`,
+  read_canvas: `Return a canvas and its screens (id, name, width, height, x, y, updated_at, bytes = UTF-8 size of its html). The html of each screen is left out unless include_html is true; ask for it only when you need to edit a screen's markup.`,
   set_screen:
     `Create or replace one screen on a canvas (upsert by id; id defaults to the slug of name, and replacing keeps the screen's place in the order). ` +
     `html is ONE self-contained HTML document per screen: inline CSS, no scripts. Images may be https URLs or data: URIs; nothing else is loaded (no fonts or stylesheets from other origins, no fetch). ` +
@@ -88,16 +88,17 @@ export function listCanvases(sql: Sql, project: string): { canvases: Pick<Canvas
   return { canvases: rows.map((r) => ({ id: r.id, name: r.name, screens: r.screens, updated_at: r.updated_at })) };
 }
 
-type ScreenRow = ScreenSummary & { html?: string };
-/** A canvas and its screens in creation order; html only when `includeHtml`. */
+type ScreenRow = ScreenSummary & { bytes: number; html?: string };
+/** A canvas and its screens in creation order; each with `bytes` (UTF-8 size of its html), the html itself only when `includeHtml`. */
 export function readCanvas(sql: Sql, project: string, canvas: string, includeHtml = false): { canvas: CanvasSummary; screens: ScreenRow[] } {
   requireProject(sql, project);
   const c = requireCanvas(sql, project, canvas);
-  const rows = sql.all<ScreenRow>(
-    `SELECT id, name, width, height, x, y, updated_at${includeHtml ? ", html" : ""} FROM screens WHERE project = ? AND canvas = ? ORDER BY rowid`,
+  const rows = sql.all<ScreenSummary & { html: string }>(
+    "SELECT id, name, width, height, x, y, updated_at, html FROM screens WHERE project = ? AND canvas = ? ORDER BY rowid",
     project, canvas,
   );
-  return { canvas: canvasSummary(c), screens: rows.map((r) => ({ ...r })) };
+  const screens = rows.map(({ html, ...r }): ScreenRow => ({ ...r, bytes: byteLength(html), ...(includeHtml ? { html } : {}) }));
+  return { canvas: canvasSummary(c), screens };
 }
 
 const intIn = (v: unknown, lo: number, hi: number): v is number => typeof v === "number" && Number.isSafeInteger(v) && v >= lo && v <= hi;

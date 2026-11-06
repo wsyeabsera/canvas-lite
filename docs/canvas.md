@@ -61,12 +61,12 @@ Code: `src/canvases.ts` (pure functions over `Sql`, limits as exported constants
 - The 20 canvas limit counts live canvases only; un-archiving through `create_canvas` is checked against it too. Creating an existing live canvas never errors, even at the limit, and never renames it.
 - `set_screen` replaces the whole screen: an omitted `x` or `y` means no value (auto layout). A replace keeps the screen's place in the order (rowid order) and touches the canvas `updated_at`.
 - `x`, `y` are integers within +-1,000,000. Validation errors: `invalid name: use 1 to 100 characters`, `invalid canvas id "<id>": use lowercase letters, digits and -, at most 40` (and `screen id`), `invalid width: use an integer from 100 to 8000` (and `height`), `invalid html: expected text`, `invalid x: use an integer`.
-- Answers: `create_canvas` `{canvas:{id,name,screens,created_at,updated_at}}`; `read_canvas` `{canvas, screens}`; `set_screen` `{screen:{id,name,width,height,x,y,updated_at}, created}`; `remove_screen` `{screen:{canvas,id,name?}}` (`name` only when something was removed); `remove_canvas` `{canvas:{..., archived_at}}`.
+- Answers: `create_canvas` `{canvas:{id,name,screens,created_at,updated_at}}`; `read_canvas` `{canvas, screens}` (each screen `{id,name,width,height,x,y,updated_at,bytes}`, plus `html` only when `include_html`; `bytes` is the UTF-8 byte length of the stored html, always present, 0 for empty html); `set_screen` `{screen:{id,name,width,height,x,y,updated_at}, created}`; `remove_screen` `{screen:{canvas,id,name?}}` (`name` only when something was removed); `remove_canvas` `{canvas:{..., archived_at}}`.
 - The HTTP API answers 404 for `unknown project "<id>"` and `unknown canvas "<id>"`, 400 for bad ids or other path shapes, 405 for non-GET/HEAD.
 
 ## API for the page
 
-`GET /api/projects/<id>/canvases` and `GET /api/projects/<id>/canvases/<canvas>` (screens including html), behind the same token gate as the other API routes.
+`GET /api/projects/<id>/canvases` and `GET /api/projects/<id>/canvases/<canvas>` (screens including html and `bytes`), behind the same token gate as the other API routes.
 
 ## In the watch page
 
