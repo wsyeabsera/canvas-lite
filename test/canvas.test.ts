@@ -2,11 +2,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { agoText, canvasEvent, canvasMeta, describeCanvasDetail, describeCanvasList, dropCanvas, fitScale, focusSize, iframeSpec, mergeTiles, newestScreenId, prevNext, refetchPlan, screensLabel, type Pending, type Screen } from "../web/canvas.ts";
+import { agoText, canvasEvent, describeCanvasDetail, describeCanvasList, diffScreens, dropCanvas, iframeSpec, prevNext, refetchPlan, screensLabel, stepScreen, writingText, type Pending, type Screen, type Shown } from "../web/canvas.ts";
 import { parseRoute, visibleRows, addRow, initialState, routeProject } from "../web/state.ts";
 import { detail } from "../cli/format.ts";
 
-const scr = (id: string, updated_at: number, w = 1920, h = 1080): Screen => ({ id, name: id.toUpperCase(), width: w, height: h, updated_at, html: "<p>x</p>" });
+const scr = (id: string, updated_at: number, w = 1920, h = 1080): Screen => ({ id, name: id.toUpperCase(), width: w, height: h, x: null, y: null, updated_at, html: "<p>x</p>" });
 
 test("parseRoute handles canvas and screen routes and validates every id", () => {
   assert.deepEqual(parseRoute("#/project/tv/canvas/main"), { view: "canvas", id: "tv", canvas: "main" });
@@ -58,17 +58,18 @@ test("agoText with an injected clock", () => {
   assert.equal(screensLabel(5), "5 screens");
 });
 
-test("canvasMeta for filled and empty canvases", () => {
-  const now = 1_000_000;
-  const base = { canvas: { id: "m", name: "M", screens: 0, created_at: now - 60_000, updated_at: now - 120_000 }, screens: [] as Screen[] };
-  assert.equal(canvasMeta(base, now), "no screens · created 1 min ago");
-  assert.equal(canvasMeta({ ...base, screens: [scr("a", 1), scr("b", 2)] }, now), "2 screens · updated 2 min ago");
+test("diffScreens: only new, moved and html-changed frames are touched", () => {
+  const shown = new Map<string, Shown>([["a", { updated_at: 1, html: "<p>x</p>" }], ["b", { updated_at: 2, html: "<p>x</p>" }], ["old", { updated_at: 1, html: "" }]]);
+  const next = [scr("a", 1), { ...scr("b", 3), html: "<p>new</p>" }, scr("c", 4)];
+  assert.deepEqual(diffScreens(shown, next), { add: ["c"], changed: ["b"], html: ["b"], remove: ["old"] });
+  const same = diffScreens(new Map([["a", { updated_at: 1, html: "<p>x</p>" }]]), [scr("a", 1)]);
+  assert.deepEqual(same, { add: [], changed: [], html: [], remove: [] });
+  const renamed = diffScreens(new Map([["a", { updated_at: 1, html: "<p>x</p>" }]]), [scr("a", 2)]);
+  assert.deepEqual([renamed.changed, renamed.html], [["a"], []]); // a rename or resize keeps the iframe's document
 });
 
-test("newest screen and prev/next", () => {
+test("prev/next and arrow-key stepping", () => {
   const ss = [scr("a", 5), scr("b", 9), scr("c", 9), scr("d", 1)];
-  assert.equal(newestScreenId(ss), "c");
-  assert.equal(newestScreenId([]), null);
   const n = prevNext(ss, "a")!;
   assert.equal(n.prev, null);
   assert.equal(n.next!.id, "b");
@@ -77,19 +78,19 @@ test("newest screen and prev/next", () => {
   assert.equal(e.next, null);
   assert.equal(e.prev!.id, "c");
   assert.equal(prevNext(ss, "zz"), null);
+  assert.equal(stepScreen(ss, null, 1), "a");
+  assert.equal(stepScreen(ss, null, -1), "d");
+  assert.equal(stepScreen(ss, "b", 1), "c");
+  assert.equal(stepScreen(ss, "b", -1), "a");
+  assert.equal(stepScreen(ss, "d", 1), "d");
+  assert.equal(stepScreen(ss, "a", -1), "a");
+  assert.equal(stepScreen(ss, "zz", 1), "a");
+  assert.equal(stepScreen([], null, 1), null);
 });
 
-test("thumbnail scale math fits and centres without distortion", () => {
-  assert.deepEqual(fitScale(480, 270, 1920, 1080), { scale: 0.25, left: 0, top: 0 });
-  const p = fitScale(480, 270, 400, 800); // portrait: height limits
-  assert.equal(p.scale, 270 / 800);
-  assert.equal(p.left, (480 - 400 * p.scale) / 2);
-  assert.equal(p.top, 0);
-  assert.deepEqual(fitScale(0, 0, 10, 10), { scale: 1, left: 0, top: 0 });
-  assert.deepEqual(focusSize(1200, 2000, 1920, 1080), { width: 960, height: 540, scale: 0.5 });
-  const t = focusSize(2000, 300, 390, 844, 960);
-  assert.ok(Math.abs(t.height - 300) < 1e-9);
-  assert.equal(focusSize(0, 10, 10, 10).width, 0);
+test("describeCanvasDetail reads placement, null when absent", () => {
+  const d = describeCanvasDetail({ canvas: { id: "m" }, screens: [{ id: "a", width: 10, height: 10, x: 40, y: -20 }, { id: "b", width: 10, height: 10, x: null }, { id: "c", width: 10, height: 10, x: "1", y: 2 }] })!;
+  assert.deepEqual(d.screens.map((s) => [s.x, s.y]), [[40, -20], [null, null], [null, 2]]);
 });
 
 test("iframeSpec is a sandboxed srcdoc frame", () => {
@@ -102,13 +103,10 @@ test("iframeSpec is a sandboxed srcdoc frame", () => {
   assert.deepEqual([spec.width, spec.height], [400, 300]);
 });
 
-test("mergeTiles shows placeholders in place and appends new ones", () => {
-  const ss = [scr("a", 1), scr("b", 2)];
-  const pending = new Map<string, Pending>([["b", { name: "B2", width: 5, height: 6, at: 1 }], ["z", { name: "Z", width: 7, height: 8, at: 2 }]]);
-  const t = mergeTiles(ss, pending);
-  assert.deepEqual(t.map((x) => x.kind), ["screen", "writing", "writing"]);
-  assert.deepEqual(t[2], { kind: "writing", id: "z", name: "Z", width: 7, height: 8 });
-  assert.equal(mergeTiles(ss, new Map()).length, 2);
+test("writingText names the screen Claude is writing, or counts them", () => {
+  assert.equal(writingText(new Map()), null);
+  assert.equal(writingText(new Map<string, Pending>([["b", { name: "Home", width: 5, height: 6, at: 1 }]])), "Claude is writing Home…");
+  assert.equal(writingText(new Map<string, Pending>([["b", { name: "B", width: 5, height: 6, at: 1 }], ["z", { name: "Z", width: 7, height: 8, at: 2 }]])), "Claude is writing 2 screens…");
 });
 
 test("refetchPlan: only the current project, detail only for the open canvas", () => {
