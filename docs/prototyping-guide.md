@@ -13,8 +13,8 @@ How to build a clickable prototype in Lite in one pass. Specs: [Prototype](proto
 2. `set_screens` once with every screen, each with an explicit `id`. Read the warnings.
 3. `set_flow` with `start_screen` (and a default `transition`).
 4. `validate_flow`. ALWAYS run it after writing screens and fix every warning before showing anything: wire the control (`data-to` or `data-back`), or add `data-inert` when it intentionally goes nowhere. Use `patch_screen` for small fixes and repeat until `ok` and no warnings.
-5. `review_prototype`. ALWAYS run it after `validate_flow`: it checks reachability, inbound links, dead ends, nav consistency, a way back, missing states and tour coverage, and every issue has a `fix`. Keep fixing until `ok` is true and `score` is at least 90.
-6. `set_tour` for a walkthrough per user journey (it plays by itself).
+5. `review_prototype`. ALWAYS run it after `validate_flow`: it checks reachability, inbound links, dead ends, nav consistency, a way back, missing states and scenario and tour coverage, and every issue has a `fix`. Keep fixing until `ok` is true and `score` is at least 90.
+6. `set_scenarios`: write 2 to 4 scenarios, one per user journey, each step with a caption in plain words. Every step must follow a real link (`data-to` or `data-back`) from the previous step's screen, because the player clicks it. A tour (`set_tour`) is optional.
 7. `present` to show it live, `goto` to move, `stop_present` to end. Never present a half-finished prototype.
 
 The process around these steps (brief and journeys first, a screen and state inventory, one shared nav) is the `lite-prototyping` skill, shipped as a Claude Code plugin with a `/prototype` command: see [Plugin](plugin.md).
@@ -30,7 +30,7 @@ The process around these steps (brief and journeys first, a screen and state inv
 
 ## Flow and validation
 
-`set_flow` fixes the start screen and the default transition. `read_flow` shows the whole graph without html (links with `exists`, back controls, tour, presenter). `validate_flow` finds `dangling_link` (error), `no_start_screen`, `unreachable`, `bad_transition`, `unlinked_control` (warnings) and `dead_end` (info). A prototype is done when `ok` is true, nothing is unreachable and there is no `unlinked_control` warning.
+`set_flow` fixes the start screen and the default transition. `read_flow` shows the whole graph without html (links with `exists`, back controls, tour, scenarios, presenter). `validate_flow` finds `dangling_link` (error), `no_start_screen`, `unreachable`, `bad_transition`, `unlinked_control` (warnings) and `dead_end` (info). A prototype is done when `ok` is true, nothing is unreachable and there is no `unlinked_control` warning.
 
 ### Unlinked controls
 
@@ -43,6 +43,10 @@ A control that looks clickable but goes nowhere is the most common flaw. Lite fl
 ```
 
 `find` is plain text and must match exactly once (add surrounding text to make it unique, or set `all`). Several changes: `edits: [{find, replace}, ...]`, applied in order, all or nothing.
+
+## Scenarios
+
+`set_scenarios` stores `[{id, name, description?, steps:[{screen, via?, dwell_ms, caption?}]}]` (at most 12 scenarios, 1 to 40 steps each, `dwell_ms` 200 to 60000, caption at most 200 characters). Write 2 to 4 per prototype, one per user journey ("Place an order", "Something goes wrong"), and narrate each step in plain words ("Maya opens her basket"). Step 0 is the first screen; each later step must be reachable by a link in the previous step's screen, otherwise the call fails and names the scenario, the step and the fix. When two links in a screen go to the same place, add `via` (a part of the link's text). `review_prototype` reports `no_scenarios` (4+ screens) and `scenario_skips_screen`.
 
 ## Tours
 

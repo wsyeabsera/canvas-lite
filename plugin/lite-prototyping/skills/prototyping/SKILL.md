@@ -1,6 +1,6 @@
 ---
 name: lite-prototyping
-description: Design a complete, product-wired clickable prototype in Lite over MCP. A process, not a tool list - brief and user journeys first, then every screen including states (empty, loading, error, success, confirm) and one navigation model, built in one pass, validated, reviewed and toured before anything is shown. Use when asked to prototype, design a flow, mock up an app, or show linked screens in Lite.
+description: Design a complete, product-wired clickable prototype in Lite over MCP. A process, not a tool list - brief and user journeys first, then every screen including states (empty, loading, error, success, confirm) and one navigation model, built in one pass, validated, reviewed and played as scenarios before anything is shown. Use when asked to prototype, design a flow, mock up an app, or show linked screens in Lite.
 ---
 
 # Lite prototyping: a process
@@ -16,7 +16,7 @@ Tool shapes: `docs/prototype-tools.md`. Writing rules: `docs/prototyping-guide.m
 3. **Build every screen in ONE `set_screens` pass** (`open_project` and `create_canvas` first if needed). One self-contained HTML document per screen: inline CSS, no scripts, `margin:0` on body, root sized to width x height. Every screen that belongs to the app shows the same nav bar (same items, same order, same targets). Every control is wired: `data-to="<screen id>"` (optional `data-transition`), `data-back` for back and cancel, or `data-inert` when it deliberately goes nowhere (a disabled field, decoration). No `href`, `onclick` or forms. Real copy and plausible data, never "Lorem ipsum" or "Screen 2".
 4. **`set_flow`** with `start_screen` (where a user lands first) and the default transition.
 5. **Validate, then review, and loop.** Run `validate_flow`, fix every error and warning. Then run `review_prototype` and fix every issue whose severity is error or warning, plus the info issues that name a real gap (missing state, screen no journey visits, no way back). Each issue has a `fix` that says what to do; apply it with `patch_screen` (small change) or `set_screens` (several screens). Run both again. Stop only when `validate_flow` is ok, and `review_prototype` is `ok` with `score >= 90`.
-6. **`set_tour` per journey.** One tour step per screen a journey visits, with a short `note` saying what the user is doing. Make sure every screen is covered by some tour (a combined tour, in journey order, is fine). Run `review_prototype` once more.
+6. **Write scenarios with `set_scenarios`.** 2 to 4 scenarios, one per journey from step 1. One step per screen the journey visits; step 0 is the first screen, and every later step must follow a real link (`data-to`, or `data-back` to return) from the previous step's screen, because the player clicks it (add `via`, a part of the link's text, when several links go to the same screen). Give every step a `caption` that narrates in plain words what the user does and sees. Make sure every screen is visited by some scenario. `set_tour` is optional. Run `review_prototype` once more.
 7. **Only then show it:** `present` (and `goto`) or point the user at the canvas. Say which journeys it covers. Never present a half-finished prototype; if something cannot be finished, say so and list what is missing instead of showing it.
 
 ## Checklist (all must be true before step 7)
@@ -27,7 +27,7 @@ Tool shapes: `docs/prototype-tools.md`. Writing rules: `docs/prototyping-guide.m
 - [ ] Every control has `data-to`, `data-back` or an intentional `data-inert`
 - [ ] Every screen is reachable from the start, has a way out and a way back
 - [ ] `validate_flow` ok; `review_prototype` ok with score >= 90
-- [ ] A tour for each journey, covering every screen
+- [ ] A scenario for each journey (`set_scenarios`, captioned in plain words), covering every screen
 - [ ] Copy and data look real
 
 ## Anti-patterns

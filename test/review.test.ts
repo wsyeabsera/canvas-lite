@@ -27,7 +27,7 @@ test("a complete, wired prototype passes with score >= 90", () => {
       s("list-empty", `<a data-back>b</a>`),
       s("done-success", `<a data-to="home">home</a>`),
     ],
-    start: "home", tour,
+    start: "home", tour, scenarios: [{ steps: tour }],
   });
   assert.deepEqual(r.issues, []);
   assert.equal(r.ok, true);
@@ -102,6 +102,17 @@ test("tour coverage: no tour, and screens no step visits", () => {
   const screens = [s("a", nav("b")), s("b", `<a data-back>`)];
   assert.deepEqual(kinds(reviewPrototype({ screens, start: "a", tour: null }), "info"), ["no_tour:"]);
   assert.deepEqual(kinds(reviewPrototype({ screens, start: "a", tour: [{ screen: "a" }] }), "info"), ["tour_skips_screen:b"]);
+});
+
+test("scenario coverage: a screen visited by tour or any scenario is covered; no_scenarios at 4+ screens", () => {
+  const screens = [s("a", nav("b")), s("b", `<a data-back>`)];
+  const sc = (...ids: string[]) => [{ steps: ids.map((screen) => ({ screen })) }];
+  assert.deepEqual(kinds(reviewPrototype({ screens, start: "a", tour: null, scenarios: sc("a") }), "info"), ["scenario_skips_screen:b"]);
+  assert.deepEqual(kinds(reviewPrototype({ screens, start: "a", tour: [{ screen: "b" }], scenarios: sc("a") }), "info"), []);
+  assert.deepEqual(kinds(reviewPrototype({ screens, start: "a", tour: null, scenarios: [...sc("a"), ...sc("b")] }), "info"), []);
+  const four = [s("a", nav("b")), s("b", nav("c")), s("c", nav("d")), s("d", nav("a"))];
+  assert.ok(kinds(reviewPrototype({ screens: four, start: "a", tour: [{ screen: "a" }, { screen: "b" }, { screen: "c" }, { screen: "d" }] }), "info").includes("no_scenarios:"));
+  assert.equal(reviewPrototype({ screens, start: "a", tour: null }).issues.some((i) => i.kind === "no_scenarios"), false);
 });
 
 test("no valid start screen is a warning and falls back to the first screen", () => {
