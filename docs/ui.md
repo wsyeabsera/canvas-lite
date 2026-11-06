@@ -11,16 +11,29 @@ slug: /ui
 
 | Route | Shows |
 |---|---|
-| `#/` | **Activity**: every event, newest at the bottom, live. The sidebar's first item. |
+| `#/` | **Landing**: the designer's gallery of designs (canvases), see below. |
+| `#/activity` | **Activity**: every event, newest at the bottom, live. Reached from the small **Activity** link at the bottom of the landing page and the sidebar. Any unreadable hash also lands here. |
 | `#/project/<id>` | One project: kind, repo link, a line from its README, the file list Claude told Lite about, and its events. |
 | `#/project/<id>/canvas/<cid>` | A canvas: the whole window is a pannable, zoomable surface with every screen at its real size, live. See [Canvas and screens](canvas.md) for the keys. |
 | `#/project/<id>/canvas/<cid>/screen/<sid>` | The same surface, fitted to one screen. |
 
+| `#/project/<id>/canvas/<cid>/walk` | **Walkthrough** over the canvas. The route is parsed here; the handler belongs to the play layer. Until that lands the page redirects it to Play. |
 | `#/project/<id>/canvas/<cid>/play[/<sid>]` | **Play** (present mode) over the canvas: one screen at a time, fitted to the window. Starts at `<sid>`, else the canvas start screen (first screen when unset). Linkable; the address follows the screen on show without adding history entries. See below. |
 
 The project page also has a **Canvases** card. The **Projects** sidebar lists every project Lite has been told about (from `project.opened` events), each with its event count; the open project's canvases appear indented under it.
 
 The page targets desktop browsers; narrow screens are not a goal yet.
+
+## Landing
+
+`#/` is a gallery, not a console: no files, events or raw activity on it. A top row has the **Lite** wordmark, a rounded glass search box ("Search designs": every word must appear in the design or its project name; `Esc` clears) and the theme pill with the docs link.
+
+- **Claude is presenting.** While a `presenter.*` session is active in any project (folded from the events the page already receives, across projects) a glass banner shows a green dot, `<canvas name>, step n of m` and a blue **Watch live** button that opens Play on that canvas.
+- **Continue.** One wide card for the last design you opened: a 213 x 118 live thumbnail of its start screen, the name, `12 screens · you stopped at <screen> · 5 min ago`, a blue **Play** (resumes at that screen) and an outlined **Walkthrough**. Opening a canvas, screen or Play route remembers `{project, canvas, screen, ts}` in local storage (`lite.last`); Play remembers each screen it moves to. Hidden when nothing was opened yet or the canvas is gone.
+- **Designs.** Quiet chips **All N**, **Playable N**, **Needs links N**, then a 4-column gallery of glass cards grouped under soft collapsible project headings (project name and count, expanded by default; a small **Details** link goes to the project page with its files and events). A card has a 150 px thumbnail (the canvas start screen, else its first screen), the name, `N screens · updated 1 h ago` and a badge: green **Playable** when the canvas has screens, no dangling link and no unlinked control, amber **N missing links** (dangling links plus unlinked controls, the counts of `validate_flow` and the write-time warning), grey **No screens** for an empty canvas (counted only under All). Hover or keyboard focus dims the thumbnail and shows **Play** (`#/project/<id>/canvas/<cid>/play`) and **Walkthrough** (the `/walk` route); a click anywhere else on the card opens the canvas.
+- **Thumbnails** are the screen in `<iframe sandbox="" srcdoc>` (the same empty sandbox as the canvas: no scripts, no same-origin), `pointer-events: none`, scaled with a CSS transform to fit (`thumbFit`). They are fetched lazily when a card scrolls into view (`GET /api/projects/<id>/canvases/<cid>`) and cached per canvas version (`updated_at`); the link counts come in the one list per project.
+- **Empty.** With no design at all (shown once the first websocket backfill had time to arrive): "Nothing yet. Ask Claude to design something."
+- Canvas and project events refresh the list after a short debounce; relative times tick in place so thumbnails never reload. Desktop only.
 
 ## Play
 
@@ -62,5 +75,6 @@ On the Activity and project pages, browsers with WebGPU draw a slow, calm mesh g
 - `web/backdrop.ts` is the pure backdrop logic (WebGPU check, when to run, theme colours), unit tested; `web/backdrop-view.ts` mounts the shader and is loaded with `import()` only when WebGPU exists.
 - `web/canvas.ts`, `web/layout.ts` and `web/viewport.ts` are the pure canvas logic, `web/canvas-view.ts` draws the canvas surface; `public/_headers` sets the Content-Security-Policy (see [Canvas and screens](canvas.md)).
 - `web/play.ts` is the pure Play logic (back stack, next screen, transition resolution and planning, spatial focus, stage fit, dots, key intents, the sandbox string), unit tested in `test/play.test.ts`; `web/play-view.ts` draws it and exposes `goto(screenId, transition?)` for remote control and a `userAction` hook for viewer moves. `web/follow.ts` is the pure follow and tour logic (unit tested in `test/follow.test.ts`), `web/live-view.ts` draws the pill, the Follow and Tour buttons and the caption.
+- `web/landing.ts` is the pure landing logic (entries, badges, filters, search, grouping, relative meta line, thumbnail fit, last-opened store, presenter sessions and banner), unit tested in `test/landing.test.ts`; `web/landing-view.ts` draws it (lazy thumbnails, banner, Continue strip, gallery). Its CSS is the delimited "landing page" block in `public/index.html`.
 - `web/replay.ts` is the pure replay logic (event index, stepping, playback timing, ticks, labels, keys), unit tested (`test/replay.test.ts`); `web/replay-view.ts` draws the replay layer and bar (see [Canvas and screens](canvas.md)).
 - Project details come from `GET /api/projects/<id>` (see [the API](api.md)).

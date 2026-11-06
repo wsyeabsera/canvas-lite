@@ -12,10 +12,12 @@ export type State = {
   total: number; // events seen
 };
 export type Route =
-  | { view: "activity" }
+  | { view: "landing" } // `#/`: the designer's gallery (web/landing.ts)
+  | { view: "activity" } // `#/activity` (and any unreadable hash)
   | { view: "project"; id: string }
   | { view: "canvas"; id: string; canvas: string }
   | { view: "screen"; id: string; canvas: string; screen: string }
+  | { view: "walk"; id: string; canvas: string } // walkthrough over a canvas; the handler lives in the play layer
   | { view: "play"; id: string; canvas: string; screen: string | null }; // present mode; `screen` = where to start (null: the start screen)
 
 export const initialState = (): State => ({ rows: [], projects: {}, counts: {}, total: 0 });
@@ -55,6 +57,10 @@ export const validId = (id: string) => id.length <= 40 && ID_RE.test(id);
 
 /** `#/`, `#/project/<id>`, `#/project/<id>/canvas/<cid>`, `.../screen/<sid>` or `.../play[/<sid>]`; anything else (or any id that is not a slug) is the activity view. */
 export function parseRoute(hash: string): Route {
+  if (hash === "" || hash === "#" || hash === "#/") return { view: "landing" };
+  if (hash === "#/activity") return { view: "activity" };
+  const w = /^#\/project\/([^/?#]+)\/canvas\/([^/?#]+)\/walk$/.exec(hash);
+  if (w) return validId(w[1]) && validId(w[2]) ? { view: "walk", id: w[1], canvas: w[2] } : { view: "activity" };
   const p = /^#\/project\/([^/?#]+)\/canvas\/([^/?#]+)\/play(?:\/([^/?#]+))?$/.exec(hash);
   if (p) return validId(p[1]) && validId(p[2]) && (p[3] === undefined || validId(p[3])) ? { view: "play", id: p[1], canvas: p[2], screen: p[3] ?? null } : { view: "activity" };
   const m = /^#\/project\/([^/?#]+)(?:\/canvas\/([^/?#]+)(?:\/screen\/([^/?#]+))?)?$/.exec(hash);
@@ -66,18 +72,21 @@ export function parseRoute(hash: string): Route {
   return { view: "screen", id: m[1], canvas: m[2], screen: m[3] };
 }
 
-/** The project a route belongs to, or null for the activity view. */
-export const routeProject = (route: Route): string | null => (route.view === "activity" ? null : route.id);
+/** The project a route belongs to, or null for the landing and activity views. */
+export const routeProject = (route: Route): string | null => (route.view === "activity" || route.view === "landing" ? null : route.id);
 
 /** The canvas a route shows (canvas, screen or play), else null. */
 export const routeCanvas = (route: Route): string | null => (route.view === "canvas" || route.view === "screen" || route.view === "play" ? route.canvas : null);
 
+export const hrefLanding = "#/";
+export const hrefActivity = "#/activity";
+export const hrefWalk = (id: string, canvas: string) => `#/project/${id}/canvas/${canvas}/walk`;
 export const hrefProject = (id: string) => `#/project/${id}`;
 export const hrefCanvas = (id: string, canvas: string) => `#/project/${id}/canvas/${canvas}`;
 export const hrefScreen = (id: string, canvas: string, screen: string) => `#/project/${id}/canvas/${canvas}/screen/${screen}`;
 
 export function visibleRows(s: State, route: Route): WatchRow[] {
-  return route.view === "activity" ? s.rows : s.rows.filter((r) => r.project === route.id);
+  return route.view === "activity" || route.view === "landing" ? s.rows : s.rows.filter((r) => r.project === route.id);
 }
 
 /** Sidebar order: by name, then id. */

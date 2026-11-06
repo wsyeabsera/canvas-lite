@@ -128,7 +128,7 @@ export function canvasEvent(row: Pick<WatchRow, "kind" | "payload">): { kind: st
 export function refetchPlan(route: Route, row: Pick<WatchRow, "kind" | "project" | "payload">): { list: boolean; detail: boolean } {
   const none = { list: false, detail: false };
   const ev = canvasEvent(row);
-  if (!ev || route.view === "activity" || row.project !== route.id) return none;
+  if (!ev || route.view === "activity" || route.view === "landing" || row.project !== route.id) return none;
   const here = routeCanvas(route) === ev.canvas;
   return { list: true, detail: here };
 }

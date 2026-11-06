@@ -34,8 +34,10 @@ Every response is `Content-Type: application/json` with `Cache-Control: no-store
 `GET /api/projects/<id>/canvases` returns 200 (removed canvases are left out; see [Canvas and screens](canvas.md)):
 
 ```json
-{ "canvases": [{ "id": "main", "name": "Main", "screens": 2, "updated_at": 1767225600000 }] }
+{ "canvases": [{ "id": "main", "name": "Main", "screens": 2, "updated_at": 1767225600000, "start_screen": null, "dangling": 0, "unlinked": 1 }] }
 ```
+
+Beyond the `list_canvases` tool's fields the page list carries what the landing page needs in one call: `start_screen` (null: the first screen), `dangling` (links to screens that do not exist, each target once per screen) and `unlinked` (controls with no `data-to`, `data-back` or `data-inert`, from the same scan as the write-time warning). Both counts are computed server-side from every screen's html. The `list_canvases` tool answer is unchanged.
 
 `GET /api/projects/<id>/canvases/<canvas>` returns 200, with each screen's `html` included (the `read_canvas` tool leaves it out by default) and its `bytes`, the UTF-8 byte length of the html (also reported by the tool whether or not html is included):
 
