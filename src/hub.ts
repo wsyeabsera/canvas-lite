@@ -3,7 +3,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { tokenOk } from "./auth.ts";
 import { parseHello, replay } from "./events.ts";
-import { createCanvas, listCanvases, readCanvas, removeCanvas, removeScreen, setScreen, type ScreenInput } from "./canvases.ts";
+import { createCanvas, listCanvases, readCanvas, removeCanvas, removeScreen, setScreen, setScreens, type ScreenFields, type ScreenInput } from "./canvases.ts";
 import { listProjects, openProject, readProject, removeProject, type OpenInput, type ProjectSummary } from "./projects.ts";
 import { appendEvent,migrate, type LiteEvent, type Sql } from "./store.ts";
 
@@ -75,6 +75,12 @@ export class Hub extends DurableObject<Env> {
   setScreen(project: string, input: ScreenInput) {
     const { event, ...result } = setScreen(this.sql, project, input);
     this.broadcast(event);
+    return result;
+  }
+
+  setScreens(project: string, canvas: string, screens: ScreenFields[]) {
+    const { events, ...result } = setScreens(this.sql, project, canvas, screens);
+    for (const e of events) this.broadcast(e);
     return result;
   }
 

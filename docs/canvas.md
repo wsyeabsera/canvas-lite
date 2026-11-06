@@ -24,9 +24,10 @@ All tools take `project` (an existing, not archived project id; otherwise `unkno
 |---|---|---|
 | `create_canvas` | `name`, `id?` | `{canvas}`. Idempotent by id; on an archived id it un-archives and writes the event again. |
 | `list_canvases` | | `{canvases:[{id,name,screens,updated_at}]}`, archived hidden |
-| `read_canvas` | `canvas`, `include_html?` (default false) | `{canvas, screens:[{id,name,width,height,x,y,updated_at,html?}]}` |
-| `set_screen` | `canvas`, `name`, `width`, `height`, `html`, `id?`, `x?`, `y?` | `{screen, created}`. Upsert; `id` defaults to the slug of `name`. |
-| `remove_screen` | `canvas`, `id` | `{screen}`; idempotent no-op if already gone |
+| `read_canvas` | `canvas`, `include_html?` (default false) | `{canvas, screens:[{id,name,width,height,x,y,layout:{x,y},updated_at,bytes,html?}]}` |
+| `set_screen` | `canvas`, `name`, `width`, `height`, `html`, `id?`, `x?`, `y?` | `{screen, created, bytes, warnings}`. Upsert; `id` defaults to the slug of `name`, truncated at 40 characters. |
+| `set_screens` | `canvas`, `screens` (1 to 20 of the `set_screen` fields) | `{screens:[{id,name,width,height,x,y,updated_at,bytes,created,warnings}]}`. All or nothing. |
+| `remove_screen` | `canvas`, `id` | `{screen}`; idempotent no-op if already gone; the html is gone but the event log keeps the removal |
 | `remove_canvas` | `canvas` | archives it, keeps the log; idempotent |
 
 Unknown canvas: `unknown canvas "<id>"`; unknown screen on read: `unknown screen "<id>"`. Tool descriptions tell Claude: one self-contained HTML document per screen, inline CSS, no scripts; images may be `https` URLs or `data:` URIs and nothing else is loaded; size the root to `width` x `height`.
@@ -53,6 +54,13 @@ default-src 'none'; script-src 'self'; connect-src 'self' wss:; style-src 'self'
 plus `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`. The page's own script is same-origin only (no inline scripts); `connect-src` allows its fetches and websocket (`'self'`, plus `wss:` for browsers that do not match a ws URL to `'self'`). A srcdoc frame inherits this policy, so a screen cannot run code (also blocked by the empty sandbox), fetch data or load anything but inline styles, images, `data:` fonts and, as a deliberate allowance, Inter from Google Fonts (`fonts.googleapis.com` styles, `fonts.gstatic.com` fonts), which screens could therefore also use. A unit test (`test/canvas.test.ts`) parses `_headers` and asserts the shape. The owner chose to allow `https:` images (2026-11-06). Known trade-off: an image URL can carry data out in its query string, so a screen written by a model that read hostile text could leak what that model knows. Revisit if Lite ever holds anything sensitive.
 
 ## As built
+
+Round 2 (feedback from seven sessions that set about 90 screens):
+
+- **Ids.** A screen id defaults to the slugified name truncated at 40 characters. The same name replaces that screen, a different name makes a second one, and long names sharing their first 40 characters collide; the tool texts tell Claude to pass `id` explicitly to be safe.
+- **`set_screens`.** Up to 20 screens for one canvas in one transaction (pure `setScreens` in `src/canvases.ts`, Hub method, MCP tool). The same per-screen validation and limits as `set_screen`; the screen limit is checked as each screen is written. Any failure rolls everything back (no rows, no events) and the error is prefixed `screen <index> (<name>): ` (index from 0); a bad count is `invalid screens: use 1 to 20 screens per call`. One `screen.set` event per screen is appended in input order and the Hub broadcasts each. A repeated id inside a call is written twice (the second replaces the first, `created: false`).
+- **`bytes` and `warnings`.** `set_screen` and every batch answer carry `bytes` (UTF-8 length of html) and `warnings`, from the pure `screenWarnings`: `html contains <script>: scripts never run in the sandbox` (a `<script` tag, any case), `html is large: <n> bytes (limit 200000)` over 150,000 bytes, `html has no content` (empty or whitespace only). Warnings never reject a screen.
+- **`layout`.** `read_canvas` adds `layout: {x, y}` per screen, the effective position the page draws. `x` and `y` stay as stored (`null` = auto). The algorithm (`layoutScreens`: explicit x and y kept, the others in rows of 3, 160 px apart) lives in `src/layout.ts`, imported by both `src/canvases.ts` and `web/layout.ts` (which re-exports it), so the two cannot drift; a test compares them.
 
 Code: `src/canvases.ts` (pure functions over `Sql`, limits as exported constants, tool texts), migration 4 in `src/store.ts`, Hub methods in `src/hub.ts` that broadcast every returned event, tools in `src/mcp.ts`, routes in `src/api.ts`. Details the spec left open:
 

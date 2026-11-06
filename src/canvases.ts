@@ -2,12 +2,15 @@
 // transaction and returns it for the Hub to broadcast. Events never carry html.
 import { appendEvent, type LiteEvent, type Sql } from "./store.ts";
 import { slugify } from "./projects.ts";
+import { layoutScreens } from "./layout.ts";
 
 export const SCREEN_HTML_LIMIT = 200_000;
 export const SCREENS_PER_CANVAS = 50;
 export const CANVASES_PER_PROJECT = 20;
 export const MIN_SIZE = 100;
 export const MAX_SIZE = 8000;
+export const SCREENS_PER_CALL = 20;
+export const HTML_WARN_BYTES = 150_000;
 
 const ID_RE = /^[a-z0-9][a-z0-9-]*$/;
 const byteLength = (s: string) => new TextEncoder().encode(s).length;
@@ -16,20 +19,38 @@ const byteLength = (s: string) => new TextEncoder().encode(s).length;
 export const CANVAS_TEXT = {
   create_canvas: `Create a canvas in a project: a named board that holds screens (UI designs) the watch page shows live. Idempotent by id: creating an existing canvas changes nothing; creating a removed one brings it back. At most ${CANVASES_PER_PROJECT} canvases per project (error "too many canvases: limit ${CANVASES_PER_PROJECT}").`,
   list_canvases: `List a project's canvases (id, name, screen count, updated_at), removed ones hidden.`,
-  read_canvas: `Return a canvas and its screens (id, name, width, height, x, y, updated_at, bytes = UTF-8 size of its html). The html of each screen is left out unless include_html is true; ask for it only when you need to edit a screen's markup.`,
+  read_canvas: `Return a canvas and its screens (id, name, width, height, x, y, layout, updated_at, bytes = UTF-8 size of its html). x and y are as stored (null = automatic); layout {x, y} is where the watch page actually places the screen (automatic screens fill rows of 3, 160 px apart), so you can position new screens relative to it. The html of each screen is left out unless include_html is true; ask for it only when you need to edit a screen's markup.`,
   set_screen:
-    `Create or replace one screen on a canvas (upsert by id; id defaults to the slug of name, and replacing keeps the screen's place in the order). ` +
+    `Create or replace one screen on a canvas (upsert by id; replacing keeps the screen's place in the order). ` +
+    `The id defaults to the slug of name (lowercase letters, digits and -, truncated at 40 characters): the same name replaces that screen, a different name makes a second screen, and two long names sharing their first 40 characters collide. Pass id explicitly to be safe. ` +
+    `To change many screens in one go use set_screens. ` +
     `html is ONE self-contained HTML document per screen: inline CSS, no scripts. Images may be https URLs or data: URIs; nothing else is loaded (no fonts or stylesheets from other origins, no fetch). ` +
     `Size the root element to width x height CSS pixels (width and height are integers from ${MIN_SIZE} to ${MAX_SIZE}). ` +
     `html is at most ${SCREEN_HTML_LIMIT} bytes (error "screen too large: <n> bytes, limit ${SCREEN_HTML_LIMIT}"); at most ${SCREENS_PER_CANVAS} screens per canvas (error "too many screens: limit ${SCREENS_PER_CANVAS}"). ` +
-    `x and y (integers) place the screen on the canvas; leave them out for automatic layout.`,
-  remove_screen: `Remove a screen from a canvas. Removing a screen that is already gone does nothing.`,
+    `x and y (integers) place the screen on the canvas; leave them out for automatic layout. ` +
+    `The answer has bytes (UTF-8 size of html) and warnings (short strings, e.g. html contains <script>, html is large, html has no content); fix what they say.`,
+  set_screens:
+    `Create or replace up to ${SCREENS_PER_CALL} screens on one canvas in a single call. Use it whenever you set more than one screen (a whole flow, a redesign): it is one round trip and ALL OR NOTHING, so a bad screen rejects the call, nothing is written, and the error starts with "screen <index> (<name>): " (index counts from 0). ` +
+    `Each screen takes the same fields and limits as set_screen (name, width, height, html, optional id, x, y); the id defaults to the slug of name truncated at 40 characters, so the same name replaces and a different name makes another screen: pass id explicitly to be safe. ` +
+    `The answer is {screens:[{id, name, width, height, x, y, updated_at, bytes, created, warnings}]} in input order; the watch page gets one live update per screen.`,
+  remove_screen: `Remove a screen from a canvas (by its id from read_canvas). Removing a screen that is already gone does nothing. The change log keeps the removal; the html is gone, so set_screen it again to bring it back.`,
   remove_canvas: `Archive a canvas and its screens from view: it disappears from list_canvases and the watch page, and a canvas.removed event is recorded. Removing an already removed canvas does nothing; create_canvas with the same id brings it back.`,
 };
+
+/** Short notes on html that will not show as the author expects. Empty array = nothing to say. */
+export function screenWarnings(html: string, bytes = byteLength(html)): string[] {
+  const w: string[] = [];
+  if (html.trim() === "") w.push("html has no content");
+  if (/<script/i.test(html)) w.push("html contains <script>: scripts never run in the sandbox");
+  if (bytes > HTML_WARN_BYTES) w.push(`html is large: ${bytes} bytes (limit ${SCREEN_HTML_LIMIT})`);
+  return w;
+}
 
 export type CanvasSummary = { id: string; name: string; screens: number; created_at: number; updated_at: number };
 export type ScreenSummary = { id: string; name: string; width: number; height: number; x: number | null; y: number | null; updated_at: number };
 export type ScreenInput = { canvas: string; name: string; width: number; height: number; html: string; id?: string; x?: number; y?: number };
+export type ScreenFields = Omit<ScreenInput, "canvas">;
+export type ScreenResult = ScreenSummary & { bytes: number; created: boolean; warnings: string[] };
 
 type CanvasRow = { id: string; name: string; created_at: number; updated_at: number; archived_at: number | null; screens: number };
 const CANVAS_SELECT =
@@ -88,7 +109,7 @@ export function listCanvases(sql: Sql, project: string): { canvases: Pick<Canvas
   return { canvases: rows.map((r) => ({ id: r.id, name: r.name, screens: r.screens, updated_at: r.updated_at })) };
 }
 
-type ScreenRow = ScreenSummary & { bytes: number; html?: string };
+type ScreenRow = ScreenSummary & { bytes: number; layout: { x: number; y: number }; html?: string };
 /** A canvas and its screens in creation order; each with `bytes` (UTF-8 size of its html), the html itself only when `includeHtml`. */
 export function readCanvas(sql: Sql, project: string, canvas: string, includeHtml = false): { canvas: CanvasSummary; screens: ScreenRow[] } {
   requireProject(sql, project);
@@ -97,17 +118,19 @@ export function readCanvas(sql: Sql, project: string, canvas: string, includeHtm
     "SELECT id, name, width, height, x, y, updated_at, html FROM screens WHERE project = ? AND canvas = ? ORDER BY rowid",
     project, canvas,
   );
-  const screens = rows.map(({ html, ...r }): ScreenRow => ({ ...r, bytes: byteLength(html), ...(includeHtml ? { html } : {}) }));
+  const boxes = layoutScreens(rows);
+  const screens = rows.map(({ html, ...r }, i): ScreenRow => ({
+    ...r, bytes: byteLength(html), layout: { x: boxes[i].x, y: boxes[i].y }, ...(includeHtml ? { html } : {}),
+  }));
   return { canvas: canvasSummary(c), screens };
 }
 
 const intIn = (v: unknown, lo: number, hi: number): v is number => typeof v === "number" && Number.isSafeInteger(v) && v >= lo && v <= hi;
 
-/** Upsert by id (default: slug of name). Replacing keeps the screen's place in the order. Appends `screen.set`. */
-export function setScreen(
-  sql: Sql, project: string, input: ScreenInput, now = Date.now(),
-): { screen: ScreenSummary; created: boolean; event: LiteEvent } {
-  requireProject(sql, project);
+type Prepared = { id: string; name: string; width: number; height: number; html: string; x: number | null; y: number | null; bytes: number };
+
+/** Validates one screen's fields (everything but the canvas and project) and returns what is written. */
+function prepareScreen(input: ScreenFields): Prepared {
   const name = checkName(input?.name);
   const id = checkId("screen", input.id ?? slugify(name));
   if (!intIn(input.width, MIN_SIZE, MAX_SIZE)) throw new Error(`invalid width: use an integer from ${MIN_SIZE} to ${MAX_SIZE}`);
@@ -117,26 +140,76 @@ export function setScreen(
     if (input[k] !== undefined && !intIn(input[k], -1_000_000, 1_000_000)) throw new Error(`invalid ${k}: use an integer`);
   const bytes = byteLength(input.html);
   if (bytes > SCREEN_HTML_LIMIT) throw new Error(`screen too large: ${bytes} bytes, limit ${SCREEN_HTML_LIMIT}`);
-  const x = input.x ?? null;
-  const y = input.y ?? null;
+  return { id, name, width: input.width, height: input.height, html: input.html, x: input.x ?? null, y: input.y ?? null, bytes };
+}
+
+/** Writes one prepared screen inside a transaction (canvas already checked): row, canvas touch, `screen.set`. */
+function writeScreen(sql: Sql, project: string, canvas: string, p: Prepared, now: number): { result: ScreenResult; event: LiteEvent } {
+  const exists = sql.all("SELECT 1 FROM screens WHERE project = ? AND canvas = ? AND id = ?", project, canvas, p.id).length > 0;
+  if (!exists && sql.all<{ n: number }>("SELECT count(*) AS n FROM screens WHERE project = ? AND canvas = ?", project, canvas)[0].n >= SCREENS_PER_CANVAS)
+    throw new Error(`too many screens: limit ${SCREENS_PER_CANVAS}`);
+  sql.run(
+    `INSERT INTO screens (project, canvas, id, name, width, height, html, x, y, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(project, canvas, id) DO UPDATE SET name = excluded.name, width = excluded.width, height = excluded.height,
+       html = excluded.html, x = excluded.x, y = excluded.y, updated_at = excluded.updated_at`,
+    project, canvas, p.id, p.name, p.width, p.height, p.html, p.x, p.y, now,
+  );
+  sql.run("UPDATE canvases SET updated_at = ? WHERE project = ? AND id = ?", now, project, canvas);
+  const event = appendEvent(
+    sql,
+    { project, kind: "screen.set", payload: { canvas, id: p.id, name: p.name, width: p.width, height: p.height, bytes: p.bytes, created: !exists } },
+    now,
+  );
+  const result: ScreenResult = {
+    id: p.id, name: p.name, width: p.width, height: p.height, x: p.x, y: p.y, updated_at: now,
+    bytes: p.bytes, created: !exists, warnings: screenWarnings(p.html, p.bytes),
+  };
+  return { result, event };
+}
+
+/** Upsert by id (default: slug of name). Replacing keeps the screen's place in the order. Appends `screen.set`. */
+export function setScreen(
+  sql: Sql, project: string, input: ScreenInput, now = Date.now(),
+): { screen: ScreenSummary; created: boolean; bytes: number; warnings: string[]; event: LiteEvent } {
+  requireProject(sql, project);
+  const p = prepareScreen(input);
   return sql.transaction(() => {
     requireCanvas(sql, project, input.canvas);
-    const exists = sql.all("SELECT 1 FROM screens WHERE project = ? AND canvas = ? AND id = ?", project, input.canvas, id).length > 0;
-    if (!exists && sql.all<{ n: number }>("SELECT count(*) AS n FROM screens WHERE project = ? AND canvas = ?", project, input.canvas)[0].n >= SCREENS_PER_CANVAS)
-      throw new Error(`too many screens: limit ${SCREENS_PER_CANVAS}`);
-    sql.run(
-      `INSERT INTO screens (project, canvas, id, name, width, height, html, x, y, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(project, canvas, id) DO UPDATE SET name = excluded.name, width = excluded.width, height = excluded.height,
-         html = excluded.html, x = excluded.x, y = excluded.y, updated_at = excluded.updated_at`,
-      project, input.canvas, id, name, input.width, input.height, input.html, x, y, now,
-    );
-    sql.run("UPDATE canvases SET updated_at = ? WHERE project = ? AND id = ?", now, project, input.canvas);
-    const event = appendEvent(
-      sql,
-      { project, kind: "screen.set", payload: { canvas: input.canvas, id, name, width: input.width, height: input.height, bytes, created: !exists } },
-      now,
-    );
-    return { screen: { id, name, width: input.width, height: input.height, x, y, updated_at: now }, created: !exists, event };
+    const { result, event } = writeScreen(sql, project, input.canvas, p, now);
+    const { created, bytes, warnings, ...screen } = result;
+    return { screen, created, bytes, warnings, event };
+  });
+}
+
+/** Up to SCREENS_PER_CALL screens in one transaction: any failure writes nothing (errors start `screen <i> (<name>): `). One event per screen, in order. */
+export function setScreens(
+  sql: Sql, project: string, canvas: string, screens: ScreenFields[], now = Date.now(),
+): { screens: ScreenResult[]; events: LiteEvent[] } {
+  requireProject(sql, project);
+  if (!Array.isArray(screens) || screens.length < 1 || screens.length > SCREENS_PER_CALL)
+    throw new Error(`invalid screens: use 1 to ${SCREENS_PER_CALL} screens per call`);
+  const label = (i: number) => `screen ${i} (${typeof screens[i]?.name === "string" ? screens[i].name : "?"}): `;
+  const prepared = screens.map((s, i) => {
+    try {
+      return prepareScreen(s);
+    } catch (e) {
+      throw new Error(label(i) + (e instanceof Error ? e.message : String(e)));
+    }
+  });
+  return sql.transaction(() => {
+    requireCanvas(sql, project, canvas);
+    const out: ScreenResult[] = [];
+    const events: LiteEvent[] = [];
+    prepared.forEach((p, i) => {
+      try {
+        const { result, event } = writeScreen(sql, project, canvas, p, now);
+        out.push(result);
+        events.push(event);
+      } catch (e) {
+        throw new Error(label(i) + (e instanceof Error ? e.message : String(e)));
+      }
+    });
+    return { screens: out, events };
   });
 }
 

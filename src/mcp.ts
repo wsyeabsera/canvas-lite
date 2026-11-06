@@ -4,7 +4,7 @@ import { createMcpHandler } from "agents/mcp/server";
 import { env } from "cloudflare:workers";
 import { z } from "zod";
 import { hub } from "./hub.ts";
-import { CANVAS_TEXT, MAX_SIZE, MIN_SIZE } from "./canvases.ts";
+import { CANVAS_TEXT, MAX_SIZE, MIN_SIZE, SCREENS_PER_CALL } from "./canvases.ts";
 import { OPEN_PROJECT_TEXT } from "./projects.ts";
 
 function createServer(): McpServer {
@@ -108,24 +108,32 @@ function createServer(): McpServer {
     },
     ({ project, canvas, include_html }) => guard(async () => hub(env).readCanvas(project, canvas, include_html ?? false)),
   );
+  const screenFields = {
+    name: z.string().min(1).max(100).describe("Screen name."),
+    width: z.number().int().min(MIN_SIZE).max(MAX_SIZE).describe(`Width in CSS pixels, ${MIN_SIZE} to ${MAX_SIZE}.`),
+    height: z.number().int().min(MIN_SIZE).max(MAX_SIZE).describe(`Height in CSS pixels, ${MIN_SIZE} to ${MAX_SIZE}.`),
+    html: z.string().describe("One self-contained HTML document: inline CSS, no scripts, root sized to width x height."),
+    id: z.string().optional().describe("Slug: lowercase letters, digits, -, at most 40. Defaults to the slugified name truncated at 40 characters; an existing id is replaced. Pass it explicitly to be safe."),
+    x: z.number().int().optional().describe("Canvas x position in pixels. Leave out for automatic layout."),
+    y: z.number().int().optional().describe("Canvas y position in pixels. Leave out for automatic layout."),
+  };
   server.registerTool(
     "set_screen",
+    { title: "Set a screen", description: CANVAS_TEXT.set_screen, inputSchema: z.object({ project, canvas, ...screenFields }) },
+    ({ project, ...input }) => guard(async () => hub(env).setScreen(project, input)),
+  );
+  server.registerTool(
+    "set_screens",
     {
-      title: "Set a screen",
-      description: CANVAS_TEXT.set_screen,
+      title: "Set several screens",
+      description: CANVAS_TEXT.set_screens,
       inputSchema: z.object({
         project,
         canvas,
-        name: z.string().min(1).max(100).describe("Screen name."),
-        width: z.number().int().min(MIN_SIZE).max(MAX_SIZE).describe(`Width in CSS pixels, ${MIN_SIZE} to ${MAX_SIZE}.`),
-        height: z.number().int().min(MIN_SIZE).max(MAX_SIZE).describe(`Height in CSS pixels, ${MIN_SIZE} to ${MAX_SIZE}.`),
-        html: z.string().describe("One self-contained HTML document: inline CSS, no scripts, root sized to width x height."),
-        id: z.string().optional().describe("Slug: lowercase letters, digits, -, at most 40. Defaults to the slugified name; an existing id is replaced."),
-        x: z.number().int().optional().describe("Canvas x position in pixels. Leave out for automatic layout."),
-        y: z.number().int().optional().describe("Canvas y position in pixels. Leave out for automatic layout."),
+        screens: z.array(z.object(screenFields)).min(1).max(SCREENS_PER_CALL).describe(`1 to ${SCREENS_PER_CALL} screens; all are written or none.`),
       }),
     },
-    ({ project, ...input }) => guard(async () => hub(env).setScreen(project, input)),
+    ({ project, canvas, screens }) => guard(async () => hub(env).setScreens(project, canvas, screens)),
   );
   server.registerTool(
     "remove_screen",
