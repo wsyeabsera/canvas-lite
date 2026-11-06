@@ -13,8 +13,10 @@ slug: /ui
 |---|---|
 | `#/` | **Activity**: every event, newest at the bottom, live. The sidebar's first item. |
 | `#/project/<id>` | One project: kind, repo link, a line from its README, the file list Claude told Lite about, and its events. |
+| `#/project/<id>/canvas/<cid>` | A canvas: its screens as thumbnails, live. See [Canvas and screens](canvas.md). |
+| `#/project/<id>/canvas/<cid>/screen/<sid>` | One screen, large, with previous/next. |
 
-The **Projects** sidebar lists every project Lite has been told about (from `project.opened` events), each with its event count.
+The project page also has a **Canvases** card. The **Projects** sidebar lists every project Lite has been told about (from `project.opened` events), each with its event count; the open project's canvases appear indented under it.
 
 The page targets desktop browsers; narrow screens are not a goal yet.
 
@@ -38,4 +40,5 @@ The pill in the top bar cycles **auto** (follows the system), **light** and **da
 - `web/state.ts` is the pure state (events, projects, routes); `web/theme.ts` the theme logic. Both are unit tested.
 - `web/page.ts` draws the state and reuses `cli/watch-core.ts` (the same reconnecting client `lite watch` uses) and `cli/format.ts`.
 - `npm run build:web` bundles it to `public/page.js` with esbuild; `npm run deploy` does that and builds these docs first.
+- `web/canvas.ts` is the pure canvas logic; `public/_headers` sets the Content-Security-Policy (see [Canvas and screens](canvas.md)).
 - Project details come from `GET /api/projects/<id>` (see [the API](api.md)).

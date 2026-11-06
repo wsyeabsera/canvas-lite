@@ -3,7 +3,7 @@ sidebar_position: 8
 slug: /canvas
 ---
 
-# Canvas and screens (store, tools and API built; page not yet)
+# Canvas and screens (store, tools, API and watch page built)
 
 A project holds **canvases**; a canvas holds **screens**. Claude writes screens with MCP tools; the watch page shows them live, read-only. Like projects, Lite is *told* the design: Claude sends the HTML of each screen.
 
@@ -44,7 +44,13 @@ Appended in the same transaction as the change, with `project` set; the payload 
 
 ## Showing a screen safely
 
-Screen html is untrusted input, written by a model that may have read hostile text. The page shows it only in `<iframe sandbox="" srcdoc="...">` (empty sandbox: no scripts, no forms, no same-origin access). The page's Content-Security-Policy, inherited by the srcdoc frame, allows `style-src 'unsafe-inline'`, `img-src data: https:` and `font-src data:` and nothing else, so a screen cannot run code, fetch data or load anything but images. The owner chose to allow `https:` images (2026-11-06). Known trade-off: an image URL can carry data out in its query string, so a screen written by a model that read hostile text could leak what that model knows. Revisit if Lite ever holds anything sensitive.
+Screen html is untrusted input, written by a model that may have read hostile text. The page shows it only in `<iframe sandbox="" srcdoc="...">` (empty sandbox: no scripts, no forms, no same-origin access). The frame also has `referrerpolicy="no-referrer"` and `loading="lazy"`, and `srcdoc` is set as a DOM property, never parsed into the page. Thumbnails are `pointer-events: none`. The policy is set by `public/_headers` (for `/` and `/index.html`):
+
+```
+default-src 'none'; script-src 'self'; connect-src 'self' wss:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src data: https://fonts.gstatic.com; img-src data: https:; frame-src 'self'; base-uri 'none'; form-action 'none'
+```
+
+plus `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`. The page's own script is same-origin only (no inline scripts); `connect-src` allows its fetches and websocket (`'self'`, plus `wss:` for browsers that do not match a ws URL to `'self'`). A srcdoc frame inherits this policy, so a screen cannot run code (also blocked by the empty sandbox), fetch data or load anything but inline styles, images, `data:` fonts and, as a deliberate allowance, Inter from Google Fonts (`fonts.googleapis.com` styles, `fonts.gstatic.com` fonts), which screens could therefore also use. A unit test (`test/canvas.test.ts`) parses `_headers` and asserts the shape. The owner chose to allow `https:` images (2026-11-06). Known trade-off: an image URL can carry data out in its query string, so a screen written by a model that read hostile text could leak what that model knows. Revisit if Lite ever holds anything sensitive.
 
 ## As built
 
@@ -61,3 +67,9 @@ Code: `src/canvases.ts` (pure functions over `Sql`, limits as exported constants
 ## API for the page
 
 `GET /api/projects/<id>/canvases` and `GET /api/projects/<id>/canvases/<canvas>` (screens including html), behind the same token gate as the other API routes.
+
+## In the watch page
+
+Routes `#/project/<id>/canvas/<cid>` (screens as a grid of 16:9 thumbnails, each with name and `W × H`, the most recently updated one with an accent ring) and `#/project/<id>/canvas/<cid>/screen/<sid>` (one screen large, "k of n", previous/next, arrow keys, "All screens" link). The project page has a Canvases card (name, screen count, updated; empty: "No canvases yet. Ask Claude to create one."), and the open project's canvases appear indented under it in the sidebar. An empty canvas says it is waiting for `set_screen`. After a `screen.set` event the screen shows a shimmering "Claude is writing <name>..." placeholder until the refetched html arrives (no animation under `prefers-reduced-motion`).
+
+Live: a `canvas.created`, `screen.set`, `screen.removed` or `canvas.removed` event of the open project refetches the list, and the canvas too when it is the open one (debounced 150 ms, stale answers ignored). Logic lives in `web/canvas.ts` (ordering, prev/next, "updated X ago", scale math, iframe spec), tested in `test/canvas.test.ts`. The Activity stream shows these events as `set <name> in <canvas>`, `removed <name> from <canvas>`, `created canvas <name>`, `removed canvas <name>`.

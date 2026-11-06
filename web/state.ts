@@ -11,7 +11,11 @@ export type State = {
   counts: Record<string, number>; // events seen per project id (not capped)
   total: number; // events seen
 };
-export type Route = { view: "activity" } | { view: "project"; id: string };
+export type Route =
+  | { view: "activity" }
+  | { view: "project"; id: string }
+  | { view: "canvas"; id: string; canvas: string }
+  | { view: "screen"; id: string; canvas: string; screen: string };
 
 export const initialState = (): State => ({ rows: [], projects: {}, counts: {}, total: 0 });
 
@@ -48,15 +52,26 @@ export function addRow(s: State, row: WatchRow): State {
 
 export const validId = (id: string) => id.length <= 40 && ID_RE.test(id);
 
-/** `#/` or `#/project/<id>`; anything else is the activity view. */
+/** `#/`, `#/project/<id>`, `#/project/<id>/canvas/<cid>` or `.../screen/<sid>`; anything else (or any id that is not a slug) is the activity view. */
 export function parseRoute(hash: string): Route {
-  const m = /^#\/project\/([^/?#]+)$/.exec(hash);
-  if (m && validId(m[1])) return { view: "project", id: m[1] };
-  return { view: "activity" };
+  const m = /^#\/project\/([^/?#]+)(?:\/canvas\/([^/?#]+)(?:\/screen\/([^/?#]+))?)?$/.exec(hash);
+  if (!m || !validId(m[1])) return { view: "activity" };
+  if (m[2] === undefined) return { view: "project", id: m[1] };
+  if (!validId(m[2])) return { view: "activity" };
+  if (m[3] === undefined) return { view: "canvas", id: m[1], canvas: m[2] };
+  if (!validId(m[3])) return { view: "activity" };
+  return { view: "screen", id: m[1], canvas: m[2], screen: m[3] };
 }
 
+/** The project a route belongs to, or null for the activity view. */
+export const routeProject = (route: Route): string | null => (route.view === "activity" ? null : route.id);
+
+export const hrefProject = (id: string) => `#/project/${id}`;
+export const hrefCanvas = (id: string, canvas: string) => `#/project/${id}/canvas/${canvas}`;
+export const hrefScreen = (id: string, canvas: string, screen: string) => `#/project/${id}/canvas/${canvas}/screen/${screen}`;
+
 export function visibleRows(s: State, route: Route): WatchRow[] {
-  return route.view === "project" ? s.rows.filter((r) => r.project === route.id) : s.rows;
+  return route.view === "activity" ? s.rows : s.rows.filter((r) => r.project === route.id);
 }
 
 /** Sidebar order: by name, then id. */

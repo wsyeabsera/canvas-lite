@@ -1,0 +1,8 @@
+/
+  Content-Security-Policy: default-src 'none'; script-src 'self'; connect-src 'self' wss:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src data: https://fonts.gstatic.com; img-src data: https:; frame-src 'self'; base-uri 'none'; form-action 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+/index.html
+  Content-Security-Policy: default-src 'none'; script-src 'self'; connect-src 'self' wss:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src data: https://fonts.gstatic.com; img-src data: https:; frame-src 'self'; base-uri 'none'; form-action 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer

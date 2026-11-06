@@ -20,6 +20,12 @@ export function detail(row: Pick<WatchRow, "kind" | "payload">): string {
   if (row.kind === "ping") return clip(typeof p?.note === "string" ? p.note : "");
   if (row.kind === "project.opened" && typeof p?.name === "string") return clip(`opened ${p.name}`);
   if (row.kind === "project.removed" && typeof p?.name === "string") return clip(`removed ${p.name}`);
+  const name = typeof p?.name === "string" ? p.name : undefined;
+  const canvas = typeof p?.canvas === "string" ? p.canvas : undefined;
+  if (row.kind === "canvas.created" && name) return clip(`created canvas ${name}`);
+  if (row.kind === "canvas.removed" && name) return clip(`removed canvas ${name}`);
+  if (row.kind === "screen.set" && name && canvas) return clip(`set ${name} in ${canvas}`);
+  if (row.kind === "screen.removed" && name && canvas) return clip(`removed ${name} from ${canvas}`);
   let json: string | undefined;
   try {
     json = JSON.stringify(row.payload);
