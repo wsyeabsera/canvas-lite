@@ -1,6 +1,7 @@
 // Canvases and screens as pure functions over `Sql` (docs/canvas.md). Every change appends its event in the same
 // transaction and returns it for the Hub to broadcast. Events never carry html.
 import { appendEvent, type LiteEvent, type Sql } from "./store.ts";
+import { unlinkedWarnings } from "./coverage.ts";
 import { slugify } from "./projects.ts";
 import { layoutScreens } from "./layout.ts";
 import { recordVersion } from "./timeline.ts";
@@ -32,7 +33,7 @@ export const CANVAS_TEXT = {
     `Size the root element to width x height CSS pixels (width and height are integers from ${MIN_SIZE} to ${MAX_SIZE}). ` +
     `html is at most ${SCREEN_HTML_LIMIT} bytes (error "screen too large: <n> bytes, limit ${SCREEN_HTML_LIMIT}"); at most ${SCREENS_PER_CANVAS} screens per canvas (error "too many screens: limit ${SCREENS_PER_CANVAS}"). ` +
     `x and y (integers) place the screen on the canvas; leave them out for automatic layout. ` +
-    `The answer has bytes (UTF-8 size of html) and warnings (short strings, e.g. html contains <script>, html is large, html has no content); fix what they say.`,
+    `The answer has bytes (UTF-8 size of html) and warnings (short strings, e.g. html contains <script>, html is large, html has no content, dangling link, N unlinked controls: "<text>", ... for buttons/links/inputs with no data-to or data-back; add the link or mark it data-inert); fix what they say, then ALWAYS run validate_flow before showing anything.`,
   set_screens:
     `Create or replace up to ${SCREENS_PER_CALL} screens on one canvas in a single call. Use it whenever you set more than one screen (a whole flow, a redesign): it is one round trip and ALL OR NOTHING, so a bad screen rejects the call, nothing is written, and the error starts with "screen <index> (<name>): " (index counts from 0). ` +
     `Each screen takes the same fields and limits as set_screen (name, width, height, html, optional id, x, y); the id defaults to the slug of name truncated at 40 characters, so the same name replaces and a different name makes another screen: pass id explicitly to be safe. ` +
@@ -224,7 +225,7 @@ export function setScreen(
   return sql.transaction(() => {
     requireCanvas(sql, project, input.canvas);
     const { result, event } = writeScreen(sql, project, input.canvas, p, now);
-    result.warnings.push(...danglingWarnings(sql, project, input.canvas, p.html));
+    result.warnings.push(...danglingWarnings(sql, project, input.canvas, p.html), ...unlinkedWarnings(p.html));
     const { created, bytes, warnings, ...screen } = result;
     return { screen, created, bytes, warnings, event };
   });
@@ -259,7 +260,7 @@ export function setScreens(
       }
     });
     // Links are checked once every screen of the call is written, so a link to a later screen in the same call is fine.
-    out.forEach((r, i) => r.warnings.push(...danglingWarnings(sql, project, canvas, prepared[i].html)));
+    out.forEach((r, i) => r.warnings.push(...danglingWarnings(sql, project, canvas, prepared[i].html), ...unlinkedWarnings(prepared[i].html)));
     return { screens: out, events };
   });
 }

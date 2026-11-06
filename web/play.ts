@@ -1,6 +1,7 @@
 // Play mode logic (docs/prototype.md): the back stack, the next screen, transition resolution and planning, spatial focus,
 // stage fit and progress dots. Pure, no DOM; web/play-view.ts draws it. The history lives only in the browser tab.
 import { readLink, TRANSITIONS, type Transition } from "./links.ts";
+import { hasLinkAttr, isControlLike, isInert } from "../src/coverage.ts";
 import { fitRect, type Rect, type Size, type View } from "./viewport.ts";
 
 /** The sandbox of a played screen. `allow-same-origin` lets the page read `[data-to]` from `frame.contentDocument`;
@@ -205,4 +206,17 @@ export function chipText(a: LinkAction, screens: readonly { id: string; name: st
   const target = screens.find((x) => x.id === a.to);
   if (!target) return `No screen "${a.to}"`;
   return `${target.name} · ${resolveTransition(a.transition, canvasDefault, reducedMotion)} · Enter`;
+}
+
+// --- unlinked controls (Shift overlay) ------------------------------------------------
+/** Candidates for the page to query in a played frame; `isUnlinkedControl` makes the final call (same predicate as the server-side scan). */
+export const UNLINKED_SELECTOR = "button,a,input,select,summary,[role],[tabindex],[style]";
+export const UNLINKED_CHIP = "No link";
+
+/** Pure: a control-looking element that neither links nor sits inside something that does, and is not `data-inert` (itself or an ancestor).
+ *  `get` reads the element's attribute; `ancestors` reads each ancestor's (nearest first). */
+export function isUnlinkedControl(tag: string, get: (n: string) => string | null, ancestors: ((n: string) => string | null)[] = []): boolean {
+  if (isInert(get) || ancestors.some(isInert)) return false;
+  if (hasLinkAttr(get) || ancestors.some(hasLinkAttr)) return false;
+  return isControlLike(tag, get);
 }

@@ -12,7 +12,7 @@ How to build a clickable prototype in Lite in one pass. Specs: [Prototype](proto
 1. `open_project` if the project is not there, then `create_canvas`.
 2. `set_screens` once with every screen, each with an explicit `id`. Read the warnings.
 3. `set_flow` with `start_screen` (and a default `transition`).
-4. `validate_flow`. Fix errors and warnings (use `patch_screen` for small fixes), repeat until `ok` and no warnings.
+4. `validate_flow`. ALWAYS run it after writing screens and fix every warning before showing anything: wire the control (`data-to` or `data-back`), or add `data-inert` when it intentionally goes nowhere. Use `patch_screen` for small fixes and repeat until `ok` and no warnings.
 5. Optional: `set_tour` for a walkthrough that plays by itself.
 6. `present` to show it live, `goto` to move, `stop_present` to end.
 
@@ -27,7 +27,11 @@ How to build a clickable prototype in Lite in one pass. Specs: [Prototype](proto
 
 ## Flow and validation
 
-`set_flow` fixes the start screen and the default transition. `read_flow` shows the whole graph without html (links with `exists`, back controls, tour, presenter). `validate_flow` finds `dangling_link` (error), `no_start_screen`, `unreachable`, `bad_transition` (warnings) and `dead_end` (info). A prototype is done when `ok` is true and nothing is unreachable.
+`set_flow` fixes the start screen and the default transition. `read_flow` shows the whole graph without html (links with `exists`, back controls, tour, presenter). `validate_flow` finds `dangling_link` (error), `no_start_screen`, `unreachable`, `bad_transition`, `unlinked_control` (warnings) and `dead_end` (info). A prototype is done when `ok` is true, nothing is unreachable and there is no `unlinked_control` warning.
+
+### Unlinked controls
+
+A control that looks clickable but goes nowhere is the most common flaw. Lite flags every `button`, `a`, `input`, `select`, `summary`, element with `role` button, link, tab or menuitem, element with a `tabindex` (not `-1`) or inline `cursor:pointer` that has no `data-to` or `data-back` (itself or an ancestor). `set_screen`, `set_screens` and `patch_screen` return `N unlinked controls: "Pay", ...` in `warnings`; `validate_flow` returns an `unlinked_control` warning per screen and a `coverage` object `{screens, controls, linked, unlinked, ratio}`. Fix each one by wiring it, or put `data-inert` on the control (or a wrapper) when it is meant to be decoration, e.g. a disabled field. In Play, hold Shift to see the unlinked ones as orange dashed outlines marked `No link`.
 
 ## Patching
 

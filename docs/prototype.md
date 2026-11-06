@@ -38,6 +38,7 @@ Rules:
 
 - `data-to` wins over `data-back` on the same element. An unknown `data-transition` value falls back to the canvas default.
 - A link to a screen id that does not exist is dead: it does nothing, and `set_screen` does not reject it (screens are written in any order). `set_screen` and `set_screens` add a warning for each id that is not a screen of the canvas yet, e.g. `data-to "checkout" is not a screen of this canvas`; warnings never reject, like the existing ones. Ids are checked against the canvas at write time only, so a later `remove_screen` can leave a dead link.
+- A control that looks interactive but has no `data-to` or `data-back` is an unlinked control. `set_screen(s)` warn `N unlinked controls: "<text>", ...`, and `validate_flow` returns `unlinked_control` warnings and a `coverage` ratio (see [Prototype tools](prototype-tools.md)). Add `data-inert` to a control that intentionally goes nowhere. Always run `validate_flow` after writing screens and fix every warning before showing.
 - Only the nearest ancestor-or-self element with `data-to` or `data-back` counts for a click. No `href`, no `onclick`, no `<form>`: the sandbox allows none of them (see [Canvas](canvas.md)).
 - The page cannot listen inside a frame. Play (built, see [the watch page](ui.md)) shows screens in `sandbox="allow-same-origin"` frames, reads `[data-to]`, `data-transition` and `data-back` from `frame.contentDocument` and lays a hit area over each element's box in the parent. A link's own valid `data-transition` is used, else the canvas default.
 
