@@ -39,6 +39,10 @@ export function addRow(s: State, row: WatchRow): State {
       },
     };
   }
+  if (row.kind === "project.removed" && row.project && projects[row.project]) {
+    projects = { ...projects };
+    delete projects[row.project];
+  }
   return { rows: next, projects, counts, total: s.total + 1 };
 }
 

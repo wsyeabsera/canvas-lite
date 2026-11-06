@@ -27,3 +27,7 @@ test("whitespace collapses and detail caps at 100 chars", () => {
   assert.equal(clip("y".repeat(100)).length, 100);
   assert.ok(!clip("y".repeat(100)).endsWith("..."));
 });
+
+test("project.removed shows the removed name", () => {
+  assert.equal(formatEvent({ seq: 5, project: "tvdash", kind: "project.removed", payload: { name: "tvdash" }, ts: 0 }).includes("removed tvdash"), true);
+});

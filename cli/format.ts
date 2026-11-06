@@ -19,6 +19,7 @@ export function detail(row: Pick<WatchRow, "kind" | "payload">): string {
   const p = row.payload as Record<string, unknown> | null | undefined;
   if (row.kind === "ping") return clip(typeof p?.note === "string" ? p.note : "");
   if (row.kind === "project.opened" && typeof p?.name === "string") return clip(`opened ${p.name}`);
+  if (row.kind === "project.removed" && typeof p?.name === "string") return clip(`removed ${p.name}`);
   let json: string | undefined;
   try {
     json = JSON.stringify(row.payload);

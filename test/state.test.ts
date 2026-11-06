@@ -77,3 +77,13 @@ test("describeProject drops unsafe repo links and tolerates gaps", () => {
   assert.equal(v.title, "a");
   assert.deepEqual(describeProject(null).files, []);
 });
+
+test("project.removed drops the project from the sidebar, and a later project.opened brings it back", () => {
+  let s = initialState();
+  s = addRow(s, row(1, "tvdash", "project.opened", { name: "tvdash", kind: "hobby", repo: null, files: 2, bytes: 9 }));
+  s = addRow(s, row(2, "tvdash", "project.removed", { name: "tvdash" }));
+  assert.deepEqual(Object.keys(s.projects), []);
+  assert.equal(s.counts.tvdash, 2, "its events stay in the log and the counts");
+  s = addRow(s, row(3, "tvdash", "project.opened", { name: "tvdash", kind: "hobby", repo: null, files: 2, bytes: 9 }));
+  assert.deepEqual(Object.keys(s.projects), ["tvdash"]);
+});
