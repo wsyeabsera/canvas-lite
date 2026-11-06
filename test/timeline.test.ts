@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createCanvas, removeCanvas, removeScreen, setFlow, setScreen, setScreens, type ScreenInput } from "../src/canvases.ts";
 import { routeApi } from "../src/api.ts";
-import { canvasAt, canvasTimeline } from "../src/timeline.ts";
+import { canvasAt, canvasTimeline, KEEP_VERSIONS } from "../src/timeline.ts";
 import { openProject } from "../src/projects.ts";
 import { appendEvent, MIGRATIONS, migrate } from "../src/store.ts";
 import { nodeSql } from "./node-sql.ts";
@@ -38,7 +38,10 @@ test("migration 6 on a populated v5 database keeps data and backfills versions a
     [{ screen: "home", seq: last.seq, html: "<p>x</p>" }, { screen: "noevent", seq: 0, html: "" }],
   );
   assert.deepEqual(ids(canvasAt(sql, "tvdash", "main", last.seq)), ["noevent", "home"]);
-  assert.deepEqual(ids(canvasAt(sql, "tvdash", "main", last.seq - 1)), ["noevent"], "before the backfilled version only the seq-0 screen exists");
+  // Changed with retention: the backfilled screen lost its earlier states, so the floor is its backfilled seq and older seqs clamp to it.
+  assert.equal(canvasTimeline(sql, "tvdash", "main").floor, last.seq);
+  const clamped = canvasAt(sql, "tvdash", "main", last.seq - 1);
+  assert.deepEqual([clamped.seq, clamped.floor, ids(clamped)], [last.seq, last.seq, ["noevent", "home"]]);
 });
 
 test("timeline lists the canvas events oldest first, flow-only events carry no version", () => {
@@ -129,4 +132,64 @@ test("routes: timeline and at/<seq>", () => {
     assert.equal(s("GET", p), 400, p);
   assert.equal(s("POST", "/api/projects/p/canvases/main/timeline"), 405);
   assert.equal(s("DELETE", "/api/projects/p/canvases/main/at/3"), 405);
+});
+
+const versionSeqs = (sql: ReturnType<typeof nodeSql>, screen: string) =>
+  sql.all<{ seq: number }>("SELECT seq FROM screen_versions WHERE canvas = 'main' AND screen = ? ORDER BY seq", screen).map((r) => r.seq);
+
+test("retention keeps the newest 20 versions per screen and leaves other screens alone", () => {
+  const sql = withCanvas();
+  const seqs: number[] = [];
+  setScreen(sql, "tvdash", scr({ name: "Other" }), 15);
+  for (let i = 0; i < 25; i++) seqs.push(setScreen(sql, "tvdash", scr({ html: `<p>${i}</p>` }), 20 + i).event.seq);
+  assert.equal(KEEP_VERSIONS, 20);
+  assert.deepEqual(versionSeqs(sql, "home"), seqs.slice(5));
+  assert.equal(versionSeqs(sql, "other").length, 1);
+  assert.equal(canvasAt(sql, "tvdash", "main", 1e9).screens.find((s) => s.id === "home")!.html, "<p>24</p>");
+});
+
+test("floor: 0 until a screen is pruned, then the oldest kept seq; later screens do not raise it", () => {
+  const sql = withCanvas();
+  const seqs: number[] = [];
+  for (let i = 0; i < 20; i++) seqs.push(setScreen(sql, "tvdash", scr({ html: `<p>${i}</p>` }), 20 + i).event.seq);
+  assert.equal(canvasTimeline(sql, "tvdash", "main").floor, 0, "exactly 20 versions: nothing lost");
+  seqs.push(setScreen(sql, "tvdash", scr({ html: "<p>20</p>" }), 50).event.seq);
+  assert.equal(canvasTimeline(sql, "tvdash", "main").floor, seqs[1]);
+  setScreen(sql, "tvdash", scr({ name: "Late" }), 60);
+  assert.equal(canvasTimeline(sql, "tvdash", "main").floor, seqs[1], "a screen created after the floor adds no constraint");
+  assert.equal(canvasTimeline(sql, "tvdash", "main").events.length, 23, "the timeline still lists every event");
+});
+
+test("floor is the max over screens", () => {
+  const sql = withCanvas();
+  for (let i = 0; i < 21; i++) setScreen(sql, "tvdash", scr({ html: `<p>${i}</p>` }), 20 + i);
+  const b: number[] = [];
+  for (let i = 0; i < 22; i++) b.push(setScreen(sql, "tvdash", scr({ name: "Two", html: `<p>${i}</p>` }), 60 + i).event.seq);
+  assert.equal(canvasTimeline(sql, "tvdash", "main").floor, b[2]);
+});
+
+test("at/<seq> below the floor clamps to the floor state and reports it", () => {
+  const sql = withCanvas();
+  const seqs: number[] = [];
+  for (let i = 0; i < 23; i++) seqs.push(setScreen(sql, "tvdash", scr({ html: `<p>${i}</p>` }), 20 + i).event.seq);
+  const floor = seqs[3];
+  for (const asked of [0, 1, seqs[0], floor - 1]) {
+    const a = canvasAt(sql, "tvdash", "main", asked);
+    assert.deepEqual([a.seq, a.floor, a.screens.map((s) => s.html)], [floor, floor, ["<p>3</p>"]], `asked ${asked}`);
+    assert.equal(a.ts, 23, "ts of the event at the clamped seq");
+  }
+  const at = canvasAt(sql, "tvdash", "main", seqs[5]);
+  assert.deepEqual([at.seq, at.screens[0].html], [seqs[5], "<p>5</p>"]);
+});
+
+test("remove then recreate across pruning: removed stays removed, recreation is new", () => {
+  const sql = withCanvas();
+  for (let i = 0; i < 25; i++) setScreen(sql, "tvdash", scr({ name: "Gone", html: `<p>${i}</p>` }), 20 + i);
+  const rm = removeScreen(sql, "tvdash", "main", "gone", 60).event!;
+  assert.equal(versionSeqs(sql, "gone").length, 20);
+  assert.equal(versionSeqs(sql, "gone").at(-1), rm.seq, "removal marker is the newest kept row");
+  assert.deepEqual(ids(canvasAt(sql, "tvdash", "main", 1e9)), []);
+  const re = setScreen(sql, "tvdash", scr({ name: "Gone", html: "<p>new</p>" }), 70).event.seq;
+  assert.deepEqual(ids(canvasAt(sql, "tvdash", "main", rm.seq)), []);
+  assert.equal(canvasAt(sql, "tvdash", "main", re).screens[0].html, "<p>new</p>");
 });

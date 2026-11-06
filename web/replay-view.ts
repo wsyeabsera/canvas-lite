@@ -3,7 +3,7 @@
 import { diffScreens, iframeSpec, type Shown } from "./canvas.ts";
 import { boundsOf, fitRect, type View } from "./viewport.ts";
 import {
-  asScreens, describeAt, describeTimeline, eventLabel, indexFromFraction, justAdded, playStart, replayKey, SPEEDS, stepDelay, stepIndex, tickNames, tickPositions,
+  asScreens, describeAt, describeFloor, describeTimeline, replayEvents, eventLabel, indexFromFraction, justAdded, playStart, replayKey, SPEEDS, stepDelay, stepIndex, tickNames, tickPositions,
   type AtState, type Speed, type TimelineEvent,
 } from "./replay.ts";
 
@@ -348,7 +348,8 @@ export function createReplayView(headers: () => Record<string, string>) {
     try {
       const res = await fetch(`${base}/timeline`, { headers: headers() });
       if (!res.ok) throw new Error(String(res.status));
-      const list = describeTimeline(await res.json());
+      const body = await res.json();
+      const list = replayEvents(describeTimeline(body), describeFloor(body)); // history before the floor was pruned
       if (r !== run) return;
       events = list;
       if (list.length === 0) {

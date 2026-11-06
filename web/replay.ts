@@ -30,6 +30,12 @@ export function describeTimeline(api: unknown): TimelineEvent[] {
     .sort((a, b) => a.seq - b.seq);
 }
 
+/** `floor` of `GET .../timeline`: the first seq with a reconstructable state (0 when absent or invalid). */
+export const describeFloor = (api: unknown): number => Math.max(0, num(rec(api).floor));
+
+/** The events the scrubber shows: those at or after the floor (older states were pruned). */
+export const replayEvents = (events: readonly TimelineEvent[], floor: number): TimelineEvent[] => events.filter((e) => e.seq >= floor);
+
 /** Shapes `GET .../at/<seq>`; each screen carries its box (from `layout`, else 0,0). */
 export function describeAt(api: unknown): AtState {
   const r = rec(api);
