@@ -3,7 +3,8 @@
 import { DurableObject } from "cloudflare:workers";
 import { tokenOk } from "./auth.ts";
 import { parseHello, replay } from "./events.ts";
-import { appendEvent, migrate, type LiteEvent, type Sql } from "./store.ts";
+import { listProjects, openProject, readProject, type OpenInput, type ProjectSummary } from "./projects.ts";
+import { appendEvent,migrate, type LiteEvent, type Sql } from "./store.ts";
 
 type Attachment = { authed: boolean };
 
@@ -24,12 +25,30 @@ export class Hub extends DurableObject<Env> {
 
   /** The single write path: append, then push to every authenticated watcher. */
   private record(e: { project?: string | null; kind: string; payload?: unknown }): LiteEvent {
-    const event = appendEvent(this.sql, e);
+    return this.broadcast(appendEvent(this.sql, e));
+  }
+
+  /** Push an already committed event to every authenticated watcher. */
+  private broadcast(event: LiteEvent): LiteEvent {
     const line = JSON.stringify(event);
     for (const ws of this.ctx.getWebSockets()) {
       if ((ws.deserializeAttachment() as Attachment | null)?.authed) ws.send(line);
     }
     return event;
+  }
+
+  openProject(input: OpenInput): { project: ProjectSummary; seq: number } {
+    const { event, ...result } = openProject(this.sql, input);
+    this.broadcast(event);
+    return result;
+  }
+
+  listProjects() {
+    return listProjects(this.sql);
+  }
+
+  readProject(id: string) {
+    return readProject(this.sql, id);
   }
 
   ping(note?: string): LiteEvent {

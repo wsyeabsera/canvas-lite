@@ -22,7 +22,7 @@ a socket, one SQLite Durable Object).
 
 Every change is one appended row; nothing is updated in place, so "progress" is just reading the log.
 
-`projects(id, name, path, kind, opened_at)` and `events(seq INTEGER PRIMARY KEY AUTOINCREMENT, project, kind, payload JSON, ts)`.
+`projects(id, name, kind, repo, manifest, opened_at)` and `events(seq INTEGER PRIMARY KEY AUTOINCREMENT, project, kind, payload JSON, ts)`.
 
 A tool call writes its event(s) in the same transaction as its effect, then the Hub broadcasts the committed rows.
 The WebSocket envelope is the row: `{seq, project, kind, payload, ts}`. A client connects with `?after=<seq>` and

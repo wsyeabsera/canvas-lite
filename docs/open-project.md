@@ -14,7 +14,7 @@ The Worker cannot read your disk, so a project is told, not read: Claude reads t
 |---|---|
 | `id` | slug: lowercase letters, digits, `-`, at most 40 (same check as `src/store.ts`); optional on input, default is the slugified `name` |
 | `name` | non-empty text, at most 100 characters |
-| `kind` | short label such as `web`, `cli`, `library`; default `project` |
+| `kind` | short label such as `web`, `cli`, `library`, 1 to 40 characters; default `project` |
 | `repo` | optional URL of the remote repository |
 | `manifest` | `{ "tree": string[], "files": { "<path>": "<text>" } }`: `tree` is relative paths (a trailing `/` marks a directory), `files` holds a few key files (README, package.json), each cut by the client to what matters |
 
@@ -22,7 +22,7 @@ The Worker cannot read your disk, so a project is told, not read: Claude reads t
 
 - `open_project { id?, name, kind?, repo?, manifest }` returns `{ project, seq }`: `project` is `{ id, name, kind, repo, opened_at, files }` (`files` = `tree` length), `seq` is the event it appended.
 - `list_projects {}` returns `{ projects: [{ id, name, kind, repo, opened_at, files }] }`, newest `opened_at` first. No manifests.
-- `read_project { id }` returns `{ project, manifest }`, or the error `unknown project "<id>"`.
+- `read_project { id }` returns `{ project, manifest, events }` (`events` = the project's latest 20, oldest first), or the error `unknown project "<id>"`.
 
 ## Event
 
@@ -40,6 +40,9 @@ The manifest, as JSON text, is at most 65536 bytes. Nothing is stored when a che
 
 - `invalid project id "Bad_Id": use lowercase letters, digits and -, at most 40`
 - `manifest too large: 90211 bytes, limit 65536`
+- `invalid name: use 1 to 100 characters`, `invalid kind: use 1 to 40 characters`, `invalid repo: use text of at most 2000 characters`, `invalid manifest: expected { tree: string[], files: { path: text } }`
+
+The limit counts UTF-8 bytes of the JSON `{ tree, files }`. MCP tool errors carry the message text.
 
 ## Idempotent
 

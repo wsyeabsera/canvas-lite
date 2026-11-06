@@ -16,6 +16,54 @@ function createServer(): McpServer {
     },
     async ({ note }) => ({ content: [{ type: "text" as const, text: JSON.stringify(await hub(env).ping(note)) }] }),
   );
+  const text = (v: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(v) }] });
+  // Hub errors cross the RPC boundary as exceptions; surface them as tool errors Claude can read and fix.
+  const guard = async (fn: () => Promise<unknown>) => {
+    try {
+      return text(await fn());
+    } catch (e) {
+      return { isError: true, content: [{ type: "text" as const, text: e instanceof Error ? e.message : String(e) }] };
+    }
+  };
+  server.registerTool(
+    "open_project",
+    {
+      title: "Open a project",
+      description:
+        "Register or refresh a project in Lite from a summary you read locally (file tree plus a few key files). Use it when you start work on a checkout; calling it again with the same id replaces the stored summary.",
+      inputSchema: z.object({
+        id: z.string().optional().describe("Slug: lowercase letters, digits, -, at most 40. Defaults to the slugified name."),
+        name: z.string().min(1).max(100).describe("Project name."),
+        kind: z.string().min(1).max(40).optional().describe("Short label such as web, cli, library. Default: project."),
+        repo: z.string().max(2000).optional().describe("URL of the remote repository."),
+        manifest: z
+          .object({
+            tree: z.array(z.string()).describe("Relative paths; a trailing / marks a directory."),
+            files: z.record(z.string(), z.string()).describe("A few key files (README, package.json) as path to text, each cut to what matters."),
+          })
+          .describe("The project summary. At most 65536 bytes as JSON."),
+      }),
+    },
+    (input) => guard(() => hub(env).openProject(input)),
+  );
+  server.registerTool(
+    "list_projects",
+    {
+      title: "List projects",
+      description: "List the projects Lite knows, newest opened first, without manifests. Use it to find a project id.",
+      inputSchema: z.object({}),
+    },
+    () => guard(() => hub(env).listProjects()),
+  );
+  server.registerTool(
+    "read_project",
+    {
+      title: "Read a project",
+      description: "Return a project's summary, its stored manifest and its latest events. Use it to see what Lite was told about a project.",
+      inputSchema: z.object({ id: z.string().describe("Project id from list_projects.") }),
+    },
+    ({ id }) => guard(() => hub(env).readProject(id)),
+  );
   return server;
 }
 
