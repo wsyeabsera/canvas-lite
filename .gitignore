@@ -7,3 +7,4 @@ site/.docusaurus/
 .claude/
 public/page.js
 public/docs/
+.lite-cache/

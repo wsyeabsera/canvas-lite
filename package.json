@@ -10,9 +10,13 @@
     "build:web": "esbuild web/page.ts --bundle --format=esm --target=es2022 --outfile=public/page.js",
     "build:docs": "npm --prefix site run build",
     "deploy": "npm run build:web && npm run build:docs && wrangler deploy",
-    "test": "node --test \"test/*.test.ts\"",
+    "test": "node scripts/run-unit.ts",
     "typecheck": "tsc --noEmit && tsc -p web --noEmit",
     "watch": "node cli/watch.ts",
+    "check": "node scripts/check.ts",
+    "test:changed": "node scripts/changed.ts",
+    "test:inventory": "node scripts/inventory.ts",
+    "ship:local": "node scripts/ship-local.mjs",
     "types": "wrangler types src/worker-configuration.d.ts"
   },
   "dependencies": {
