@@ -30,7 +30,7 @@ export default {
         if (route.kind === "canvases") return json(200, await h.listCanvases(route.id));
         if (route.kind === "timeline") return json(200, await h.canvasTimeline(route.id, route.canvas));
         if (route.kind === "at") return json(200, await h.canvasAt(route.id, route.canvas, route.seq));
-        return json(200, await h.readCanvas(route.id, route.canvas, true));
+        return json(200, await h.readCanvasForPage(route.id, route.canvas));
       } catch (e) {
         return hubErrorResponse(e);
       }

@@ -44,6 +44,8 @@ Every response is `Content-Type: application/json` with `Cache-Control: no-store
   "screens": [{ "id": "home", "name": "Home", "width": 400, "height": 300, "x": null, "y": null, "updated_at": 1767225600000, "bytes": 9, "html": "<p>hi</p>" }] }
 ```
 
+The answer also carries `"tour"` (`{steps:[{screen,dwell_ms,note?}], duration_ms, missing}` or null) and `"presenter"` (the project's session `{active, canvas, screen, transition}` or null); see [Prototype tools](prototype-tools.md).
+
 `<canvas>` follows the same id rule.
 
 `GET /api/projects/<id>/canvases/<canvas>/timeline` returns 200: the canvas's events, oldest first (`canvas.created`, `screen.set`, `screen.removed`, `flow.set`; `screen` and `name` are null except for the two screen kinds):

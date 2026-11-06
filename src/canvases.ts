@@ -51,15 +51,23 @@ export function screenWarnings(html: string, bytes = byteLength(html)): string[]
   return w;
 }
 
+const TAG_RE = /<[a-zA-Z][^\s>\/]*((?:"[^"]*"|'[^']*'|[^>"'])*)>/g;
+const ATTR_RE = /([^\s"'<>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+
+/** True when any element carries the `data-back` attribute (a back control). Same tolerant reading as extractLinks. */
+export function hasBackLink(html: string): boolean {
+  for (const tag of html.replace(/<!--[\s\S]*?(?:-->|$)/g, "").matchAll(TAG_RE))
+    for (const a of tag[1].matchAll(ATTR_RE)) if (a[1].toLowerCase() === "data-back") return true;
+  return false;
+}
+
 /** Links in screen html: every element with `data-to`, with its `data-transition` (null when absent). Tolerant, no DOM: malformed html yields what can be read. */
 export function extractLinks(html: string): { to: string; transition: string | null }[] {
   const out: { to: string; transition: string | null }[] = [];
-  const tagRe = /<[a-zA-Z][^\s>\/]*((?:"[^"]*"|'[^']*'|[^>"'])*)>/g;
-  const attrRe = /([^\s"'<>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
-  for (const tag of html.replace(/<!--[\s\S]*?(?:-->|$)/g, "").matchAll(tagRe)) {
+  for (const tag of html.replace(/<!--[\s\S]*?(?:-->|$)/g, "").matchAll(TAG_RE)) {
     let to: string | null = null;
     let transition: string | null = null;
-    for (const a of tag[1].matchAll(attrRe)) {
+    for (const a of tag[1].matchAll(ATTR_RE)) {
       const name = a[1].toLowerCase();
       const value = (a[2] ?? a[3] ?? a[4] ?? "").trim();
       if (name === "data-to" && to === null) to = value;
@@ -89,12 +97,12 @@ export type ScreenInput = { canvas: string; name: string; width: number; height:
 export type ScreenFields = Omit<ScreenInput, "canvas">;
 export type ScreenResult = ScreenSummary & { bytes: number; created: boolean; warnings: string[] };
 
-type CanvasRow = { id: string; name: string; created_at: number; updated_at: number; archived_at: number | null; screens: number; start_screen: string | null; transition: Transition };
+export type CanvasRow = { id: string; name: string; created_at: number; updated_at: number; archived_at: number | null; screens: number; start_screen: string | null; transition: Transition };
 const CANVAS_SELECT =
   "SELECT c.id, c.name, c.created_at, c.updated_at, c.archived_at, c.start_screen, c.transition, (SELECT count(*) FROM screens s WHERE s.project = c.project AND s.canvas = c.id) AS screens FROM canvases c";
 const canvasSummary = (r: CanvasRow): CanvasSummary => ({ id: r.id, name: r.name, screens: r.screens, created_at: r.created_at, updated_at: r.updated_at });
 
-function requireProject(sql: Sql, project: string): void {
+export function requireProject(sql: Sql, project: string): void {
   const [p] = sql.all<{ archived_at: number | null }>("SELECT archived_at FROM projects WHERE id = ?", project);
   if (!p || p.archived_at !== null) throw new Error(`unknown project "${project}"`);
 }
@@ -104,14 +112,14 @@ function checkName(name: unknown): string {
   return name;
 }
 
-function checkId(kind: "canvas" | "screen", id: unknown): string {
+export function checkId(kind: "canvas" | "screen", id: unknown): string {
   if (typeof id !== "string" || id.length > 40 || !ID_RE.test(id))
     throw new Error(`invalid ${kind} id "${String(id)}": use lowercase letters, digits and -, at most 40`);
   return id;
 }
 
 /** The live (not removed) canvas row, else `unknown canvas`. */
-function requireCanvas(sql: Sql, project: string, canvas: string): CanvasRow {
+export function requireCanvas(sql: Sql, project: string, canvas: string): CanvasRow {
   checkId("canvas", canvas);
   const [c] = sql.all<CanvasRow>(`${CANVAS_SELECT} WHERE c.project = ? AND c.id = ?`, project, canvas);
   if (!c || c.archived_at !== null) throw new Error(`unknown canvas "${canvas}"`);
@@ -166,10 +174,10 @@ export function readCanvas(
 
 const intIn = (v: unknown, lo: number, hi: number): v is number => typeof v === "number" && Number.isSafeInteger(v) && v >= lo && v <= hi;
 
-type Prepared = { id: string; name: string; width: number; height: number; html: string; x: number | null; y: number | null; bytes: number };
+export type Prepared = { id: string; name: string; width: number; height: number; html: string; x: number | null; y: number | null; bytes: number };
 
 /** Validates one screen's fields (everything but the canvas and project) and returns what is written. */
-function prepareScreen(input: ScreenFields): Prepared {
+export function prepareScreen(input: ScreenFields): Prepared {
   const name = checkName(input?.name);
   const id = checkId("screen", input.id ?? slugify(name));
   if (!intIn(input.width, MIN_SIZE, MAX_SIZE)) throw new Error(`invalid width: use an integer from ${MIN_SIZE} to ${MAX_SIZE}`);
@@ -183,7 +191,7 @@ function prepareScreen(input: ScreenFields): Prepared {
 }
 
 /** Writes one prepared screen inside a transaction (canvas already checked): row, canvas touch, `screen.set`. */
-function writeScreen(sql: Sql, project: string, canvas: string, p: Prepared, now: number): { result: ScreenResult; event: LiteEvent } {
+export function writeScreen(sql: Sql, project: string, canvas: string, p: Prepared, now: number): { result: ScreenResult; event: LiteEvent } {
   const exists = sql.all("SELECT 1 FROM screens WHERE project = ? AND canvas = ? AND id = ?", project, canvas, p.id).length > 0;
   if (!exists && sql.all<{ n: number }>("SELECT count(*) AS n FROM screens WHERE project = ? AND canvas = ?", project, canvas)[0].n >= SCREENS_PER_CANVAS)
     throw new Error(`too many screens: limit ${SCREENS_PER_CANVAS}`);
