@@ -24,6 +24,17 @@ The Worker cannot read your disk, so a project is told, not read: Claude reads t
 - `list_projects {}` returns `{ projects: [{ id, name, kind, repo, opened_at, files }] }`, newest `opened_at` first. No manifests.
 - `read_project { id }` returns `{ project, manifest, events }` (`events` = the project's latest 20, oldest first), or the error `unknown project "<id>"`.
 
+## Building the manifest
+
+One call is enough if the manifest is built like this (the `open_project` tool description says the same):
+
+- `tree`: repo-relative paths, never absolute. Directories are entries ending in `/`. Collapse big directories (`node_modules/`, `dist/`, vendored or generated folders) to the single entry `dir/`.
+- `files`: a few short excerpts, README first (about 1500 characters), then `package.json` or similar. Cut each on a line boundary, never mid-line.
+- The whole manifest is at most 65536 bytes as JSON. If it is bigger the call fails with `manifest too large: <bytes> bytes, limit 65536` and stores nothing: trim the tree or the excerpts and call again.
+- The returned `project.files` counts tree entries, not excerpts.
+
+The tool description interpolates the limit from `MANIFEST_LIMIT` in `src/projects.ts`, so it cannot drift from the check.
+
 ## Event
 
 `open_project` appends `project.opened` with `project` set to the id:

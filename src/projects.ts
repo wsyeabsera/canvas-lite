@@ -2,6 +2,21 @@
 import { appendEvent, type LiteEvent, type Sql } from "./store.ts";
 
 export const MANIFEST_LIMIT = 65536;
+
+/** The open_project tool texts, built from MANIFEST_LIMIT so the guidance never drifts from the check. Pure, so unit tests read it. */
+export const OPEN_PROJECT_TEXT = {
+  description:
+    `Register or refresh a project in Lite in one call, from a summary you build by reading the local checkout. Lite cannot read your disk, so you tell it. ` +
+    `Build manifest.tree as repo-relative paths (never absolute), with directories as entries ending in "/" (for example "src/"); collapse big directories ` +
+    `(node_modules, dist, vendored or generated folders) into the single entry "dir/" instead of listing what is inside. ` +
+    `Build manifest.files as a few short excerpts (README first, about 1500 characters, then package.json or similar), each cut on a line boundary, never mid-line. ` +
+    `The whole manifest, as JSON, must be at most ${MANIFEST_LIMIT} bytes; otherwise the call fails with the error "manifest too large: <bytes> bytes, limit ${MANIFEST_LIMIT}" and stores nothing, so trim the tree or the excerpts and call again. ` +
+    `The returned project.files counts TREE ENTRIES (paths and directories), not the excerpts. ` +
+    `Calling again with the same id replaces the stored summary.`,
+  tree: `Repo-relative paths, never absolute; a trailing / marks a directory; collapse big directories to one "dir/" entry. Counts toward the ${MANIFEST_LIMIT}-byte manifest limit.`,
+  files: `A few short excerpts as path to text (README first, about 1500 characters, then package.json), each cut on a line boundary. Counts toward the ${MANIFEST_LIMIT}-byte manifest limit.`,
+  manifest: `The project summary. At most ${MANIFEST_LIMIT} bytes as JSON, or the call fails with "manifest too large: <bytes> bytes, limit ${MANIFEST_LIMIT}".`,
+};
 const ID_RE = /^[a-z0-9][a-z0-9-]*$/;
 const byteLength = (s: string) => new TextEncoder().encode(s).length;
 

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { listProjects, openProject, readProject, type OpenInput } from "../src/projects.ts";
+import { listProjects, MANIFEST_LIMIT, OPEN_PROJECT_TEXT, openProject, readProject, type OpenInput } from "../src/projects.ts";
 import { eventsAfter, migrate, type Sql } from "../src/store.ts";
 import { nodeSql } from "./node-sql.ts";
 
@@ -124,4 +124,15 @@ test("read_project returns summary, manifest and its latest events; unknown id e
   assert.ok(r.events[0].seq < r.events[19].seq);
   assert.equal(r.events[19].ts, 124);
   assert.throws(() => readProject(sql, "nope"), { message: 'unknown project "nope"' });
+});
+
+test("open_project guidance interpolates the limit and covers the manifest recipe", () => {
+  const { description, tree, files, manifest: m } = OPEN_PROJECT_TEXT;
+  for (const t of [description, tree, files, m]) assert.ok(t.includes(String(MANIFEST_LIMIT)), t);
+  assert.ok(description.includes(`manifest too large: <bytes> bytes, limit ${MANIFEST_LIMIT}`));
+  assert.match(description, /repo-relative/);
+  assert.match(description, /TREE ENTRIES/);
+  assert.match(description, /1500/);
+  assert.match(description, /line boundary/);
+  assert.match(description, /collapse/i);
 });
