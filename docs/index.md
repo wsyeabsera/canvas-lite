@@ -24,6 +24,7 @@ Then ask Claude to call the `ping` tool: it appends an event in the Hub and retu
 
 - [Architecture](ARCHITECTURE.md): the shape, the stack and what we reuse.
 - [Database](database.md): tables, the event model and migrations.
+- [Prototype](prototype.md): links between screens, transitions, start screen (spec).
 
 ## Rules of the project
 
