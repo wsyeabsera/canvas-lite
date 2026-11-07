@@ -11,6 +11,9 @@ import {
 } from "./scenarios.ts";
 import { SCENE_TEXT, type SceneEdit } from "./scene-store.ts";
 import { OPEN_PROJECT_TEXT } from "./projects.ts";
+import { VARIANT_TEXT } from "./variants.ts";
+import { TOURNAMENT_TEXT, GOALS_MAX, RUNS_MAX } from "./tournament.ts";
+import { WALK_TEXT, GOAL_MAX, TARGET_MAX, NOTE_MAX } from "./walks.ts";
 import { DESIGN_TEXT, EDITS_MAX as DESIGN_EDITS_MAX } from "./design-system.ts";
 
 function createServer(): McpServer {
@@ -354,6 +357,71 @@ function createServer(): McpServer {
     "review_scene",
     { title: "Review a scene", description: SCENE_TEXT.review_scene, inputSchema: z.object({ project, scene }) },
     ({ project, scene }) => guard(async () => hub(env).reviewScene(project, scene)),
+  );
+  server.registerTool(
+    "fork_canvas",
+    {
+      title: "Fork a canvas into a variant",
+      description: VARIANT_TEXT.fork_canvas,
+      inputSchema: z.object({ project, canvas, name: z.string().min(1).max(100).describe("Variant name, e.g. \"One-page checkout\"."), id: z.string().optional().describe("Canvas id; default: slug of canvas and name."), seq: z.number().int().min(0).optional().describe("Fork the canvas as it was at this change; default: now.") }),
+    },
+    ({ project, ...input }) => guard(async () => hub(env).forkCanvas(project, input)),
+  );
+  server.registerTool(
+    "list_variants",
+    { title: "List variants", description: VARIANT_TEXT.list_variants, inputSchema: z.object({ project, canvas }) },
+    ({ project, canvas }) => guard(async () => hub(env).listVariants(project, canvas)),
+  );
+  server.registerTool(
+    "merge_variant",
+    { title: "Keep a variant", description: VARIANT_TEXT.merge_variant, inputSchema: z.object({ project, variant: z.string().describe("Id of the variant canvas to keep.") }) },
+    ({ project, variant }) => guard(async () => hub(env).mergeVariant(project, variant)),
+  );
+  server.registerTool(
+    "tournament_start",
+    {
+      title: "Start a tournament",
+      description: TOURNAMENT_TEXT.tournament_start,
+      inputSchema: z.object({
+        project, canvas,
+        goals: z.array(z.object({ goal: z.string().min(1).max(GOAL_MAX), target: z.string().min(1).max(TARGET_MAX) })).min(1).max(GOALS_MAX),
+        runs: z.number().int().min(1).max(RUNS_MAX).optional(),
+        canvases: z.array(z.string()).optional().describe("Only these canvases; default: the base and every variant."),
+      }),
+    },
+    ({ project, ...input }) => guard(async () => hub(env).startTournament(project, input)),
+  );
+  server.registerTool(
+    "tournament_results",
+    { title: "Read tournament results", description: TOURNAMENT_TEXT.tournament_results, inputSchema: z.object({ project, tournament: z.string() }) },
+    ({ project, tournament }) => guard(async () => hub(env).tournamentResults(project, tournament)),
+  );
+  server.registerTool(
+    "walk_start",
+    {
+      title: "Start a blind walk",
+      description: WALK_TEXT.walk_start,
+      inputSchema: z.object({
+        project, canvas,
+        goal: z.string().max(GOAL_MAX).optional(), target: z.string().max(TARGET_MAX).optional(),
+        tournament: z.string().optional(), goal_index: z.number().int().min(0).optional(),
+      }),
+    },
+    ({ project, ...input }) => guard(async () => hub(env).startWalk(project, input)),
+  );
+  server.registerTool(
+    "walk_step",
+    {
+      title: "Take a step of a blind walk",
+      description: WALK_TEXT.walk_step,
+      inputSchema: z.object({ project, walk: z.string(), choice: z.number().int().min(1).optional(), give_up: z.boolean().optional(), note: z.string().max(NOTE_MAX).optional() }),
+    },
+    ({ project, walk, ...input }) => guard(async () => hub(env).stepWalk(project, walk, input)),
+  );
+  server.registerTool(
+    "read_walk",
+    { title: "Read a walk", description: WALK_TEXT.read_walk, inputSchema: z.object({ project, walk: z.string() }) },
+    ({ project, walk }) => guard(async () => hub(env).readWalk(project, walk)),
   );
   server.registerTool(
     "get_design_system",

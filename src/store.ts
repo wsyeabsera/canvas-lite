@@ -133,6 +133,35 @@ export const MIGRATIONS = [
      count    INTEGER NOT NULL,
      first_at INTEGER NOT NULL
    );`,
+  // 11: variants and blind walks (docs/variants.md). `forked_from` is JSON {canvas, seq} on a canvas forked from another; tournaments and
+  // walks are new tables. src/variants.ts, src/tournament.ts and src/walks.ts are the only writers.
+  `ALTER TABLE canvases ADD COLUMN forked_from TEXT;
+   CREATE TABLE tournaments (
+     project    TEXT NOT NULL REFERENCES projects(id),
+     id         TEXT NOT NULL,
+     canvas     TEXT NOT NULL,
+     goals      TEXT NOT NULL,
+     runs       INTEGER NOT NULL,
+     canvases   TEXT NOT NULL,
+     created_at INTEGER NOT NULL,
+     PRIMARY KEY (project, id)
+   );
+   CREATE TABLE walks (
+     project     TEXT NOT NULL REFERENCES projects(id),
+     id          TEXT NOT NULL,
+     tournament  TEXT,
+     canvas      TEXT NOT NULL,
+     goal_index  INTEGER,
+     goal        TEXT NOT NULL,
+     target      TEXT NOT NULL,
+     status      TEXT NOT NULL,
+     path        TEXT NOT NULL,
+     steps       TEXT NOT NULL,
+     note        TEXT NOT NULL DEFAULT '',
+     started_at  INTEGER NOT NULL,
+     ended_at    INTEGER,
+     PRIMARY KEY (project, id)
+   );`,
 ];
 
 /** Runs pending migrations, each in its own transaction. Refuses a database written by a newer build. */

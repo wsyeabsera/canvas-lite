@@ -14,6 +14,9 @@ export type Entry = {
   dangling: number; // links to screens that do not exist
   unlinked: number; // controls that go nowhere
   /** Set on 3D scene cards (from `GET /api/projects/<id>/scenes`); absent on designs (canvases). */
+  /** The canvas this one was forked from (a variant); the gallery stacks variants under their base. */
+  forked_from?: string | null;
+  variants?: number; // on a base: how many variants it has
   kind?: "scene";
   films?: number; // scenes: number of films
   drawables?: number; // scenes: objects after repeaters expand
@@ -83,9 +86,18 @@ export function describeEntries(pid: string, project: string, api: unknown): Ent
     out.push({
       pid, project, id: c.id, name: typeof c.name === "string" && c.name ? c.name : c.id, screens: num(c.screens), updated_at: num(c.updated_at),
       start_screen: typeof c.start_screen === "string" ? c.start_screen : null, dangling: num(c.dangling), unlinked: num(c.unlinked),
+      forked_from: typeof c.forked_from === "string" ? c.forked_from : null,
     });
   }
   return out;
+}
+
+/** The gallery list: a variant is hidden when its base is in the list, and the base carries the count. A variant whose base is gone stays visible. */
+export function stackVariants(entries: readonly Entry[]): Entry[] {
+  const ids = new Set(entries.filter((e) => !isScene(e)).map((e) => `${e.pid}/${e.id}`));
+  const count = new Map<string, number>();
+  for (const e of entries) if (e.forked_from && ids.has(`${e.pid}/${e.forked_from}`)) count.set(`${e.pid}/${e.forked_from}`, (count.get(`${e.pid}/${e.forked_from}`) ?? 0) + 1);
+  return entries.filter((e) => !(e.forked_from && ids.has(`${e.pid}/${e.forked_from}`))).map((e) => (count.has(`${e.pid}/${e.id}`) ? { ...e, variants: count.get(`${e.pid}/${e.id}`) } : e));
 }
 
 export const missingLinks = (e: Pick<Entry, "dangling" | "unlinked">) => e.dangling + e.unlinked;

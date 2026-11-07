@@ -15,6 +15,7 @@ Claude tends to produce half-finished prototypes: pictures with decorative nav, 
 | `skills/prototyping/SKILL.md` | the process skill (below) |
 | `commands/prototype.md` | `/prototype <what to design>` runs the process |
 | `skills/scenes/SKILL.md` | the 3D process skill `lite-scenes` (below) |
+| `skills/tournament/SKILL.md` and `commands/tournament.md` | the variants process `lite-tournament` and the `/tournament` command ([Variants](variants.md)) |
 | `commands/scene.md` | `/scene <what to build>` runs the 3D process |
 | `.mcp.json` | template for the Lite MCP server: type `http`, url `https://<your-worker>/mcp`, header `Authorization: Bearer ${LITE_TOKEN}`. No token is stored |
 | `README.md` | install steps |
@@ -50,4 +51,4 @@ Anti-patterns in the skill: grey boxes, no lighting, a single shot, a camera ins
 
 ## One source, no drift
 
-The skills live in two places each because Claude Code reads the plugin one and agents working in this repo read `.agents/skills/`. The plugin files `plugin/lite-prototyping/skills/prototyping/SKILL.md` and `plugin/lite-prototyping/skills/scenes/SKILL.md` are the only sources. `.agents/skills/lite-prototyping/SKILL.md` and `.agents/skills/lite-scenes/SKILL.md` are generated copies: edit the plugin files, then run `node scripts/sync-skill.mjs` (`--check` compares only). `test/skill-sync.test.ts` fails when either copy differs, so `npm run check` catches drift.
+The skills (three now, `lite-tournament` included) live in two places each because Claude Code reads the plugin one and agents working in this repo read `.agents/skills/`. The plugin files `plugin/lite-prototyping/skills/prototyping/SKILL.md` and `plugin/lite-prototyping/skills/scenes/SKILL.md` are the only sources. `.agents/skills/lite-prototyping/SKILL.md` and `.agents/skills/lite-scenes/SKILL.md` are generated copies: edit the plugin files, then run `node scripts/sync-skill.mjs` (`--check` compares only). `test/skill-sync.test.ts` fails when either copy differs, so `npm run check` catches drift.

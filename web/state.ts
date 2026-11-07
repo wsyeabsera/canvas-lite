@@ -22,6 +22,9 @@ export type Route =
   | { view: "play"; id: string; canvas: string; screen: string | null } // present mode; `screen` = where to start (null: the start screen)
   | { view: "scene"; id: string; scene: string } // a 3D scene in Orbit mode: `#/project/<id>/scene/<sid>` (web/scene-view.ts)
   | { view: "scene-page"; id: string; scene: string } // the scene's scrolling page: `#/project/<id>/scene/<sid>/page` (web/scene-page-view.ts)
+  | { view: "variants"; id: string; canvas: string } // compare a design with its variants: `#/project/<id>/canvas/<cid>/variants` (web/variants-view.ts)
+  | { view: "tournament"; id: string; canvas: string } // the results of the newest tournament on the base: `.../tournament` (web/tournament-view.ts)
+  | { view: "trace"; id: string; canvas: string; walk: string } // one blind walk drawn over the flow: `.../trace/<walkId>`
   | { view: "admin" } // the admin page: `#/admin` (web/admin-view.ts)
   | { view: "design"; id: string } // the project's design system: `#/project/<id>/design` (web/design-view.ts)
   | { view: "scene-watch"; id: string; scene: string; film: string | null }; // Watch mode: `#/project/<id>/scene/<sid>/watch[/<filmId>]` (null: the film picker; web/scene-watch-view.ts)
@@ -66,6 +69,10 @@ export function parseRoute(hash: string): Route {
   if (hash === "" || hash === "#" || hash === "#/") return { view: "landing" };
   if (hash === "#/activity") return { view: "activity" };
   if (hash === "#/admin") return { view: "admin" };
+  const vt = /^#\/project\/([^/?#]+)\/canvas\/([^/?#]+)\/(variants|tournament)$/.exec(hash);
+  if (vt) return validId(vt[1]) && validId(vt[2]) ? { view: vt[3] as "variants" | "tournament", id: vt[1], canvas: vt[2] } : { view: "activity" };
+  const tr = /^#\/project\/([^/?#]+)\/canvas\/([^/?#]+)\/trace\/([^/?#]+)$/.exec(hash);
+  if (tr) return validId(tr[1]) && validId(tr[2]) && validId(tr[3]) ? { view: "trace", id: tr[1], canvas: tr[2], walk: tr[3] } : { view: "activity" };
   const ds = /^#\/project\/([^/?#]+)\/design$/.exec(hash);
   if (ds) return validId(ds[1]) ? { view: "design", id: ds[1] } : { view: "activity" };
   const sc = /^#\/project\/([^/?#]+)\/scene\/([^/?#]+)$/.exec(hash);
@@ -108,6 +115,9 @@ export function sceneEventHits(route: Route, row: Pick<WatchRow, "project" | "ki
 
 export const hrefLanding = "#/";
 export const hrefAdmin = "#/admin";
+export const hrefVariants = (id: string, canvas: string) => `#/project/${id}/canvas/${canvas}/variants`;
+export const hrefTournament = (id: string, canvas: string) => `#/project/${id}/canvas/${canvas}/tournament`;
+export const hrefTrace = (id: string, canvas: string, walk: string) => `#/project/${id}/canvas/${canvas}/trace/${walk}`;
 export const hrefDesign = (id: string) => `#/project/${id}/design`;
 export const hrefScene = (id: string, scene: string) => `#/project/${id}/scene/${scene}`;
 export const hrefScenePage = (id: string, scene: string) => `#/project/${id}/scene/${scene}/page`;

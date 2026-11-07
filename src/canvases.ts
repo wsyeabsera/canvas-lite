@@ -155,7 +155,7 @@ export function listCanvases(sql: Sql, project: string): { canvases: Pick<Canvas
   return { canvases: rows.map((r) => ({ id: r.id, name: r.name, screens: r.screens, updated_at: r.updated_at })) };
 }
 
-export type PageCanvasEntry = Pick<CanvasSummary, "id" | "name" | "screens" | "updated_at"> & { start_screen: string | null; dangling: number; unlinked: number };
+export type PageCanvasEntry = Pick<CanvasSummary, "id" | "name" | "screens" | "updated_at"> & { start_screen: string | null; forked_from: string | null; dangling: number; unlinked: number };
 
 /** Link health of one canvas: `dangling` = links to a screen that does not exist (each target once per screen, as validate_flow counts),
  *  `unlinked` = controls with no data-to/data-back/data-inert (the same scan as the write-time warning). Pure. */
@@ -174,9 +174,11 @@ export function linkStats(screens: { id: string; html: string }[]): { dangling: 
 export function listCanvasesForPage(sql: Sql, project: string): { canvases: PageCanvasEntry[] } {
   requireProject(sql, project);
   const rows = sql.all<CanvasRow>(`${CANVAS_SELECT} WHERE c.project = ? AND c.archived_at IS NULL ORDER BY c.updated_at DESC, c.id`, project);
+  // A variant names the canvas it was forked from (docs/variants.md); the landing stacks variants under their base.
+  const forks = new Map(sql.all<{ id: string; f: string }>("SELECT id, forked_from AS f FROM canvases WHERE project = ? AND forked_from IS NOT NULL", project).map((r) => [r.id, (JSON.parse(r.f) as { canvas: string }).canvas]));
   return {
     canvases: rows.map((r) => ({
-      id: r.id, name: r.name, screens: r.screens, updated_at: r.updated_at, start_screen: r.start_screen,
+      id: r.id, name: r.name, screens: r.screens, updated_at: r.updated_at, start_screen: r.start_screen, forked_from: forks.get(r.id) ?? null,
       ...linkStats(sql.all<{ id: string; html: string }>("SELECT id, html FROM screens WHERE project = ? AND canvas = ?", project, r.id)),
     })),
   };
@@ -323,15 +325,21 @@ export function removeScreen(
   checkId("screen", id);
   return sql.transaction(() => {
     requireCanvas(sql, project, canvas);
-    const [s] = sql.all<{ name: string }>("SELECT name FROM screens WHERE project = ? AND canvas = ? AND id = ?", project, canvas, id);
-    if (!s) return { screen: { canvas, id }, event: null };
-    sql.run("DELETE FROM screens WHERE project = ? AND canvas = ? AND id = ?", project, canvas, id);
-    sql.run("UPDATE canvases SET start_screen = NULL WHERE project = ? AND id = ? AND start_screen = ?", project, canvas, id);
-    sql.run("UPDATE canvases SET updated_at = ? WHERE project = ? AND id = ?", now, project, canvas);
-    const event = appendEvent(sql, { project, kind: "screen.removed", payload: { canvas, id, name: s.name } }, now);
-    recordVersion(sql, project, canvas, event.seq, { id, name: s.name, width: 100, height: 100, html: "", x: null, y: null, removed: true });
-    return { screen: { canvas, id, name: s.name }, event };
+    const gone = dropScreen(sql, project, canvas, id, now);
+    return gone ? { screen: { canvas, id, name: gone.name }, event: gone.event } : { screen: { canvas, id }, event: null };
   });
+}
+
+/** Deletes one screen row and records the removal (event and version). Not transactional: the caller's transaction wraps it. Null when the screen is not there. */
+export function dropScreen(sql: Sql, project: string, canvas: string, id: string, now: number): { name: string; event: LiteEvent } | null {
+  const [s] = sql.all<{ name: string }>("SELECT name FROM screens WHERE project = ? AND canvas = ? AND id = ?", project, canvas, id);
+  if (!s) return null;
+  sql.run("DELETE FROM screens WHERE project = ? AND canvas = ? AND id = ?", project, canvas, id);
+  sql.run("UPDATE canvases SET start_screen = NULL WHERE project = ? AND id = ? AND start_screen = ?", project, canvas, id);
+  sql.run("UPDATE canvases SET updated_at = ? WHERE project = ? AND id = ?", now, project, canvas);
+  const event = appendEvent(sql, { project, kind: "screen.removed", payload: { canvas, id, name: s.name } }, now);
+  recordVersion(sql, project, canvas, event.seq, { id, name: s.name, width: 100, height: 100, html: "", x: null, y: null, removed: true });
+  return { name: s.name, event };
 }
 
 /** Archives a canvas (rows and the log are kept). Already removed: no change, no event. Never existed: unknown canvas. */

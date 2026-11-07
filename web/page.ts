@@ -12,6 +12,9 @@ import { createLiveView } from "./live-view.ts";
 import { createLandingView } from "./landing-view.ts";
 import { createDesignScreen } from "./design-view.ts";
 import { createAdminScreen } from "./admin-view.ts";
+import { createVariantsScreen } from "./variants-view.ts";
+import { createTournamentScreen } from "./tournament-view.ts";
+import { variantEventHits } from "./variants.ts";
 import { adminEventHits } from "./admin.ts";
 import { mountLogin } from "./login-view.ts";
 import { parseAuth } from "./login.ts";
@@ -34,6 +37,8 @@ const viewScene = $("view-scene");
 const viewScenePage = $("view-scene-page");
 const viewDesign = $("view-design");
 const viewAdmin = $("view-admin");
+const viewVariants = $("view-variants");
+const viewTournament = $("view-tournament");
 const eventsEl = $("events");
 const projectEventsEl = $("project-events");
 const topBar = $("top-bar");
@@ -478,6 +483,8 @@ setInterval(() => {
 // The landing page (web/landing-view.ts): `#/`, the gallery. Declared before the play view because `moved` remembers the screen.
 const landing = createLandingView({ headers, projects: () => sortedProjects(state), locked: () => setLocked(true) });
 // The project's design system (web/design-view.ts): `#/project/<id>/design`.
+const variantsScreen = createVariantsScreen(viewVariants, { headers, locked: () => setLocked(true), projectName: (pid) => state.projects[pid]?.name ?? pid });
+const tournamentScreen = createTournamentScreen(viewTournament, { headers, locked: () => setLocked(true), projectName: (pid) => state.projects[pid]?.name ?? pid });
 const adminScreen = createAdminScreen(viewAdmin, { headers, locked: () => setLocked(true), session: () => session, signOut });
 const designScreen = createDesignScreen(viewDesign, { headers, locked: () => setLocked(true), projectName: (pid) => state.projects[pid]?.name ?? pid });
 
@@ -550,7 +557,14 @@ function showRoute() {
   route = parseRoute(location.hash);
   landing.remember(route);
   viewLanding.hidden = route.view !== "landing";
-  app.classList.toggle("landing-mode", route.view === "landing" || route.view === "design" || route.view === "admin");
+  app.classList.toggle("landing-mode", route.view === "landing" || route.view === "design" || route.view === "admin" || route.view === "variants" || route.view === "tournament" || route.view === "trace");
+  viewVariants.hidden = route.view !== "variants";
+  viewTournament.hidden = route.view !== "tournament" && route.view !== "trace";
+  if (route.view === "variants") variantsScreen.open(route.id, route.canvas);
+  else variantsScreen.close();
+  if (route.view === "tournament") tournamentScreen.openResults(route.id, route.canvas);
+  else if (route.view === "trace") tournamentScreen.openTrace(route.id, route.canvas, route.walk);
+  else tournamentScreen.close();
   viewAdmin.hidden = route.view !== "admin";
   if (route.view === "admin") adminScreen.open();
   else adminScreen.close();
@@ -576,7 +590,7 @@ function showRoute() {
   else sceneScreen?.close();
   if (route.view === "scene-watch") openSceneWatch(route.id, route.scene, route.film);
   else sceneWatch?.close();
-  (inCanvas ? cvTools : route.view === "landing" ? landing.toolsSlot : route.view === "design" ? designScreen.toolsSlot : route.view === "admin" ? adminScreen.toolsSlot : topBar).append(barTools);
+  (inCanvas ? cvTools : route.view === "landing" ? landing.toolsSlot : route.view === "design" ? designScreen.toolsSlot : route.view === "admin" ? adminScreen.toolsSlot : route.view === "variants" ? variantsScreen.toolsSlot : route.view === "tournament" || route.view === "trace" ? tournamentScreen.toolsSlot : topBar).append(barTools);
   const pid = routeProject(route);
   if (pid && pid !== prevProject) {
     void loadList(pid);
@@ -682,6 +696,10 @@ const watcher = new Watcher({
     }
     if (designEventHits(route, row)) designScreen.refetch();
     if (adminEventHits(route, row)) adminScreen.refetch();
+    if (variantEventHits(route, row)) {
+      if (route.view === "variants") variantsScreen.refetch();
+      else tournamentScreen.refetch();
+    }
     if (sceneEventHits(route, row)) {
       if (route.view === "scene-page") scenePage?.refetch();
       else if (route.view === "scene-watch") sceneWatch?.refetch();

@@ -12,9 +12,22 @@ test("the repo scenes skill is a byte copy of the plugin scenes skill (run node 
   assert.equal(read(".agents/skills/lite-scenes/SKILL.md"), read("plugin/lite-prototyping/skills/scenes/SKILL.md"));
 });
 
-test("the sync script covers both skills", () => {
+test("the repo tournament skill is a byte copy of the plugin tournament skill (run node scripts/sync-skill.mjs)", () => {
+  assert.equal(read(".agents/skills/lite-tournament/SKILL.md"), read("plugin/lite-prototyping/skills/tournament/SKILL.md"));
+});
+
+test("tournament skill: valid frontmatter, the blind-user and honesty rules, and a command that uses it", () => {
+  const skill = read("plugin/lite-prototyping/skills/tournament/SKILL.md");
+  assert.ok(/^---\nname: lite-tournament\ndescription: .+\n---\n/.exec(skill), "frontmatter");
+  for (const w of ["tournament_start", "walk_start", "walk_step", "tournament_results", "merge_variant", "FRESH subagent", "not proof", "before any variant exists", "Only when told which variant"]) assert.ok(skill.includes(w), w);
+  const cmd = read("plugin/lite-prototyping/commands/tournament.md");
+  assert.match(cmd, /^---\ndescription: .+\nargument-hint: <.+>\n---\n/);
+  assert.ok(cmd.includes("$ARGUMENTS") && cmd.includes("lite-tournament") && cmd.includes("simulated"));
+});
+
+test("the sync script covers every skill", () => {
   const script = read("scripts/sync-skill.mjs");
-  for (const p of ["skills/prototyping/SKILL.md", "skills/scenes/SKILL.md", ".agents/skills/lite-prototyping/SKILL.md", ".agents/skills/lite-scenes/SKILL.md"]) assert.ok(script.includes(p), p);
+  for (const p of ["skills/prototyping/SKILL.md", "skills/scenes/SKILL.md", "skills/tournament/SKILL.md", ".agents/skills/lite-prototyping/SKILL.md", ".agents/skills/lite-scenes/SKILL.md", ".agents/skills/lite-tournament/SKILL.md"]) assert.ok(script.includes(p), p);
 });
 
 test("scenes skill frontmatter is valid and the process names the tools and anti-patterns", () => {

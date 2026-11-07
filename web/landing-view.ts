@@ -4,11 +4,11 @@
 import type { WatchRow } from "../cli/format.ts";
 import { CANVAS_KINDS, describeCanvasDetail, iframeSpec, type CanvasDetail } from "./canvas.ts";
 import {
-  applyFilter, badgeOf, bannerModel, continueModel, describeEntries, FILTER_LABEL, FILTERS, filterCounts, filterByProject, foldSession, LAST_KEY, metaLine, parseLast, PROJECT_KEY, projectItems, projectSummary,
+  applyFilter, stackVariants, badgeOf, bannerModel, continueModel, describeEntries, FILTER_LABEL, FILTERS, filterCounts, filterByProject, foldSession, LAST_KEY, metaLine, parseLast, PROJECT_KEY, projectItems, projectSummary,
   rememberRoute, rememberScreen, resolveProject, searchEntries, sortEntries, startScreenOf, thumbFit, type Entry, type Filter, type Last, type Sessions,
   describeSceneEntries, isScene, POSTER_CONCURRENCY, posterFresh, sceneActions, sceneChips, scenePosterAtKey, scenePosterKey,
 } from "./landing.ts";
-import { hrefActivity, hrefCanvas, hrefDesign, hrefPlay, hrefScene, hrefWalk, hrefWatch, type ProjectInfo } from "./state.ts";
+import { hrefVariants, hrefActivity, hrefCanvas, hrefDesign, hrefPlay, hrefScene, hrefWalk, hrefWatch, type ProjectInfo } from "./state.ts";
 import type { Scene } from "../src/scene.ts";
 import { hasWebGL2 } from "./webgl.ts";
 
@@ -433,7 +433,7 @@ export function createLandingView(deps: LandingDeps) {
 
   function card(e: Entry): HTMLElement {
     if (isScene(e)) return sceneCard(e);
-    const c = el("article", "ld-card glass");
+    const c = el("article", e.variants ? "ld-card glass ld-stacked" : "ld-card glass");
     const t = thumb(e, false);
     const scrim = el("div", "ld-scrim");
     const play = link(hrefPlay(e.pid, e.id), "ld-btn blue", "", `Play ${e.name}`);
@@ -449,6 +449,7 @@ export function createLandingView(deps: LandingDeps) {
     meta.dataset.ts = String(e.updated_at);
     const badge = el("span", `ld-badge ${b.kind}`, b.text);
     body.append(name, meta, badge);
+    if (e.variants) body.append(link(hrefVariants(e.pid, e.id), "ld-vchip", `${e.variants} variant${e.variants === 1 ? "" : "s"}`, `Compare ${e.name} with its variants`));
     c.append(wrap, body);
     return c;
   }
@@ -484,7 +485,7 @@ export function createLandingView(deps: LandingDeps) {
   }
 
   function drawGallery() {
-    const shown = sortEntries(applyFilter(searchEntries(scoped, query), filter));
+    const shown = sortEntries(applyFilter(searchEntries(stackVariants(scoped), query), filter));
     if (scoped.length === 0) {
       const name = projName.textContent ?? "";
       galleryEl.replaceChildren(
@@ -503,7 +504,7 @@ export function createLandingView(deps: LandingDeps) {
     drawBanner();
     drawProjects(entries);
     drawContinue();
-    drawChips(scoped);
+    drawChips(stackVariants(scoped));
     drawGallery();
   }
 
