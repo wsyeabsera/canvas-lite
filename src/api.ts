@@ -10,6 +10,7 @@ export type ApiRoute =
   | { kind: "at"; id: string; canvas: string; seq: number }
   | { kind: "scenes"; id: string }
   | { kind: "scene"; id: string; scene: string }
+  | { kind: "design"; id: string }
   | { kind: "error"; status: 400 | 404 | 405; message: string; headers?: Record<string, string> };
 
 const ID_RE = /^[a-z0-9][a-z0-9-]*$/;
@@ -26,11 +27,12 @@ export function routeApi(method: string, pathname: string): ApiRoute {
   if (parts[0] !== "projects") return { kind: "error", status: 404, message: "not found" };
   const sub = parts[4];
   if (parts[2] === "scenes") return routeScenes(method, parts);
+  if (parts[2] === "design" && parts.length === 3) return routeDesign(method, parts[1]);
   if (
     parts.length > 6 || (parts.length > 2 && parts[2] !== "canvases") || (parts.length >= 4 && parts[3] === "") ||
     (parts.length === 5 && sub !== "timeline") || (parts.length === 6 && sub !== "at")
   )
-    return { kind: "error", status: 400, message: "invalid path: expected /api/projects/<id>[/canvases[/<canvas>[/timeline | /at/<seq>]] | /scenes[/<scene>]]" };
+    return { kind: "error", status: 400, message: "invalid path: expected /api/projects/<id>[/canvases[/<canvas>[/timeline | /at/<seq>]] | /scenes[/<scene>] | /design]" };
   if (method !== "GET" && method !== "HEAD") return { kind: "error", status: 405, message: "method not allowed", headers: { Allow: "GET, HEAD" } };
   if (parts.length === 1) return { kind: "list" };
   const id = parts[1];
@@ -59,6 +61,13 @@ function routeScenes(method: string, parts: string[]): ApiRoute {
   const scene = parts[3];
   if (scene.length > 40 || !ID_RE.test(scene)) return { kind: "error", status: 400, message: `invalid scene id "${scene}": use lowercase letters, digits and -, at most 40` };
   return { kind: "scene", id, scene };
+}
+
+/** /api/projects/<id>/design: the project's design system, `{design}` (null when none). */
+function routeDesign(method: string, id: string): ApiRoute {
+  if (method !== "GET" && method !== "HEAD") return { kind: "error", status: 405, message: "method not allowed", headers: { Allow: "GET, HEAD" } };
+  if (id.length > 40 || !ID_RE.test(id)) return { kind: "error", status: 400, message: `invalid project id "${id}": use lowercase letters, digits and -, at most 40` };
+  return { kind: "design", id };
 }
 
 /** Same gate as /mcp: fail closed first, then the bearer token. */

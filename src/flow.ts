@@ -7,6 +7,7 @@ import {
 import { coverageOf, scanControls, unlinkedWarnings, unlinkedSummary, type Coverage } from "./coverage.ts";
 import { appendEvent, type LiteEvent, type Sql } from "./store.ts";
 import { presenterState, type PresenterState } from "./present.ts";
+import { readDesignSystem } from "./design-store.ts";
 import { reviewPrototype, PASS_SCORE, type Review } from "./review.ts";
 import {
   readScenarios, SCENARIOS_MAX, SCENARIO_STEPS_MAX, SCENARIO_NAME_MAX, SCENARIO_DESCRIPTION_MAX, SCENARIO_CAPTION_MAX, SCENARIO_VIA_MAX, SCENARIO_DWELL_MIN, SCENARIO_DWELL_MAX,
@@ -221,5 +222,5 @@ export function readCanvasForPage(sql: Sql, project: string, canvas: string) {
 export function reviewFlow(sql: Sql, project: string, canvas: string): { canvas: string } & Review {
   requireProject(sql, project);
   const c = requireCanvas(sql, project, canvas);
-  return { canvas, ...reviewPrototype({ screens: screenRows(sql, project, canvas), start: c.start_screen, tour: readTour(sql, project, canvas)?.steps ?? null, scenarios: readScenarios(sql, project, canvas) }) };
+  return { canvas, ...reviewPrototype({ screens: screenRows(sql, project, canvas), start: c.start_screen, tour: readTour(sql, project, canvas)?.steps ?? null, scenarios: readScenarios(sql, project, canvas), design: readDesignSystem(sql, project)?.tokens ?? null }) };
 }

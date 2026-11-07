@@ -22,6 +22,7 @@ export type Route =
   | { view: "play"; id: string; canvas: string; screen: string | null } // present mode; `screen` = where to start (null: the start screen)
   | { view: "scene"; id: string; scene: string } // a 3D scene in Orbit mode: `#/project/<id>/scene/<sid>` (web/scene-view.ts)
   | { view: "scene-page"; id: string; scene: string } // the scene's scrolling page: `#/project/<id>/scene/<sid>/page` (web/scene-page-view.ts)
+  | { view: "design"; id: string } // the project's design system: `#/project/<id>/design` (web/design-view.ts)
   | { view: "scene-watch"; id: string; scene: string; film: string | null }; // Watch mode: `#/project/<id>/scene/<sid>/watch[/<filmId>]` (null: the film picker; web/scene-watch-view.ts)
 
 export const initialState = (): State => ({ rows: [], projects: {}, counts: {}, total: 0 });
@@ -63,6 +64,8 @@ export const validId = (id: string) => id.length <= 40 && ID_RE.test(id);
 export function parseRoute(hash: string): Route {
   if (hash === "" || hash === "#" || hash === "#/") return { view: "landing" };
   if (hash === "#/activity") return { view: "activity" };
+  const ds = /^#\/project\/([^/?#]+)\/design$/.exec(hash);
+  if (ds) return validId(ds[1]) ? { view: "design", id: ds[1] } : { view: "activity" };
   const sc = /^#\/project\/([^/?#]+)\/scene\/([^/?#]+)$/.exec(hash);
   if (sc) return validId(sc[1]) && validId(sc[2]) ? { view: "scene", id: sc[1], scene: sc[2] } : { view: "activity" };
   const sp = /^#\/project\/([^/?#]+)\/scene\/([^/?#]+)\/page$/.exec(hash);
@@ -102,6 +105,7 @@ export function sceneEventHits(route: Route, row: Pick<WatchRow, "project" | "ki
 }
 
 export const hrefLanding = "#/";
+export const hrefDesign = (id: string) => `#/project/${id}/design`;
 export const hrefScene = (id: string, scene: string) => `#/project/${id}/scene/${scene}`;
 export const hrefScenePage = (id: string, scene: string) => `#/project/${id}/scene/${scene}/page`;
 export const hrefSceneWatch = (id: string, scene: string, film?: string | null) => `#/project/${id}/scene/${scene}/watch${film ? `/${film}` : ""}`;

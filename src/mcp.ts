@@ -11,6 +11,7 @@ import {
 } from "./scenarios.ts";
 import { SCENE_TEXT, type SceneEdit } from "./scene-store.ts";
 import { OPEN_PROJECT_TEXT } from "./projects.ts";
+import { DESIGN_TEXT, EDITS_MAX as DESIGN_EDITS_MAX } from "./design-system.ts";
 
 function createServer(): McpServer {
   const server = new McpServer({ name: "lite", version: "0.1.0" });
@@ -353,6 +354,32 @@ function createServer(): McpServer {
     "review_scene",
     { title: "Review a scene", description: SCENE_TEXT.review_scene, inputSchema: z.object({ project, scene }) },
     ({ project, scene }) => guard(async () => hub(env).reviewScene(project, scene)),
+  );
+  server.registerTool(
+    "get_design_system",
+    { title: "Read the design system", description: DESIGN_TEXT.get_design_system, inputSchema: z.object({ project }) },
+    ({ project }) => guard(async () => hub(env).getDesignSystem(project)),
+  );
+  server.registerTool(
+    "set_design_system",
+    {
+      title: "Set the design system",
+      description: DESIGN_TEXT.set_design_system,
+      inputSchema: z.object({ project, data: z.record(z.string(), z.unknown()).describe("{name?, colors, fonts, sizes, space, radius, rules?}. Checked by Lite; an error names the bad path.") }),
+    },
+    ({ project, data }) => guard(async () => hub(env).setDesignSystem(project, data)),
+  );
+  server.registerTool(
+    "patch_design_system",
+    {
+      title: "Patch the design system",
+      description: DESIGN_TEXT.patch_design_system,
+      inputSchema: z.object({
+        project,
+        edits: z.array(z.object({ group: z.enum(["colors", "fonts", "sizes", "space", "radius", "rules", "name"]), name: z.string().optional(), value: z.union([z.string(), z.number()]).optional(), remove: z.boolean().optional() })).min(1).max(DESIGN_EDITS_MAX),
+      }),
+    },
+    ({ project, edits }) => guard(async () => hub(env).patchDesignSystem(project, edits)),
   );
   return server;
 }

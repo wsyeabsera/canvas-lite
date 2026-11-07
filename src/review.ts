@@ -3,6 +3,8 @@
 // reached, a way out and a way back, one navigation model, states, and a tour that covers the screens.
 import { extractLinks, hasBackLink } from "./canvases.ts";
 import { scanControls, unlinkedSummary } from "./coverage.ts";
+import { driftIssues } from "./design-drift.ts";
+import type { DesignSystem } from "./design-system.ts";
 
 export type ReviewSeverity = "error" | "warning" | "info";
 export type ReviewIssue = { severity: ReviewSeverity; kind: string; screen?: string; message: string; fix: string };
@@ -15,6 +17,8 @@ export type ReviewInput = {
   start: string | null;
   tour: { screen: string }[] | null;
   scenarios?: { steps: { screen: string }[] }[] | null;
+  /** The project's design system, when it has one: adds the off_token_* warnings (docs/design-system.md). */
+  design?: DesignSystem | null;
 };
 
 export const PASS_SCORE = 90;
@@ -150,6 +154,8 @@ export function reviewPrototype(input: ReviewInput): Review {
         const by = scenarios.length > 0 ? "scenario" : "tour";
         issues.push({ severity: "info", kind: `${by}_skips_screen`, screen: s.id, message: `no ${by} step shows "${s.id}"`, fix: by === "scenario" ? `add a step for "${s.id}" to a scenario (set_scenarios), or cover it in another journey` : `add a step for "${s.id}" to the tour (set_tour), or cover it in a second journey` });
       }
+
+  if (input.design) issues.push(...driftIssues(screens, input.design));
 
   const order = { error: 0, warning: 1, info: 2 };
   issues.sort((a, b) => order[a.severity] - order[b.severity]); // stable: screen order kept inside a group

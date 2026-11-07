@@ -146,3 +146,10 @@ test("parseRoute: the scene page route and its live events", () => {
   assert.equal(sceneEventHits(r, ev("page.set", { scene: "other", sections: 3 })), false);
   assert.equal(sceneEventHits(parseRoute("#/project/lite/scene/town"), ev("page.set", { scene: "town", sections: 3 })), false); // Orbit ignores the page
 });
+
+test("the design route parses and is a project route", () => {
+  assert.deepEqual(parseRoute("#/project/tvdash/design"), { view: "design", id: "tvdash" });
+  assert.deepEqual(parseRoute("#/project/Bad/design"), { view: "activity" });
+  assert.deepEqual(parseRoute("#/project/tvdash/design/x"), { view: "activity" });
+  assert.equal(routeProject({ view: "design", id: "tvdash" }), "tvdash");
+});
