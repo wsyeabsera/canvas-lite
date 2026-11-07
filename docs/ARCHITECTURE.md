@@ -80,6 +80,16 @@ Dropped: the helper-to-app relay, browser tokens and origins, op batches, undo, 
 - `npm run test:inventory` fails if the unit test count drops below `test/inventory.json`; `npm run ship:local` runs the gate and fast-forwards main from a `ws/` branch.
 - Unit tests use their own in-memory or temp database. No test is deleted to save time; wait for conditions, never sleeps.
 
+## Link extraction
+
+Several modules read `data-to` out of screen html. They look alike but differ on purpose, so they are not merged:
+
+- `src/canvases.ts` `extractLinks` (and `hasBackLink`): the server's reading. Strips comments first, tolerates `>` inside quoted attribute values, returns `{ to, transition }` with the raw transition (null when absent). Used by validate_flow, review and dangling-link warnings. It lives next to the Worker-side SQL code, so `web/` cannot import it.
+- `web/links.ts` `extractLinks` / `readLink` / `danglingTargets`: the page's reading. Validates the id (`[a-z0-9-]{1,40}`), normalises the transition and adds `back`. Its regex pass does not strip comments and stops at a quoted `>`, so its results differ from the server's on odd html. `readLink` is also what `web/play.ts` uses on DOM attributes.
+- `src/scenarios.ts` `linkControls` (element text and label per link) and `src/coverage.ts` `scanControls` (every control, linked or not, with an element stack): different return shapes and purposes, not duplicates.
+
+Merging the first two would change what one side accepts (comments, quoted `>`, id validation), so they stay separate until a behaviour change is wanted.
+
 ## Not in phase 1
 
 Any UI beyond the read-only watch page, editing, rendering, themes, templates, export, multi-user, auth beyond the token.
