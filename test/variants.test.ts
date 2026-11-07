@@ -83,3 +83,18 @@ test("the canvas limit stops forking with a clear message and writes nothing", (
   assert.throws(() => forkCanvas(s2, "p", { canvas: "base", name: "one too many" }), /too many canvases/);
   assert.equal(listVariants(s2, "p", "base").variants.length, 19);
 });
+
+test("a variant of a variant belongs to the same base, and a long base name does not break the name limit on merge", () => {
+  const s2 = nodeSql();
+  migrate(s2);
+  openProject(s2, { name: "p", manifest: { tree: [], files: {} } }, 1);
+  const longName = "N".repeat(98);
+  createCanvas(s2, "p", { name: longName, id: "base" });
+  setScreens(s2, "p", "base", [{ id: "a", name: "A", ...page("x") }]);
+  const b = forkCanvas(s2, "p", { canvas: "base", name: "B" }).canvas.id;
+  const c = forkCanvas(s2, "p", { canvas: b, name: "C" }).canvas.id;
+  assert.deepEqual(listVariants(s2, "p", c).variants.map((v) => v.id), [b, c], "C is listed under the first base");
+  assert.deepEqual(listVariants(s2, "p", b).base.id, "base");
+  const m = mergeVariant(s2, "p", b);
+  assert.ok(canvasAt(s2, "p", m.merged.preserved, 1e9).canvas.name.length <= 100);
+});

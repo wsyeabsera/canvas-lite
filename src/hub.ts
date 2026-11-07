@@ -12,7 +12,7 @@ import { adminOverview, archiveEmptyProject } from "./admin.ts";
 import { checkLogin, clearFailures, recordFailure } from "./login-limit.ts";
 import { forkCanvas, listVariants, mergeVariant } from "./variants.ts";
 import { startTournament, startTournamentWalk, tournamentResults } from "./tournament.ts";
-import { readWalk, startWalk, stepWalk } from "./walks.ts";
+import { blindWalk, readWalk, startWalk, stepWalk } from "./walks.ts";
 import { extractLinks } from "./canvases.ts";
 import { getDesignSystem, patchDesignSystem, setDesignSystem } from "./design-store.ts";
 import { createScene, listScenes, patchScene, readScene, reviewStoredScene, setFilms, setPage, setScene, validateStoredScene, type SceneEdit } from "./scene-store.ts";
@@ -240,7 +240,7 @@ export class Hub extends DurableObject<Env> {
   }
 
   readWalk(project: string, walk: string) {
-    return readWalk(this.sql, project, walk);
+    return blindWalk(readWalk(this.sql, project, walk));
   }
 
   /** A walk plus the link graph of its canvas, for the trace drawing on the watch page. */

@@ -162,6 +162,9 @@ export const MIGRATIONS = [
      ended_at    INTEGER,
      PRIMARY KEY (project, id)
    );`,
+  // 12: a walk is scored against a snapshot taken when it starts (distances to the goal, screens with no way on), so editing or merging the
+  // canvas afterwards never re-scores it (src/walks.ts). Old rows have 'null' and score live.
+  `ALTER TABLE walks ADD COLUMN snapshot TEXT NOT NULL DEFAULT 'null';`,
 ];
 
 /** Runs pending migrations, each in its own transaction. Refuses a database written by a newer build. */

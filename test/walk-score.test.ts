@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { distances, reachedGoal, scoreWalk, seen } from "../src/walk-score.ts";
+import { deadScreens, distances, reachedGoal, scoreWalk, seen } from "../src/walk-score.ts";
 
 test("seen: visible text only, link labels in document order, ids never shown", () => {
   const s = seen(`<html><head><title>Secret title</title><style>.a{color:red}</style></head><body><script>var x=1</script><!-- hidden -->
@@ -35,9 +35,11 @@ test("distances: moves to the nearest screen whose text shows the target; unreac
 
 test("scoreWalk: steps against the shortest path, wrong turns, dead ends and whether the goal was reached", () => {
   const d = distances(screens, "order confirmed");
-  assert.deepEqual(scoreWalk(["cart", "pay", "done"], d, screens, true), { steps: 2, shortest: 2, wrong_turns: 0, dead_ends: 0, reached: true });
-  const lost = scoreWalk(["cart", "help", "faq", "help", "faq"], d, screens, false);
+  const dead = new Set(deadScreens(screens));
+  assert.deepEqual(deadScreens(screens).sort(), ["done", "faq", "island"].filter((id) => id !== "island"), "done and faq have no links");
+  assert.deepEqual(scoreWalk(["cart", "pay", "done"], d, dead, true), { steps: 2, shortest: 2, wrong_turns: 0, dead_ends: 0, reached: true });
+  const lost = scoreWalk(["cart", "help", "faq", "help", "faq"], d, dead, false);
   assert.deepEqual([lost.steps, lost.shortest, lost.wrong_turns, lost.dead_ends, lost.reached], [4, 2, 1, 1, false], "only the move that left the way to the goal is wrong; faq has no way on");
-  assert.equal(scoreWalk(["faq"], d, screens, false).shortest, null, "no path to the goal from here");
-  assert.equal(scoreWalk(["done"], d, screens, true).dead_ends, 0, "the goal screen is never a dead end");
+  assert.equal(scoreWalk(["faq"], d, dead, false).shortest, null, "no path to the goal from here");
+  assert.equal(scoreWalk(["done"], d, dead, true).dead_ends, 0, "the goal screen is never a dead end");
 });

@@ -36,12 +36,10 @@ export function rootOf(sql: Sql, project: string, canvas: string): string {
   return cur;
 }
 
-const countOf = (sql: Sql, project: string, canvas: string) => sql.all<{ n: number }>("SELECT count(*) AS n FROM screens WHERE project = ? AND canvas = ?", project, canvas)[0].n;
-
 function newCanvas(sql: Sql, project: string, id: string, name: string, from: Fork, now: number): void {
   if (sql.all("SELECT 1 FROM canvases WHERE project = ? AND id = ?", project, id).length) throw new Error(`canvas "${id}" already exists: pick another id`);
   if (sql.all<{ n: number }>("SELECT count(*) AS n FROM canvases WHERE project = ? AND archived_at IS NULL", project)[0].n >= CANVASES_PER_PROJECT)
-    throw new Error(`too many canvases: limit ${CANVASES_PER_PROJECT}`);
+    throw new Error(`too many canvases: limit ${CANVASES_PER_PROJECT}; archive variants you no longer need with remove_canvas`);
   sql.run("INSERT INTO canvases (project, id, name, created_at, updated_at, forked_from) VALUES (?, ?, ?, ?, ?, ?)", project, id, name, now, now, JSON.stringify(from));
 }
 
@@ -82,12 +80,22 @@ export function listVariants(sql: Sql, project: string, canvas: string): Variant
   requireCanvas(sql, project, canvas);
   const root = rootOf(sql, project, canvas);
   const base = requireCanvas(sql, project, root);
-  const rows = sql.all<{ id: string; name: string; updated_at: number; f: string }>(
-    "SELECT id, name, updated_at, forked_from AS f FROM canvases WHERE project = ? AND archived_at IS NULL AND forked_from IS NOT NULL ORDER BY created_at, rowid", project,
+  // Every canvas descended from the base counts, a variant of a variant too (one query for the rows, one for the screen counts).
+  const rows = sql.all<{ id: string; name: string; updated_at: number; f: string; n: number }>(
+    `SELECT c.id, c.name, c.updated_at, c.forked_from AS f, (SELECT count(*) FROM screens s WHERE s.project = c.project AND s.canvas = c.id) AS n
+     FROM canvases c WHERE c.project = ? AND c.archived_at IS NULL AND c.forked_from IS NOT NULL ORDER BY c.created_at, c.rowid`, project,
   );
-  const variants = rows
-    .map((r) => ({ id: r.id, name: r.name, screens: countOf(sql, project, r.id), updated_at: r.updated_at, forked_from: JSON.parse(r.f) as Fork }))
-    .filter((v) => v.forked_from.canvas === root);
+  const parent = new Map(rows.map((r) => [r.id, (JSON.parse(r.f) as Fork).canvas]));
+  const descends = (id: string) => {
+    for (let cur = id, i = 0; i < 10; i++) {
+      const p = parent.get(cur);
+      if (p === undefined) return false;
+      if (p === root) return true;
+      cur = p;
+    }
+    return false;
+  };
+  const variants = rows.filter((r) => descends(r.id)).map((r) => ({ id: r.id, name: r.name, screens: r.n, updated_at: r.updated_at, forked_from: JSON.parse(r.f) as Fork }));
   const [t] = sql.all<{ id: string }>("SELECT id FROM tournaments WHERE project = ? AND canvas = ? ORDER BY created_at DESC, rowid DESC LIMIT 1", project, root);
   return { base: { id: base.id, name: base.name, screens: base.screens, updated_at: base.updated_at }, variants, tournament: t?.id ?? null };
 }
@@ -106,7 +114,7 @@ export function mergeVariant(sql: Sql, project: string, variant: string, now = D
     let preserved = trim(`${base}-old`);
     for (let n = 2; sql.all("SELECT 1 FROM canvases WHERE project = ? AND id = ?", project, preserved).length; n++) preserved = trim(`${base}`.slice(0, 34)) + `-old-${n}`;
     const cur = canvasAt(sql, project, base, seq);
-    newCanvas(sql, project, preserved, `${baseRow.name} (before ${variant})`, { canvas: base, seq: cur.seq }, now);
+    newCanvas(sql, project, preserved, `${baseRow.name} (before ${variant})`.slice(0, 100), { canvas: base, seq: cur.seq }, now);
     const events = copyScreens(sql, project, preserved, cur, now);
     const v = canvasAt(sql, project, variant, seq);
     const keep = new Set(v.screens.map((s) => s.id));

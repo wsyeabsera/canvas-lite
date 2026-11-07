@@ -3,7 +3,7 @@
 import { checkId, requireCanvas, requireProject } from "./canvases.ts";
 import { effectiveStart } from "./flow.ts";
 import { appendEvent, type LiteEvent, type Sql } from "./store.ts";
-import { distances, reachedGoal, scoreWalk, seen, type Choice, type Score } from "./walk-score.ts";
+import { deadScreens, distances, reachedGoal, scoreWalk, seen, type Choice, type Score } from "./walk-score.ts";
 
 export const MAX_STEPS = 25;
 export const GOAL_MAX = 200;
@@ -15,12 +15,12 @@ export const WALK_TEXT = {
     "Start a blind walk: you play a user who has never seen this design. You are told only the goal, never the screen ids or the design's intent, and each screen shows only its visible text and the numbered labels of its links. Standalone: give canvas, goal (what the user wants, in plain words) and target (text that appears on the screen where the goal is done, such as \"Order confirmed\"). In a tournament: give tournament, canvas and goal_index. Run this as a FRESH subagent with no other context, or the result means nothing. Answer {walk, goal, view: {text, choices: [{n, label}]}}.",
   walk_step:
     `Take one step of a blind walk: choice is the number of a link in the current view, or give_up: true when you cannot find a way. note is optional: say in one sentence what you expected here (at most ${NOTE_MAX} characters); the last note is kept. The walk ends when the goal text appears (reached), on give_up, or after ${MAX_STEPS} steps. Answer {status: "walking", view} while it goes on, or {status: "reached" | "gave_up", score: {steps, shortest, wrong_turns, dead_ends, reached}}.`,
-  read_walk: "Read a walk and its score: {walk, canvas, goal, status, path, steps: [{from, to, label}], note, score}.",
+  read_walk: "Read a walk and its score: {walk, canvas, goal, status, path, steps: [{from, to, label, wrong}], note, score}. The target text is left out on purpose.",
 } as const;
 
 export type WalkStatus = "walking" | "reached" | "gave_up";
-export type Step = { from: string; to: string; label: string };
-type Row = { id: string; tournament: string | null; canvas: string; goal_index: number | null; goal: string; target: string; status: WalkStatus; path: string; steps: string; note: string; started_at: number; ended_at: number | null };
+export type Step = { from: string; to: string; label: string; back?: boolean };
+type Row = { id: string; tournament: string | null; canvas: string; goal_index: number | null; goal: string; target: string; status: WalkStatus; path: string; steps: string; note: string; snapshot: string; started_at: number; ended_at: number | null };
 export type View = { text: string; choices: { n: number; label: string }[] };
 export type WalkRead = { walk: string; tournament: string | null; canvas: string; goal_index: number | null; goal: string; target: string; status: WalkStatus; path: string[]; steps: (Step & { wrong: boolean })[]; note: string; started_at: number; ended_at: number | null; score: Score };
 
@@ -34,15 +34,29 @@ function viewOf(html: string, hasPrev: boolean): { view: View; choices: Choice[]
 
 function getRow(sql: Sql, project: string, walk: string): Row {
   checkId("canvas", walk); // walk ids are slugs too
-  const [r] = sql.all<Row>("SELECT id, tournament, canvas, goal_index, goal, target, status, path, steps, note, started_at, ended_at FROM walks WHERE project = ? AND id = ?", project, walk);
+  const [r] = sql.all<Row>("SELECT id, tournament, canvas, goal_index, goal, target, status, path, steps, note, snapshot, started_at, ended_at FROM walks WHERE project = ? AND id = ?", project, walk);
   if (!r) throw new Error(`unknown walk "${walk}"`);
   return r;
 }
 
+/** What a walk is scored against, fixed when it starts so a later edit or merge never re-scores it: distances to the goal and the screens with no way on. */
+type Snapshot = { dist: [string, number][]; dead: string[] };
+const snapshotOf = (screens: { id: string; html: string }[], target: string): Snapshot => ({ dist: [...distances(screens, target)], dead: deadScreens(screens) });
+
+/** The screens a walk can still go back to: a stack, so back goes to where you were before the screen you left. */
+function backStack(start: string, steps: Step[]): string[] {
+  const stack = [start];
+  for (const s of steps) {
+    if (s.back) stack.pop();
+    else stack.push(s.to);
+  }
+  return stack;
+}
+
 function build(sql: Sql, project: string, r: Row): WalkRead {
-  const screens = screensOf(sql, project, r.canvas);
   const path = JSON.parse(r.path) as string[];
-  const dist = distances(screens, r.target);
+  const snap: Snapshot = r.snapshot !== "null" ? JSON.parse(r.snapshot) : snapshotOf(screensOf(sql, project, r.canvas), r.target); // rows from before snapshots score live
+  const dist = new Map(snap.dist);
   // A step is wrong when it ends farther from the goal than it began (the same rule scoreWalk counts), so the trace can draw it.
   const steps = (JSON.parse(r.steps) as Step[]).map((s) => {
     const a = dist.get(s.from);
@@ -51,9 +65,12 @@ function build(sql: Sql, project: string, r: Row): WalkRead {
   });
   return {
     walk: r.id, tournament: r.tournament, canvas: r.canvas, goal_index: r.goal_index, goal: r.goal, target: r.target, status: r.status, path, steps, note: r.note,
-    started_at: r.started_at, ended_at: r.ended_at, score: scoreWalk(path, dist, screens, r.status === "reached"),
+    started_at: r.started_at, ended_at: r.ended_at, score: scoreWalk(path, dist, new Set(snap.dead), r.status === "reached"),
   };
 }
+
+/** A walk as shown to a blind user: without the target text, which would tell them how the goal is worded. The watch page's trace uses `readWalk`. */
+export const blindWalk = ({ target: _target, ...rest }: WalkRead): Omit<WalkRead, "target"> => rest;
 
 export function readWalk(sql: Sql, project: string, walk: string): WalkRead {
   requireProject(sql, project);
@@ -78,8 +95,8 @@ export function startWalk(
     const reached = reachedGoal(first.html, input.target);
     const status: WalkStatus = reached ? "reached" : "walking";
     sql.run(
-      "INSERT INTO walks (project, id, tournament, canvas, goal_index, goal, target, status, path, steps, note, started_at, ended_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', '', ?, ?)",
-      project, id, input.tournament ?? null, input.canvas, input.goal_index ?? null, input.goal, input.target, status, JSON.stringify([start]), now, reached ? now : null,
+      "INSERT INTO walks (project, id, tournament, canvas, goal_index, goal, target, status, path, steps, note, snapshot, started_at, ended_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', '', ?, ?, ?)",
+      project, id, input.tournament ?? null, input.canvas, input.goal_index ?? null, input.goal, input.target, status, JSON.stringify([start]), JSON.stringify(snapshotOf(screens, input.target)), now, reached ? now : null,
     );
     const events = [appendEvent(sql, { project, kind: "walk.started", payload: { walk: id, canvas: input.canvas, tournament: input.tournament ?? null } }, now)];
     if (reached) events.push(appendEvent(sql, { project, kind: "walk.ended", payload: { walk: id, canvas: input.canvas, tournament: input.tournament ?? null, status } }, now));
@@ -110,19 +127,20 @@ export function stepWalk(sql: Sql, project: string, walk: string, input: { choic
     };
     if (input.give_up === true) return finish("gave_up");
     if (!cur) throw new Error(`the screen "${path[path.length - 1]}" no longer exists: start a new walk`);
-    const { choices } = viewOf(cur.html, path.length > 1);
+    const stack = backStack(path[0], steps);
+    const { choices } = viewOf(cur.html, stack.length > 1);
     const n = input.choice;
     if (!Number.isInteger(n) || n! < 1 || n! > choices.length) throw new Error(`invalid choice: use a number from 1 to ${choices.length}, or give_up: true`);
     const c = choices[n! - 1];
-    const to = c.to ?? path[path.length - 2];
+    const to = c.to ?? stack[stack.length - 2];
     const next = screens.find((s) => s.id === to);
     if (!next) throw new Error(`that link leads nowhere: choose another, or give_up: true`);
     path.push(to);
-    steps.push({ from: cur.id, to, label: c.label });
+    steps.push({ from: cur.id, to, label: c.label, ...(c.to === null && { back: true }) });
     events.push(appendEvent(sql, { project, kind: "walk.step", payload: { ...meta, n: steps.length } }, now));
     if (reachedGoal(next.html, r.target)) return finish("reached");
     if (steps.length >= MAX_STEPS) return finish("gave_up");
     sql.run("UPDATE walks SET path = ?, steps = ?, note = ? WHERE project = ? AND id = ?", JSON.stringify(path), JSON.stringify(steps), note, project, walk);
-    return { walk, status: "walking" as const, view: viewOf(next.html, true).view, events };
+    return { walk, status: "walking" as const, view: viewOf(next.html, backStack(path[0], steps).length > 1).view, events };
   });
 }
