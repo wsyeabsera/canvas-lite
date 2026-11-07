@@ -114,12 +114,12 @@ export function applyFilter(entries: readonly Entry[], f: Filter): Entry[] {
   return entries.filter(f === "playable" ? isPlayable : f === "needs" ? needsLinks : () => true);
 }
 
-/** Every word of the query must appear in the design or scene name or its project's name (case-insensitive; scenes also match "3d" and "scene"). Empty query keeps all. */
+/** Every word of the query must appear in the design or scene name (case-insensitive; scenes also match "3d" and "scene"). Empty query keeps all. */
 export function searchEntries(entries: readonly Entry[], query: string): Entry[] {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (words.length === 0) return entries.slice();
   return entries.filter((e) => {
-    const hay = `${e.name} ${e.project}${e.kind === "scene" ? " 3d scene" : ""}`.toLowerCase();
+    const hay = `${e.name}${e.kind === "scene" ? " 3d scene" : ""}`.toLowerCase();
     return words.every((w) => hay.includes(w));
   });
 }
@@ -129,31 +129,32 @@ export function sortEntries(entries: readonly Entry[]): Entry[] {
   return entries.slice().sort((a, b) => b.updated_at - a.updated_at || a.name.localeCompare(b.name) || a.pid.localeCompare(b.pid) || a.id.localeCompare(b.id));
 }
 
-// --- project dropdown (the only project control on the landing) -----------------------------------
+// --- project switcher: the page shows one project at a time ---------------------------------------
 
 export const PROJECT_KEY = "lite.project";
-export type ProjectOption = { value: string; label: string }; // value "" = All projects
+export type ProjectItem = { id: string; name: string; meta: string };
 
-/** `All projects` first, then every project that has at least one design, by name, labelled `name (count)`. */
-export function projectOptions(entries: readonly Entry[]): ProjectOption[] {
-  const by = new Map<string, { name: string; n: number }>();
-  for (const e of entries) {
-    const p = by.get(e.pid) ?? { name: e.project, n: 0 };
-    p.n++;
-    by.set(e.pid, p);
-  }
-  const rest = [...by.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name) || a[0].localeCompare(b[0])).map(([value, p]) => ({ value, label: `${p.name} (${p.n})` }));
-  return [{ value: "", label: "All projects" }, ...rest];
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+/** `8 designs · 3 scenes` (scenes only when there are some); the heading under the project name. */
+export function projectSummary(entries: readonly Entry[]): string {
+  const scenes = entries.filter(isScene).length;
+  return plural(entries.length - scenes, "design") + (scenes ? ` · ${plural(scenes, "scene")}` : "");
 }
 
-/** The dropdown is only worth showing when there is more than one project to choose between. */
-export const showProjectPicker = (options: readonly ProjectOption[]) => options.length > 2;
+/** Every project Lite knows (also the empty ones), in the order given, each with its summary or `empty`. */
+export function projectItems(projects: readonly { id: string; name: string }[], entries: readonly Entry[]): ProjectItem[] {
+  return projects.map((p) => {
+    const mine = filterByProject(entries, p.id);
+    return { id: p.id, name: p.name, meta: mine.length ? projectSummary(mine) : "empty" };
+  });
+}
 
-/** The saved choice if that project still has designs, else "" (All projects). */
-export const resolveProject = (saved: string | null | undefined, options: readonly ProjectOption[]) => (saved && options.some((o) => o.value === saved) ? saved : "");
+/** The saved choice if that project still exists, else the first project; "" when there is none. */
+export const resolveProject = (saved: string | null | undefined, items: readonly ProjectItem[]) => (items.find((p) => p.id === saved) ?? items[0])?.id ?? "";
 
-/** Keeps only the designs of one project; "" keeps all. */
-export const filterByProject = (entries: readonly Entry[], pid: string): Entry[] => (pid ? entries.filter((e) => e.pid === pid) : entries.slice());
+/** Keeps only the designs and scenes of one project. */
+export const filterByProject = (entries: readonly Entry[], pid: string): Entry[] => entries.filter((e) => e.pid === pid);
 
 /** `12 screens · updated 1 h ago`; a scene: `28 objects · updated 1 h ago` (objects after repeaters expand). */
 export const metaLine = (e: Pick<Entry, "screens" | "updated_at" | "kind" | "drawables">, now: number) =>

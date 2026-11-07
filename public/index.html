@@ -329,11 +329,25 @@
   .ld-search:focus-within { box-shadow: var(--sh), 0 0 0 2px var(--ac); }
   .ld-search input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; color: var(--tx); font: inherit; }
   .ld-search input::placeholder { color: var(--mu); }
-  .ld-proj { display: flex; align-items: center; height: 38px; padding: 0 8px 0 14px; border-radius: 999px; color: var(--tx); }
-  .ld-proj:focus-within { box-shadow: var(--sh), 0 0 0 2px var(--ac); }
-  .ld-proj select { height: 100%; border: 0; outline: 0; background: transparent; color: var(--tx); font: inherit; cursor: pointer; max-width: 200px; }
-  .ld-proj select option { color: #111; }
-  .ld-plabel { color: var(--mu); font-size: 12px; overflow-wrap: anywhere; }
+  .ld-proj { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 14px; border: 0; border-radius: 999px; color: var(--tx); font: inherit; cursor: pointer; }
+  .ld-proj[hidden] { display: none; }
+  .ld-proj:focus-visible { box-shadow: var(--sh), 0 0 0 2px var(--ac); outline: 0; }
+  .ld-proj b { font-weight: 600; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ld-proj span { color: var(--mu); }
+  .ld-pdot { width: 8px; height: 8px; border-radius: 50%; background: var(--ac); }
+  .ld-menu { position: fixed; inset: auto; margin: 0; width: 320px; padding: 8px; border: 1px solid var(--gb); border-radius: 16px; background: var(--pill); color: var(--tx); box-shadow: var(--fsh); backdrop-filter: blur(20px); }
+  .ld-mcap { padding: 8px 12px 4px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--mu); }
+  .ld-mit { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 10px 12px; border: 0; border-radius: 10px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+  .ld-mit:hover, .ld-mit:focus-visible, .ld-mit.on { background: var(--sel); outline: 0; }
+  .ld-mit span { color: var(--mu); }
+  .ld-mit.new { color: var(--ac); }
+  .ld-msep { height: 1px; margin: 6px 0; background: var(--line); }
+  .ld-head h1 { margin: 0; font-size: 34px; letter-spacing: -.02em; }
+  .ld-hmeta { color: var(--mu); }
+  .ld-newdlg { width: 480px; padding: 28px; border: 1px solid var(--gb); border-radius: 20px; background: var(--pill); color: var(--tx); box-shadow: var(--fsh); }
+  .ld-newdlg::backdrop { background: rgba(5, 6, 12, .55); }
+  .landing .ld-newdlg h2 { margin: 0 0 8px; font-size: 22px; letter-spacing: -.01em; text-transform: none; color: var(--tx); }
+  .ld-code { margin: 16px 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--g); font: 13px ui-monospace, Menlo, monospace; }
   .ld-tools #bar-tools { display: flex; align-items: center; gap: 12px; }
   .ld-tools #bar-tools a { color: var(--mu); }
   .landing h2 { margin-bottom: 10px; }
@@ -634,10 +648,12 @@
   <section id="view-landing" class="landing" hidden aria-label="Designs">
     <header class="ld-top">
       <span class="ld-brand">Lite</span>
+      <button type="button" class="ld-proj glass" id="ld-project" popovertarget="ld-menu" aria-label="Project" hidden><i class="ld-pdot"></i><b id="ld-pname"></b><span aria-hidden="true">▾</span></button>
+      <div class="ld-menu" id="ld-menu" popover role="menu"></div>
       <label class="ld-search glass"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg><input id="ld-search" type="search" placeholder="Search designs" aria-label="Search designs" autocomplete="off"></label>
-      <label class="ld-proj glass" id="ld-proj" hidden><select id="ld-project" aria-label="Project"></select></label>
       <div class="ld-tools" id="ld-tools"></div>
     </header>
+    <div class="ld-head" id="ld-head" hidden></div>
     <div class="ld-banner glass" id="ld-banner" role="status" hidden></div>
     <section id="ld-continue" aria-label="Continue" hidden></section>
     <section aria-label="Designs">
@@ -645,6 +661,13 @@
       <div id="ld-gallery"></div>
     </section>
     <footer class="ld-foot"><a href="#/activity">Activity</a></footer>
+    <dialog class="ld-newdlg" id="ld-newdlg" aria-label="Create a project">
+      <h2>Create a project</h2>
+      <p class="ld-hmeta">Projects are created by Claude. This page only shows them. Ask in your terminal:</p>
+      <div class="ld-code">open a Lite project called "billing"</div>
+      <p class="ld-hmeta">It appears in the switcher the moment Claude creates it, and starts empty.</p>
+      <form method="dialog"><button class="ld-btn blue" autofocus>Got it</button></form>
+    </dialog>
   </section>
   <section id="view-canvas" hidden aria-label="Canvas">
     <div class="cv-surface" id="cv-surface"><div class="cv-world" id="cv-world"></div></div>

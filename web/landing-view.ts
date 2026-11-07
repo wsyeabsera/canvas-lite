@@ -4,8 +4,8 @@
 import type { WatchRow } from "../cli/format.ts";
 import { CANVAS_KINDS, describeCanvasDetail, iframeSpec, type CanvasDetail } from "./canvas.ts";
 import {
-  applyFilter, badgeOf, bannerModel, continueModel, describeEntries, FILTER_LABEL, FILTERS, filterCounts, filterByProject, foldSession, LAST_KEY, metaLine, parseLast, PROJECT_KEY, projectOptions,
-  rememberRoute, rememberScreen, resolveProject, searchEntries, showProjectPicker, sortEntries, startScreenOf, thumbFit, type Entry, type Filter, type Last, type Sessions,
+  applyFilter, badgeOf, bannerModel, continueModel, describeEntries, FILTER_LABEL, FILTERS, filterCounts, filterByProject, foldSession, LAST_KEY, metaLine, parseLast, PROJECT_KEY, projectItems, projectSummary,
+  rememberRoute, rememberScreen, resolveProject, searchEntries, sortEntries, startScreenOf, thumbFit, type Entry, type Filter, type Last, type Sessions,
   describeSceneEntries, isScene, POSTER_CONCURRENCY, posterFresh, sceneActions, sceneChips, scenePosterAtKey, scenePosterKey,
 } from "./landing.ts";
 import { hrefActivity, hrefCanvas, hrefPlay, hrefScene, hrefWalk, hrefWatch, type ProjectInfo } from "./state.ts";
@@ -61,8 +61,11 @@ export function createLandingView(deps: LandingDeps) {
   const galleryEl = $("ld-gallery");
   const searchEl = $("ld-search") as HTMLInputElement;
   const slot = $("ld-tools");
-  const projWrap = $("ld-proj");
-  const projEl = $("ld-project") as HTMLSelectElement;
+  const headEl = $("ld-head");
+  const projBtn = $("ld-project");
+  const projName = $("ld-pname");
+  const menuEl = $("ld-menu");
+  const newDlg = $("ld-newdlg") as HTMLDialogElement;
 
   let visible = false;
   let dirty = true;
@@ -72,7 +75,8 @@ export function createLandingView(deps: LandingDeps) {
   let entries: Entry[] = [];
   let query = "";
   let filter: Filter = "all";
-  let project = ""; // chosen project id, "" = All projects
+  let project = ""; // the project on show; "" only while Lite knows no project
+  let scoped: Entry[] = []; // the entries of that project: nothing from another project is ever drawn
   let savedProject: string | null = null;
   let sessions: Sessions = {};
   let last: Last | null = null;
@@ -386,7 +390,7 @@ export function createLandingView(deps: LandingDeps) {
   const nameOf = (project: string, canvas: string) => (sid: string) => known.get(`${project}/${canvas}`)?.screens.find((s) => s.id === sid)?.name ?? null;
 
   function drawContinue() {
-    const cm = last ? continueModel(last, entries, nameOf(last.project, last.canvas), now()) : null;
+    const cm = last ? continueModel(last, scoped, nameOf(last.project, last.canvas), now()) : null;
     continueEl.hidden = !cm;
     if (!cm || !last) return continueEl.replaceChildren();
     const e = cm.entry;
@@ -406,7 +410,7 @@ export function createLandingView(deps: LandingDeps) {
   }
 
   function tickContinue() {
-    const cm = last ? continueModel(last, entries, nameOf(last.project, last.canvas), now()) : null;
+    const cm = last ? continueModel(last, scoped, nameOf(last.project, last.canvas), now()) : null;
     const t = document.getElementById("ld-c-sub");
     if (cm && t) t.textContent = cm.text;
   }
@@ -440,33 +444,50 @@ export function createLandingView(deps: LandingDeps) {
     const b = badgeOf(e);
     const body = el("div", "ld-body");
     const name = link(hrefCanvas(e.pid, e.id), "ld-name", e.name); // its ::after covers the card: a click anywhere opens the canvas
-    const label = project === "" ? el("div", "ld-plabel", e.project) : null; // context only, while All projects is selected
     const meta = el("div", "ld-meta", metaLine(e, now()));
     meta.dataset.screens = String(e.screens);
     meta.dataset.ts = String(e.updated_at);
     const badge = el("span", `ld-badge ${b.kind}`, b.text);
-    if (label) body.append(name, label, meta, badge);
-    else body.append(name, meta, badge);
+    body.append(name, meta, badge);
     c.append(wrap, body);
     return c;
   }
 
+  /** The switcher button, the heading under it and the menu of every project (empty ones too) plus the New project how-to. */
   function drawProjects(all: Entry[]) {
-    const options = projectOptions(all);
-    project = resolveProject(savedProject, options);
-    projWrap.hidden = !showProjectPicker(options);
-    projEl.replaceChildren(...options.map((o) => {
-      const opt = el("option", undefined, o.label);
-      opt.value = o.value;
-      return opt;
-    }));
-    projEl.value = project;
+    const items = projectItems(deps.projects(), all);
+    project = resolveProject(savedProject, items);
+    scoped = filterByProject(all, project);
+    const cur = items.find((p) => p.id === project);
+    projBtn.hidden = headEl.hidden = !cur;
+    if (!cur) return;
+    projName.textContent = cur.name;
+    headEl.replaceChildren(el("h1", undefined, cur.name), el("div", "ld-hmeta", projectSummary(scoped)));
+    const add = el("button", "ld-mit new");
+    add.type = "button";
+    add.dataset.new = "1";
+    add.append(el("b", undefined, "+ New project"), el("span", undefined, "ask Claude"));
+    menuEl.replaceChildren(
+      el("div", "ld-mcap", "Projects"),
+      ...items.map((p) => {
+        const b = el("button", p.id === project ? "ld-mit on" : "ld-mit");
+        b.type = "button";
+        b.dataset.project = p.id;
+        b.append(el("b", undefined, p.name), el("span", undefined, p.id === project ? `${p.meta} ✓` : p.meta));
+        return b;
+      }),
+      el("div", "ld-msep"),
+      add,
+    );
   }
 
-  function drawGallery(all: Entry[]) {
-    const shown = sortEntries(applyFilter(searchEntries(all, query), filter));
-    if (entries.length === 0) {
-      galleryEl.replaceChildren(settled ? el("p", "ld-empty", "Nothing yet. Ask Claude to design something.") : el("p", "ld-empty"));
+  function drawGallery() {
+    const shown = sortEntries(applyFilter(searchEntries(scoped, query), filter));
+    if (scoped.length === 0) {
+      const name = projName.textContent ?? "";
+      galleryEl.replaceChildren(
+        settled && project ? el("p", "ld-empty", name ? `Nothing yet in ${name}. Ask Claude to design something.` : "Nothing yet. Ask Claude to design something.") : el("p", "ld-empty"),
+      );
       return;
     }
     if (shown.length === 0) return galleryEl.replaceChildren(el("p", "ld-empty", "No designs match."));
@@ -478,11 +499,10 @@ export function createLandingView(deps: LandingDeps) {
   function render() {
     if (!visible) return;
     drawBanner();
-    drawContinue();
     drawProjects(entries);
-    const scoped = filterByProject(entries, project);
+    drawContinue();
     drawChips(scoped);
-    drawGallery(scoped);
+    drawGallery();
   }
 
   // The gallery redraws on data and on filter/search changes; relative times tick in place so thumbnails never reload.
@@ -495,14 +515,28 @@ export function createLandingView(deps: LandingDeps) {
     tickContinue();
   }, 30_000);
 
-  projEl.addEventListener("change", () => {
-    project = savedProject = projEl.value;
+  // The menu is a native popover (light dismiss and Esc for free); the New project row opens a how-to dialog, since this page only reads.
+  menuEl.addEventListener("click", (ev) => {
+    const b = (ev.target as HTMLElement).closest<HTMLElement>("button");
+    if (!b) return;
+    menuEl.hidePopover();
+    if (b.dataset.new) return newDlg.showModal();
+    project = savedProject = b.dataset.project ?? "";
     try {
       localStorage.setItem(PROJECT_KEY, project);
     } catch {
       /* ignore */
     }
+    query = ""; // a search or filter of one project does not follow you to the next
+    searchEl.value = "";
+    filter = "all";
     render();
+  });
+  menuEl.addEventListener("beforetoggle", (ev) => {
+    if ((ev as ToggleEvent).newState !== "open") return;
+    const r = projBtn.getBoundingClientRect();
+    menuEl.style.left = `${r.left}px`;
+    menuEl.style.top = `${r.bottom + 6}px`;
   });
   searchEl.addEventListener("input", () => {
     query = searchEl.value;

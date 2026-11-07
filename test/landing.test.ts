@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  applyFilter, badgeOf, bannerModel, continueModel, describeEntries, filterCounts, filterByProject, foldSession, metaLine, parseLast, projectOptions, rememberRoute, rememberScreen, resolveProject,
-  searchEntries, showProjectPicker, sortEntries, startScreenOf, thumbFit, type Entry, type Sessions,
+  applyFilter, badgeOf, bannerModel, continueModel, describeEntries, filterCounts, filterByProject, foldSession, metaLine, parseLast, projectItems, projectSummary, rememberRoute, rememberScreen, resolveProject,
+  searchEntries, sortEntries, startScreenOf, thumbFit, type Entry, type Sessions,
   describeSceneEntries, isScene, POSTER_CONCURRENCY, posterFresh, sceneActions, sceneChips, scenePosterAtKey, scenePosterKey,
 } from "../web/landing.ts";
 
@@ -31,11 +31,11 @@ test("filters and their counts", () => {
   assert.equal(applyFilter(list, "all").length, 4);
 });
 
-test("search matches every word in design or project name, case-insensitive", () => {
-  const list = [e({ id: "a", name: "Checkout flow" }), e({ id: "b", name: "Home", project: "Shop App" })];
+test("search matches every word in the design name, case-insensitive", () => {
+  const list = [e({ id: "a", name: "Checkout flow" }), e({ id: "b", name: "Home" })];
   assert.deepEqual(searchEntries(list, "CHECK").map((x) => x.id), ["a"]);
-  assert.deepEqual(searchEntries(list, "shop home").map((x) => x.id), ["b"]);
-  assert.deepEqual(searchEntries(list, "shop checkout").map((x) => x.id), []);
+  assert.deepEqual(searchEntries(list, "flow check").map((x) => x.id), ["a"]);
+  assert.deepEqual(searchEntries(list, "home checkout").map((x) => x.id), []);
   assert.equal(searchEntries(list, "  ").length, 2);
 });
 
@@ -46,24 +46,23 @@ test("sortEntries: one flat list, newest first, ties by name then project", () =
   assert.deepEqual(sortEntries([]), []);
 });
 
-test("search also matches the project name", () => {
-  const list = [e({ id: "a", name: "TV prototype", project: "tvdash" }), e({ id: "b", name: "Home", project: "Shop" })];
-  assert.deepEqual(searchEntries(list, "tvdash").map((x) => x.id), ["a"]);
-  assert.deepEqual(searchEntries(list, "home shop").map((x) => x.id), ["b"]);
+test("search does not match the project name: the page shows one project", () => {
+  const list = [e({ id: "a", name: "TV prototype", project: "tvdash" })];
+  assert.deepEqual(searchEntries(list, "tvdash").map((x) => x.id), []);
 });
 
-test("project dropdown: options with counts, hidden for one project, saved choice, filtering", () => {
-  const list = [e({ pid: "z", project: "Zed", id: "1" }), e({ pid: "a", project: "tvdash", id: "2" }), e({ pid: "a", project: "tvdash", id: "3" })];
-  const o = projectOptions(list);
-  assert.deepEqual(o, [{ value: "", label: "All projects" }, { value: "a", label: "tvdash (2)" }, { value: "z", label: "Zed (1)" }]);
-  assert.equal(showProjectPicker(o), true);
-  assert.equal(showProjectPicker(projectOptions([list[0]])), false);
-  assert.equal(showProjectPicker(projectOptions([])), false);
-  assert.equal(resolveProject("a", o), "a");
-  assert.equal(resolveProject("gone", o), "");
-  assert.equal(resolveProject(null, o), "");
-  assert.deepEqual(filterByProject(list, "a").map((x) => x.id), ["2", "3"]);
-  assert.equal(filterByProject(list, "").length, 3);
+test("project switcher: every project listed (empty too), saved choice, scoping", () => {
+  const list = [e({ pid: "z", project: "Zed", id: "1" }), e({ pid: "a", project: "tvdash", id: "2" }), e({ pid: "a", project: "tvdash", id: "3" }), e({ pid: "a", project: "tvdash", id: "s", kind: "scene" })];
+  const items = projectItems([{ id: "a", name: "tvdash" }, { id: "b", name: "billing" }, { id: "z", name: "Zed" }], list);
+  assert.deepEqual(items, [{ id: "a", name: "tvdash", meta: "2 designs · 1 scene" }, { id: "b", name: "billing", meta: "empty" }, { id: "z", name: "Zed", meta: "1 design" }]);
+  assert.equal(projectSummary([]), "0 designs");
+  assert.equal(resolveProject("z", items), "z");
+  assert.equal(resolveProject("b", items), "b", "an empty project can be chosen");
+  assert.equal(resolveProject("gone", items), "a", "falls back to the first project");
+  assert.equal(resolveProject(null, items), "a");
+  assert.equal(resolveProject("a", []), "");
+  assert.deepEqual(filterByProject(list, "a").map((x) => x.id), ["2", "3", "s"]);
+  assert.deepEqual(filterByProject(list, "b"), [], "a new project shows nothing from the others");
   assert.equal(filterCounts(filterByProject(list, "z")).all, 1);
 });
 
@@ -150,7 +149,7 @@ test("scene entries sort with designs by update, filter by project and match sea
   assert.deepEqual(filterByProject(list, "tv").map((x) => x.id), ["old", "new", "town"]);
   assert.deepEqual(searchEntries(list, "town").map((x) => x.id), ["town"]);
   assert.deepEqual(searchEntries(list, "3d").map((x) => x.id), ["town"]);
-  assert.deepEqual(projectOptions(list).map((o) => o.label), ["All projects", "Other (1)", "TV (3)"]);
+  assert.equal(projectSummary(filterByProject(list, "tv")), "2 designs · 1 scene");
 });
 
 test("scene cards: chips, hover actions and the poster key", () => {
