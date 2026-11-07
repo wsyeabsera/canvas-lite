@@ -59,7 +59,7 @@ export default {
           } catch {
             /* a bad body is a 400 below */
           }
-          if (typeof body.name !== "string") return json(400, { error: 'invalid body: expected {"name": "...", "seq"?: number}' });
+          if (typeof body !== "object" || body === null || typeof body.name !== "string") return json(400, { error: 'invalid body: expected {"name": "...", "seq"?: number}' });
           return json(200, await h.forkCanvas(route.id, { canvas: route.canvas, name: body.name, ...(typeof body.seq === "number" && { seq: body.seq }) }));
         }
         if (route.kind === "admin-overview") return json(200, await h.adminOverview());

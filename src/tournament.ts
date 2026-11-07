@@ -8,6 +8,8 @@ import { GOAL_MAX, TARGET_MAX, readWalk, startWalk, type WalkRead } from "./walk
 export const GOALS_MAX = 6;
 export const RUNS_MAX = 5;
 export const RUNS_DEFAULT = 3;
+/** A walk that is still going after this long was abandoned (its subagent stopped): it no longer holds its run, so a replacement can start. */
+export const STALE_MS = 30 * 60_000;
 
 export const TOURNAMENT_TEXT = {
   tournament_start:
@@ -48,7 +50,8 @@ export function startTournament(
     requireCanvas(sql, project, input.canvas);
     const v = listVariants(sql, project, input.canvas);
     const all = [v.base.id, ...v.variants.map((x) => x.id)];
-    const canvases = input.canvases ?? all;
+    if (input.canvases !== undefined && (!Array.isArray(input.canvases) || input.canvases.some((c) => typeof c !== "string"))) throw new Error("invalid canvases: use a list of canvas ids");
+    const canvases = [...new Set(input.canvases ?? all)];
     if (canvases.length < 2) throw new Error("a tournament needs at least two canvases: fork variants first");
     for (const c of canvases) if (!all.includes(c)) throw new Error(`canvas "${c}" is not the base or a variant of "${v.base.id}"`);
     const id = `t-${crypto.randomUUID().slice(0, 8)}`;
@@ -60,12 +63,12 @@ export function startTournament(
 }
 
 /** Takes goal and target for a tournament walk and checks the pairing still has a free run. */
-export function tournamentSlot(sql: Sql, project: string, tournament: string, canvas: string, goalIndex: number): { goal: string; target: string } {
+export function tournamentSlot(sql: Sql, project: string, tournament: string, canvas: string, goalIndex: number, now = Date.now()): { goal: string; target: string } {
   const t = getTournament(sql, project, tournament);
   const goals = JSON.parse(t.goals) as Goal[];
   if (!(JSON.parse(t.canvases) as string[]).includes(canvas)) throw new Error(`canvas "${canvas}" is not part of tournament "${tournament}"`);
   if (!Number.isInteger(goalIndex) || goalIndex < 0 || goalIndex >= goals.length) throw new Error(`invalid goal_index: use 0 to ${goals.length - 1}`);
-  const taken = sql.all<{ n: number }>("SELECT count(*) AS n FROM walks WHERE project = ? AND tournament = ? AND canvas = ? AND goal_index = ?", project, tournament, canvas, goalIndex)[0].n;
+  const taken = sql.all<{ n: number }>("SELECT count(*) AS n FROM walks WHERE project = ? AND tournament = ? AND canvas = ? AND goal_index = ? AND (status != 'walking' OR started_at > ?)", project, tournament, canvas, goalIndex, now - STALE_MS)[0].n;
   if (taken >= t.runs) throw new Error(`all ${t.runs} runs of goal ${goalIndex} on "${canvas}" are taken`);
   return goals[goalIndex];
 }
@@ -73,7 +76,7 @@ export function tournamentSlot(sql: Sql, project: string, tournament: string, ca
 /** A tournament walk: goal and target come from the tournament, and the pairing must still have a free run. */
 export function startTournamentWalk(sql: Sql, project: string, input: { tournament: string; canvas: string; goal_index: number }, now = Date.now()) {
   requireProject(sql, project);
-  const s = tournamentSlot(sql, project, input.tournament, input.canvas, input.goal_index);
+  const s = tournamentSlot(sql, project, input.tournament, input.canvas, input.goal_index, now);
   return startWalk(sql, project, { canvas: input.canvas, goal: s.goal, target: s.target, tournament: input.tournament, goal_index: input.goal_index }, now);
 }
 

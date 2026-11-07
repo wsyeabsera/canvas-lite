@@ -3,8 +3,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createCanvas, setFlow, setScreens } from "../src/canvases.ts";
 import { forkCanvas } from "../src/variants.ts";
-import { MAX_STEPS, readWalk, startWalk, stepWalk } from "../src/walks.ts";
-import { startTournament, startTournamentWalk, tournamentResults, tournamentSlot } from "../src/tournament.ts";
+import { MAX_STEPS, blindWalk, readWalk, startWalk, stepWalk } from "../src/walks.ts";
+import { STALE_MS, startTournament, startTournamentWalk, tournamentResults, tournamentSlot } from "../src/tournament.ts";
 import { listVariants } from "../src/variants.ts";
 import { openProject } from "../src/projects.ts";
 import { migrate } from "../src/store.ts";
@@ -114,4 +114,55 @@ test("a tournament walks the same goals on the base and every variant, three run
   assert.deepEqual(cell(a).expectations, [`on ${a}`, `on ${a}`]);
   assert.deepEqual(r.canvases.map((c) => c.id)[0], "checkout");
   assert.throws(() => tournamentResults(sql, "shop", "t-nope"), /unknown tournament/);
+});
+
+test("back is a stack: back from C goes to B, and back again to A", () => {
+  createCanvas(sql, "shop", { name: "Deep", id: "deep" });
+  setScreens(sql, "shop", "deep", [
+    { id: "a", name: "A", ...page("Start <div data-to='b'>Open B</div>") },
+    { id: "b", name: "B", ...page("<div data-to='c'>Open C</div><a data-back>Back</a>") },
+    { id: "c", name: "C", ...page("Last <a data-back>Back</a>") },
+  ]);
+  setFlow(sql, "shop", "deep", { start_screen: "a" });
+  const w = startWalk(sql, "shop", { canvas: "deep", goal: "x", target: "Nowhere" });
+  stepWalk(sql, "shop", w.walk, { choice: 1 }); // a to b
+  stepWalk(sql, "shop", w.walk, { choice: 1 }); // b to c
+  const b = stepWalk(sql, "shop", w.walk, { choice: 1 }); // back from c: to b
+  assert.equal(b.view!.text, "Open C Back");
+  const a = stepWalk(sql, "shop", w.walk, { choice: 2 }); // back from b: to a, not to c
+  assert.equal(a.view!.text, "Start Open B");
+  assert.deepEqual(a.view!.choices, [{ n: 1, label: "Open B" }], "nothing to go back to at the start");
+  assert.deepEqual(readWalk(sql, "shop", w.walk).path, ["a", "b", "c", "b", "a"]);
+});
+
+test("a walk is scored against the canvas as it was when it started, not as it is now", () => {
+  const w = startWalk(sql, "shop", goal);
+  stepWalk(sql, "shop", w.walk, { choice: 2 });
+  const before = stepWalk(sql, "shop", w.walk, { choice: 1 }).score;
+  assert.deepEqual([before!.shortest, before!.reached], [2, true]);
+  setScreens(sql, "shop", "checkout", [{ id: "pay", name: "Pay", ...page("<div data-to='help'>Confirm</div><a data-back>Back</a>") }]); // the way to the goal is cut
+  assert.deepEqual(readWalk(sql, "shop", w.walk).score, before);
+  setScreens(sql, "shop", "checkout", [{ id: "pay", name: "Pay", ...page("<div data-to='done'>Confirm</div><a data-back>Back</a>") }]); // put it back for the other tests
+});
+
+test("a blind read of a walk leaves the target text out", () => {
+  const w = startWalk(sql, "shop", goal);
+  const r = readWalk(sql, "shop", w.walk);
+  assert.equal(r.target, "Order confirmed", "the watch page's trace can still read it");
+  assert.equal("target" in blindWalk(r), false);
+  assert.ok(!JSON.stringify(blindWalk(r)).includes("Order confirmed"));
+});
+
+test("tournament: duplicate canvases count once, a bad canvases list is a clear error, an abandoned walk frees its run", () => {
+  const f = forkCanvas(sql, "shop", { canvas: "checkout", name: "Spare" }).canvas.id;
+  const g = [{ goal: "buy", target: "Order confirmed" }];
+  assert.throws(() => startTournament(sql, "shop", { canvas: "checkout", goals: g, canvases: [f, f] }), /at least two/);
+  assert.throws(() => startTournament(sql, "shop", { canvas: "checkout", goals: g, canvases: "checkout" as never }), /invalid canvases/);
+  assert.throws(() => startTournament(sql, "shop", { canvas: "checkout", goals: g, canvases: [5 as never, f] }), /invalid canvases/);
+  const t = startTournament(sql, "shop", { canvas: "checkout", goals: g, runs: 1, canvases: ["checkout", f] }, 1000);
+  startTournamentWalk(sql, "shop", { tournament: t.tournament, canvas: f, goal_index: 0 }, 2000); // started, then its subagent dies
+  assert.throws(() => startTournamentWalk(sql, "shop", { tournament: t.tournament, canvas: f, goal_index: 0 }, 3000), /all 1 runs/);
+  const later = startTournamentWalk(sql, "shop", { tournament: t.tournament, canvas: f, goal_index: 0 }, 2000 + STALE_MS + 1);
+  assert.equal(later.status, "walking", "a replacement can start once the abandoned walk is stale");
+  assert.equal(tournamentResults(sql, "shop", t.tournament).progress.done, 0, "a walk that never finished is not counted as done");
 });

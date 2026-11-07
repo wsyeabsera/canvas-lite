@@ -71,17 +71,19 @@ export function distances(screens: readonly ScreenIn[], target: string): Map<str
 
 export const reachedGoal = (html: string, target: string): boolean => !!target.trim() && seen(html).text.toLowerCase().includes(target.trim().toLowerCase());
 
+/** Ids of screens with no choices at all (computed once, when a walk starts). */
+export const deadScreens = (screens: readonly ScreenIn[]): string[] => screens.filter((s) => seen(s.html).choices.length === 0).map((s) => s.id);
+
 export type Score = { steps: number; shortest: number | null; wrong_turns: number; dead_ends: number; reached: boolean };
 
 /** `path` is every screen visited, start first. A wrong turn is a move that ends farther from the goal than it began (or with no way to it). A dead end is a visited screen, not the goal, with no choices at all. */
-export function scoreWalk(path: readonly string[], dist: ReadonlyMap<string, number>, screens: readonly ScreenIn[], reached: boolean): Score {
-  const html = new Map(screens.map((s) => [s.id, s.html]));
+export function scoreWalk(path: readonly string[], dist: ReadonlyMap<string, number>, dead: ReadonlySet<string>, reached: boolean): Score {
   let wrong = 0;
   for (let i = 1; i < path.length; i++) {
     const a = dist.get(path[i - 1]);
     const b = dist.get(path[i]);
     if (a !== undefined && (b === undefined || b > a)) wrong++;
   }
-  const dead = new Set(path.filter((id) => dist.get(id) !== 0 && html.has(id) && seen(html.get(id)!).choices.length === 0)).size;
-  return { steps: Math.max(0, path.length - 1), shortest: dist.get(path[0]) ?? null, wrong_turns: wrong, dead_ends: dead, reached };
+  const deadEnds = new Set(path.filter((id) => dist.get(id) !== 0 && dead.has(id))).size;
+  return { steps: Math.max(0, path.length - 1), shortest: dist.get(path[0]) ?? null, wrong_turns: wrong, dead_ends: deadEnds, reached };
 }
