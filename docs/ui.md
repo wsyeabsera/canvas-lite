@@ -21,6 +21,7 @@ slug: /ui
 | `#/project/<id>/canvas/<cid>/play[/<sid>]` | **Play** (present mode) over the canvas: one screen at a time, fitted to the window. Starts at `<sid>`, else the canvas start screen (first screen when unset). Linkable; the address follows the screen on show without adding history entries. See below. |
 | `#/project/<id>/canvas/<cid>/walk` | **Walkthrough**, a mode of Play: the same fitted stage with a step rail on the right (see [Walkthrough](#walkthrough)). |
 | `#/project/<id>/canvas/<cid>/watch[/<scenarioId>]` | **Watch**, the scenario video player: without an id the picker, with an id the player (see [Watch](#watch)). |
+| `#/project/<id>/design` | The project's **design system**: tokens as swatches, a type scale, spacing and radius samples and the rules, and a **DESIGN.md** tab with the exact text Claude reads (see [Design system](design-system.md)). Reached from the **Design system** pill beside the project name on the landing; a project without one says so and what to ask Claude. Read-only, refetched on `design.set`; code in `web/design.ts` (pure, tested) and `web/design-view.ts`. |
 | `#/project/<id>/scene/<sid>` | A 3D **scene** in Orbit mode (see [Scenes](#scenes)). |
 | `#/project/<id>/scene/<sid>/watch[/<filmId>]` | The scene in **Watch** mode: without a film id the film picker, with one the film player (see [Watch mode](#watch-mode-films)). |
 | `#/project/<id>/scene/<sid>/page` | The scene's scrolling **page**: scroll drives the camera, text overlays on top (see [Page mode](#page-mode)). |

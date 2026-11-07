@@ -9,7 +9,7 @@ How to build a clickable prototype in Lite in one pass. Specs: [Prototype](proto
 
 ## The loop
 
-1. `open_project` if the project is not there, then `create_canvas`.
+1. `open_project` if the project is not there, then `get_design_system`: when it returns one, use only its colors, fonts and font sizes (`review_prototype` warns `off_token_*` otherwise); then `create_canvas`.
 2. `set_screens` once with every screen, each with an explicit `id`. Read the warnings.
 3. `set_flow` with `start_screen` (and a default `transition`).
 4. `validate_flow`. ALWAYS run it after writing screens and fix every warning before showing anything: wire the control (`data-to` or `data-back`), or add `data-inert` when it intentionally goes nowhere. Use `patch_screen` for small fixes and repeat until `ok` and no warnings.
