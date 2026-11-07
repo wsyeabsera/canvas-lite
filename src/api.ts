@@ -12,6 +12,10 @@ export type ApiRoute =
   | { kind: "scene"; id: string; scene: string }
   | { kind: "design"; id: string }
   | { kind: "admin-overview" }
+  | { kind: "variants"; id: string; canvas: string }
+  | { kind: "fork"; id: string; canvas: string }
+  | { kind: "tournament"; id: string; tournament: string }
+  | { kind: "walk"; id: string; walk: string }
   | { kind: "archive"; id: string }
   | { kind: "error"; status: 400 | 404 | 405; message: string; headers?: Record<string, string> };
 
@@ -27,6 +31,8 @@ export function isApiPath(pathname: string): boolean {
 export function routeApi(method: string, pathname: string): ApiRoute {
   const parts = pathname.slice("/api/".length).split("/");
   if (parts[0] === "admin") return routeAdmin(method, parts);
+  if (parts[0] === "projects" && ((parts[2] === "canvases" && parts.length === 5 && (parts[4] === "variants" || parts[4] === "fork")) || ((parts[2] === "tournaments" || parts[2] === "walks") && parts.length === 4)))
+    return routeVariants(method, parts);
   if (parts[0] !== "projects") return { kind: "error", status: 404, message: "not found" };
   const sub = parts[4];
   if (parts[2] === "scenes") return routeScenes(method, parts);
@@ -64,6 +70,19 @@ function routeScenes(method: string, parts: string[]): ApiRoute {
   const scene = parts[3];
   if (scene.length > 40 || !ID_RE.test(scene)) return { kind: "error", status: 400, message: `invalid scene id "${scene}": use lowercase letters, digits and -, at most 40` };
   return { kind: "scene", id, scene };
+}
+
+/** /api/projects/<id>/canvases/<cid>/variants (GET), .../fork (POST), /tournaments/<tid> and /walks/<wid> (GET): the variants views (docs/variants.md). */
+function routeVariants(method: string, parts: string[]): ApiRoute {
+  const post = parts[4] === "fork";
+  if (post ? method !== "POST" : method !== "GET" && method !== "HEAD") return { kind: "error", status: 405, message: "method not allowed", headers: { Allow: post ? "POST" : "GET, HEAD" } };
+  const id = parts[1];
+  if (id.length > 40 || !ID_RE.test(id)) return { kind: "error", status: 400, message: `invalid project id "${id}": use lowercase letters, digits and -, at most 40` };
+  const leaf = parts[3];
+  if (leaf.length > 40 || !ID_RE.test(leaf)) return { kind: "error", status: 400, message: `invalid id "${leaf}": use lowercase letters, digits and -, at most 40` };
+  if (parts[2] === "tournaments") return { kind: "tournament", id, tournament: leaf };
+  if (parts[2] === "walks") return { kind: "walk", id, walk: leaf };
+  return post ? { kind: "fork", id, canvas: leaf } : { kind: "variants", id, canvas: leaf };
 }
 
 /** /api/admin/overview (GET) and /api/admin/projects/<id>/archive (POST): the admin page (docs/auth.md). */
@@ -106,6 +125,6 @@ export function gateResponse(gate: 401 | 503): Response {
 /** A Hub error becomes 404 when it is the unknown-project, unknown-canvas or unknown-scene error, else 500. */
 export function hubErrorResponse(e: unknown): Response {
   const message = e instanceof Error ? e.message : String(e);
-  if (/^unknown (project|canvas|scene) "/.test(message)) return json(404, { error: message });
-  return /^project ".*" is not empty/.test(message) ? json(409, { error: message }) : json(500, { error: "internal error" });
+  if (/^unknown (project|canvas|scene|tournament|walk) "/.test(message)) return json(404, { error: message });
+  return /^project ".*" is not empty/.test(message) || /already exists|too many canvases/.test(message) ? json(409, { error: message }) : /^invalid /.test(message) ? json(400, { error: message }) : json(500, { error: "internal error" });
 }

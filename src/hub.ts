@@ -10,6 +10,10 @@ import { patchScreen, readCanvasForPage, readFlow, reviewFlow, setTour, validate
 import { setScenarios } from "./scenarios.ts";
 import { adminOverview, archiveEmptyProject } from "./admin.ts";
 import { checkLogin, clearFailures, recordFailure } from "./login-limit.ts";
+import { forkCanvas, listVariants, mergeVariant } from "./variants.ts";
+import { startTournament, startTournamentWalk, tournamentResults } from "./tournament.ts";
+import { readWalk, startWalk, stepWalk } from "./walks.ts";
+import { extractLinks } from "./canvases.ts";
 import { getDesignSystem, patchDesignSystem, setDesignSystem } from "./design-store.ts";
 import { createScene, listScenes, patchScene, readScene, reviewStoredScene, setFilms, setPage, setScene, validateStoredScene, type SceneEdit } from "./scene-store.ts";
 import { goto, present, stopPresent } from "./present.ts";
@@ -188,6 +192,62 @@ export class Hub extends DurableObject<Env> {
 
   listScenes(project: string) {
     return { scenes: listScenes(this.sql, project) };
+  }
+
+  private broadcastAll(events: LiteEvent[]) {
+    for (const e of events) this.broadcast(e);
+  }
+
+  forkCanvas(project: string, input: { canvas: string; name: string; id?: string; seq?: number }) {
+    const { events, ...result } = forkCanvas(this.sql, project, input);
+    this.broadcastAll(events);
+    return result;
+  }
+
+  listVariants(project: string, canvas: string) {
+    return listVariants(this.sql, project, canvas);
+  }
+
+  mergeVariant(project: string, variant: string) {
+    const { events, ...result } = mergeVariant(this.sql, project, variant);
+    this.broadcastAll(events);
+    return result;
+  }
+
+  startTournament(project: string, input: { canvas: string; goals: unknown; runs?: number; canvases?: string[] }) {
+    const { event, ...result } = startTournament(this.sql, project, input);
+    this.broadcast(event);
+    return result;
+  }
+
+  tournamentResults(project: string, tournament: string) {
+    return tournamentResults(this.sql, project, tournament);
+  }
+
+  startWalk(project: string, input: { canvas?: string; goal?: string; target?: string; tournament?: string; goal_index?: number }) {
+    const run = input.tournament !== undefined
+      ? startTournamentWalk(this.sql, project, { tournament: input.tournament, canvas: String(input.canvas), goal_index: Number(input.goal_index) })
+      : startWalk(this.sql, project, { canvas: String(input.canvas), goal: String(input.goal ?? ""), target: String(input.target ?? "") });
+    const { events, ...result } = run;
+    this.broadcastAll(events);
+    return result;
+  }
+
+  stepWalk(project: string, walk: string, input: { choice?: number; give_up?: boolean; note?: string }) {
+    const { events, ...result } = stepWalk(this.sql, project, walk, input);
+    this.broadcastAll(events);
+    return result;
+  }
+
+  readWalk(project: string, walk: string) {
+    return readWalk(this.sql, project, walk);
+  }
+
+  /** A walk plus the link graph of its canvas, for the trace drawing on the watch page. */
+  readWalkForPage(project: string, walk: string) {
+    const w = readWalk(this.sql, project, walk);
+    const screens = this.sql.all<{ id: string; name: string; html: string }>("SELECT id, name, html FROM screens WHERE project = ? AND canvas = ? ORDER BY rowid", project, w.canvas);
+    return { ...w, screens: screens.map((s) => ({ id: s.id, name: s.name, links: [...new Set(extractLinks(s.html).map((l) => l.to))] })) };
   }
 
   getDesignSystem(project: string) {

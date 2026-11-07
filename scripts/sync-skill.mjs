@@ -5,6 +5,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 const SKILLS = [
   { src: "../plugin/lite-prototyping/skills/prototyping/SKILL.md", dst: "../.agents/skills/lite-prototyping/SKILL.md" },
   { src: "../plugin/lite-prototyping/skills/scenes/SKILL.md", dst: "../.agents/skills/lite-scenes/SKILL.md" },
+  { src: "../plugin/lite-prototyping/skills/tournament/SKILL.md", dst: "../.agents/skills/lite-tournament/SKILL.md" },
 ];
 
 const read = (url) => {

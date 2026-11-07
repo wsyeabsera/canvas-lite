@@ -48,6 +48,20 @@ export default {
         if (route.kind === "scenes") return json(200, await h.listScenes(route.id));
         if (route.kind === "scene") return json(200, await h.readScene(route.id, route.scene));
         if (route.kind === "design") return json(200, await h.getDesignSystem(route.id));
+        if (route.kind === "variants") return json(200, await h.listVariants(route.id, route.canvas));
+        if (route.kind === "tournament") return json(200, await h.tournamentResults(route.id, route.tournament));
+        if (route.kind === "walk") return json(200, await h.readWalkForPage(route.id, route.walk));
+        if (route.kind === "fork") {
+          const text = await request.text();
+          let body: { name?: unknown; seq?: unknown } = {};
+          try {
+            body = text.length <= 1024 ? JSON.parse(text) : {};
+          } catch {
+            /* a bad body is a 400 below */
+          }
+          if (typeof body.name !== "string") return json(400, { error: 'invalid body: expected {"name": "...", "seq"?: number}' });
+          return json(200, await h.forkCanvas(route.id, { canvas: route.canvas, name: body.name, ...(typeof body.seq === "number" && { seq: body.seq }) }));
+        }
         if (route.kind === "admin-overview") return json(200, await h.adminOverview());
         if (route.kind === "archive") return json(200, await h.archiveProject(route.id));
         if (route.kind === "timeline") return json(200, await h.canvasTimeline(route.id, route.canvas));

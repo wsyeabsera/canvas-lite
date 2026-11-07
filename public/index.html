@@ -463,6 +463,58 @@
   .ad-actions { display: flex; gap: 12px; margin-top: 22px; }
   .ad-danger { background: var(--bad); color: #0a0c13; border: 0; }
   .ad-out { border: 0; font: inherit; cursor: pointer; }
+  /* variants and tournament (web/variants-view.ts, web/tournament-view.ts): motion from transitions.dev (modal, texts reveal), tokens below */
+  :root { --modal-open-dur: 250ms; --modal-close-dur: 150ms; --modal-scale: .96; --modal-ease: cubic-bezier(.22, 1, .36, 1);
+    --stagger-dur: 500ms; --stagger-distance: 12px; --stagger-stagger: 40ms; --stagger-blur: 3px; --stagger-ease: cubic-bezier(.22, 1, .36, 1); --bar-dur: 400ms; }
+  dialog.t-modal { transform-origin: center; transform: scale(var(--modal-scale)); opacity: 0; transition: transform var(--modal-open-dur) var(--modal-ease), opacity var(--modal-open-dur) var(--modal-ease); will-change: transform, opacity; }
+  dialog.t-modal.is-open { transform: scale(1); opacity: 1; }
+  dialog.t-modal.is-closing { transform: scale(var(--modal-scale)); opacity: 0; transition-duration: var(--modal-close-dur); }
+  .t-rise { opacity: 0; transform: translateY(var(--stagger-distance)); filter: blur(var(--stagger-blur)); transition: opacity var(--stagger-dur) var(--stagger-ease), transform var(--stagger-dur) var(--stagger-ease), filter var(--stagger-dur) var(--stagger-ease); will-change: transform, opacity, filter; }
+  .t-rise.is-shown { opacity: 1; transform: none; filter: none; }
+  @media (prefers-reduced-motion: reduce) { dialog.t-modal, .t-rise, .vr-bar i { transition: none !important; } }
+  #view-variants, #view-tournament { display: flex; flex-direction: column; gap: 22px; }
+  #view-variants[hidden], #view-tournament[hidden] { display: none; }
+  .ds-tab { display: inline-flex; align-items: center; text-decoration: none; }
+  .tone-base { --tone: var(--mu); } .tone-a { --tone: var(--ac); } .tone-b { --tone: #ec4899; } .tone-c { --tone: #14b8a6; }
+  .vr-row { display: flex; gap: 20px; }
+  .vr-card { position: relative; flex: 1; min-width: 0; padding: 18px 20px; border-radius: 16px; }
+  .vr-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .vr-name { color: var(--tone, var(--tx)); }
+  .vr-dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--tone, var(--mu)); }
+  .vr-thumb { position: relative; height: 170px; margin-bottom: 12px; overflow: hidden; border: 1px solid var(--gb); border-radius: 12px; background: linear-gradient(135deg, var(--surf), var(--tone, var(--mu))); }
+  .vr-thumb iframe { position: absolute; border: 0; transform-origin: 0 0; pointer-events: none; background: #fff; }
+  .vr-open { position: absolute; inset: 0; border-radius: 16px; font-size: 0; }
+  .vr-open:focus-visible { outline: 2px solid var(--ac); }
+  .vr-acts { display: flex; gap: 12px; align-items: center; }
+  .vr-input { width: 100%; height: 44px; padding: 0 14px; border: 1px solid var(--gb); border-radius: 12px; background: var(--g); color: var(--tx); font: inherit; outline: 0; }
+  .vr-input:focus { box-shadow: 0 0 0 2px var(--ac); }
+  .vr-fork .cap, .vr-fork input[type=range] { display: block; margin: 16px 0 8px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--mu); }
+  .vr-fork input[type=range] { width: 100%; text-transform: none; }
+  .vr-radio { display: flex; gap: 10px; align-items: center; padding: 6px 0; }
+  .vr-live { display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: var(--ok); }
+  .vr-prog { display: flex; align-items: center; gap: 14px; padding: 8px 0; }
+  .vr-prog .vr-name { width: 160px; }
+  .vr-bar { width: 300px; height: 8px; border-radius: 4px; background: var(--chip); }
+  .vr-bar i { display: block; height: 100%; border-radius: 4px; background: var(--tone, var(--ac)); transition: width var(--bar-dur) cubic-bezier(.22, 1, .36, 1); }
+  .vr-matrix { padding: 18px 20px; }
+  .vr-mrow { display: grid; grid-template-columns: 1.3fr repeat(var(--cols), 1fr); gap: 12px; align-items: center; padding: 6px 0; }
+  .vr-mrow .cap span { color: var(--tone, var(--mu)); }
+  .vr-cell { display: block; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; color: var(--tx); text-decoration: none; }
+  a.vr-cell:hover, a.vr-cell:focus-visible { border-color: var(--gb); outline: 0; }
+  .vr-cell.ok b { color: var(--ok); } .vr-cell.bad b { color: var(--bad); } .vr-cell.pending b { color: var(--mu); }
+  .vr-cell.best { border-color: var(--ok); }
+  .vr-lower { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .vr-quote { color: var(--tone, var(--tx)); padding: 4px 0; }
+  .vr-trace { position: relative; padding: 0; overflow: auto; }
+  .vr-trace svg { position: absolute; left: 0; top: 0; pointer-events: none; }
+  .vr-edge { stroke: var(--line); stroke-width: 2; }
+  .vr-edge.path { stroke: var(--ok); stroke-width: 3; }
+  .vr-edge.wrong { stroke: var(--warn); stroke-width: 3; stroke-dasharray: 6 6; }
+  .vr-node { position: absolute; width: 200px; height: 48px; display: flex; align-items: center; padding: 0 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--g); color: var(--mu); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .vr-node.on { border-color: var(--ok); color: var(--tx); font-weight: 600; }
+  .vr-score { display: flex; gap: 28px; }
+  .ld-stacked { box-shadow: 10px -8px 0 -1px var(--g), 10px -8px 0 0 var(--gb); }
+  .ld-vchip { display: inline-block; margin-top: 6px; padding: 3px 10px; border-radius: 999px; background: var(--chip); color: var(--mu); font-size: 12px; text-decoration: none; position: relative; z-index: 2; }
   #view-admin { display: flex; flex-direction: column; gap: 22px; }
   #view-admin[hidden] { display: none; }
   #locked code { font: 500 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--chip); padding: 1px 7px; border-radius: 8px; color: var(--tx); overflow-wrap: anywhere; }
@@ -765,6 +817,8 @@
   <section id="view-scene" class="sc" hidden aria-label="3D scene"></section>
   <section id="view-design" class="landing" hidden aria-label="Design system"></section>
   <section id="view-admin" class="landing" hidden aria-label="Admin"></section>
+  <section id="view-variants" class="landing" hidden aria-label="Variants"></section>
+  <section id="view-tournament" class="landing" hidden aria-label="Tournament"></section>
   <section id="view-scene-page" class="pg" hidden aria-label="3D scene page"></section>
 </div>
 <section id="locked" class="glass" hidden>

@@ -69,6 +69,8 @@ The answer also carries `floor`: the oldest seq whose canvas state can still be 
   "start_screen": null, "transition": "none" }
 ```
 
+The variants, tournament and walk endpoints are listed in [Variants](variants.md) (they need the token or a session too; the fork is the one POST).
+
 `GET /api/projects/<id>/design` returns 200 with the project's design system (see [Design system](design-system.md)), or `{"design": null}` when it has none:
 
 ```json
