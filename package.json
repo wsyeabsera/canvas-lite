@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "wrangler dev",
-    "build:web": "rm -f public/page.js public/chunk-*.js && esbuild web/page.ts --bundle --splitting --format=esm --target=es2022 --outdir=public --entry-names=[name] --chunk-names=chunk-[hash]",
+    "build:web": "rm -f public/page.js public/login-page.js public/chunk-*.js && esbuild web/login-page.ts --bundle --format=esm --target=es2022 --outfile=public/login-page.js && esbuild web/page.ts --bundle --splitting --format=esm --target=es2022 --outdir=public --entry-names=[name] --chunk-names=chunk-[hash]",
     "build:docs": "npm --prefix site run build",
     "deploy": "npm run build:web -- --minify && npm run build:docs && wrangler deploy",
     "test": "node scripts/run-unit.ts",

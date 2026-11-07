@@ -68,7 +68,7 @@ Dropped: the helper-to-app relay, browser tokens and origins, op batches, undo, 
 ## Rules
 
 - Read-only watchers: the WebSocket accepts no client messages that change state. (The page itself writes only to `/login`, `/logout` and the admin archive: see [Login and admin](auth.md).)
-- One bearer token (a wrangler secret, `LITE_TOKEN`) is required on `/mcp`, `/events` and `/api`, compared in constant time. `/health` needs no token and reveals nothing. The watch page may instead sign in with a password (`LITE_PASSWORD`) and hold a signed session cookie that works on `/api` and `/events` but never on `/mcp` ([Login and admin](auth.md)).
+- One bearer token (a wrangler secret, `LITE_TOKEN`) is required on `/mcp`, `/events` and `/api`, compared in constant time. `/health` needs no token and reveals nothing. The watch page may instead sign in with a password (`LITE_PASSWORD`) and hold a signed session cookie that works on `/api` and `/events` but never on `/mcp`; with a password set the Worker also serves the static files, the docs included, only to a session ([Login and admin](auth.md)).
 - Project ids are validated (lowercase letters, digits, `-`, at most 40); manifests have a size limit.
 - Never put the token in a query string; the watch page reads it from the URL fragment.
 

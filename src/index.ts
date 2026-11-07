@@ -2,6 +2,7 @@ import { gateApi, gateResponse, hubErrorResponse, isApiPath, json, routeApi } fr
 import { handleLogin, handleLogout, sameOrigin } from "./login.ts";
 import { SESSION_HEADER, sessionOk } from "./session.ts";
 import { bearerToken, misconfigured, tokenOk } from "./auth.ts";
+import { siteDecision } from "./site-gate.ts";
 import { hub } from "./hub.ts";
 import { mcpHandler } from "./mcp.ts";
 
@@ -26,7 +27,7 @@ export default {
         return new Response("unauthorized", { status: 401, headers: { "WWW-Authenticate": "Bearer" } });
       return mcpHandler(request, env, ctx);
     }
-    if (pathname === "/login") return handleLogin(request, env.LITE_PASSWORD, hub(env));
+    if (pathname === "/login" && request.method !== "GET" && request.method !== "HEAD") return handleLogin(request, env.LITE_PASSWORD, hub(env));
     if (pathname === "/logout") return handleLogout(request);
     if (request.method === "GET" && pathname === "/api/auth") {
       // What the page needs to choose between its token message and a login form; reveals nothing secret.
@@ -56,6 +57,15 @@ export default {
         return hubErrorResponse(e);
       }
     }
-    return new Response("not found", { status: 404 });
+    // Everything else is a static file. With a password set only the sign-in page is open: the rest needs a session (src/site-gate.ts).
+    const authed = await sessionOk(request, env.LITE_PASSWORD);
+    const d = siteDecision(request.method, pathname, Boolean(env.LITE_PASSWORD), authed);
+    if (d === "not-found") return new Response("not found", { status: 404 });
+    if (d === "redirect-login") return Response.redirect(`${url.origin}/login`, 302);
+    const res = await env.ASSETS.fetch(request);
+    if (!env.LITE_PASSWORD) return res;
+    const out = new Response(res.body, res); // password mode: what a session sees must not sit in a shared cache
+    out.headers.set("Cache-Control", "private, no-cache");
+    return out;
   },
 } satisfies ExportedHandler<Env>;

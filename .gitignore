@@ -6,6 +6,7 @@ site/.docusaurus/
 .wrangler/
 .claude/
 public/page.js
+public/login-page.js
 public/chunk-*.js
 public/docs/
 .lite-cache/
