@@ -19,7 +19,7 @@ test("the repo tournament skill is a byte copy of the plugin tournament skill (r
 test("tournament skill: valid frontmatter, the blind-user and honesty rules, and a command that uses it", () => {
   const skill = read("plugin/lite-prototyping/skills/tournament/SKILL.md");
   assert.ok(/^---\nname: lite-tournament\ndescription: .+\n---\n/.exec(skill), "frontmatter");
-  for (const w of ["tournament_start", "walk_start", "walk_step", "tournament_results", "merge_variant", "FRESH subagent", "not proof", "before any variant exists", "Only when told which variant"]) assert.ok(skill.includes(w), w);
+  for (const w of ["tournament_start", "walk_start", "walk_step", "tournament_results", "merge_variant", "FRESH subagent", "not proof", "before any variant exists", "Only when told which variant", "nothing is real", "pressing Pay buys nothing"]) assert.ok(skill.includes(w), w);
   const cmd = read("plugin/lite-prototyping/commands/tournament.md");
   assert.match(cmd, /^---\ndescription: .+\nargument-hint: <.+>\n---\n/);
   assert.ok(cmd.includes("$ARGUMENTS") && cmd.includes("lite-tournament") && cmd.includes("simulated"));
