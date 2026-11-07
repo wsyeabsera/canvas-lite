@@ -163,3 +163,14 @@ test("a repeater whose copies would land past 1000000 from the origin is rejecte
   assert.throws(() => checkScene(base([nested])), /repeater "i" places copies up to 1200000/);
   assert.doesNotThrow(() => checkScene(base([{ id: "ok", kind: "repeat", pos: [990_000, 0, 0], repeat: { mode: "ring", count: 4, radius: 2000, of: box("t", { pos: [-5000, 0, 0] }) } }])));
 });
+
+test("a repeater inside a group counts the group's own pos (and outer groups') toward the position limit", () => {
+  const rep = { id: "row", kind: "repeat", pos: [100, 0, 0], repeat: { mode: "ring", count: 4, radius: 10, of: box("t") } };
+  assert.throws(
+    () => checkScene(base([{ id: "g", kind: "group", pos: [999_950, 0, 0], children: [rep] }])),
+    /repeater "row" places copies up to 1000060 from the origin \(limit 1000000\)/,
+  );
+  const inner = { id: "g2", kind: "group", pos: [0, 600_000, 0], children: [rep] };
+  assert.throws(() => checkScene(base([{ id: "g1", kind: "group", pos: [0, 600_000, 0], children: [inner] }])), /repeater "row" places copies up to 1200000/);
+  assert.doesNotThrow(() => checkScene(base([{ id: "g", kind: "group", pos: [100, 0, 0], children: [rep] }])));
+});

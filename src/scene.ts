@@ -166,7 +166,11 @@ function checkLimits(objects: SceneObject[], path: string): number {
     const count = countOf(n);
     if (count > SCENE_OBJECTS_MAX)
       fail(p, `${n.kind === "repeat" ? "repeater" : n.kind} "${n.id}" expands to ${count} objects (limit ${SCENE_OBJECTS_MAX})`);
-    if (n.kind === "group") (n.children ?? []).forEach((c, j) => visit(c, `${p}.children[${j}]`, absVec(c.pos)));
+    if (n.kind === "group")
+      (n.children ?? []).forEach((c, j) => {
+        const cp = absVec(c.pos);
+        visit(c, `${p}.children[${j}]`, [reach[0] + cp[0], reach[1] + cp[1], reach[2] + cp[2]]);
+      });
     else if (n.kind === "repeat" && n.repeat) {
       const lay = layoutReach(n.repeat);
       const tpl = absVec(n.repeat.of.pos);
