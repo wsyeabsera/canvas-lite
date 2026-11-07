@@ -30,6 +30,8 @@ All tools take `project` (an existing, not archived project id; otherwise `unkno
 | `remove_screen` | `canvas`, `id` | `{screen}`; idempotent no-op if already gone; the html is gone but the event log keeps the removal |
 | `remove_canvas` | `canvas` | archives it, keeps the log; idempotent |
 
+Prototype tools (`set_flow`, `read_flow`, `validate_flow`, `patch_screen`, `set_tour`, `present`, `goto`, `stop_present`) are in [Prototype tools](prototype-tools.md).
+
 Unknown canvas: `unknown canvas "<id>"`; unknown screen on read: `unknown screen "<id>"`. Tool descriptions tell Claude: one self-contained HTML document per screen, inline CSS, no scripts; images may be `https` URLs or `data:` URIs and nothing else is loaded; size the root to `width` x `height`.
 
 ## Events
@@ -78,7 +80,7 @@ Code: `src/canvases.ts` (pure functions over `Sql`, limits as exported constants
 
 ## In the watch page
 
-The canvas routes `#/project/<id>/canvas/<cid>` and `#/project/<id>/canvas/<cid>/screen/<sid>` are one full-window surface, like a design tool's canvas: a quiet dotted background with every screen on it at its real size (each a sandboxed frame of `width` x `height`, with its name and `W × H` above it, always 13 px on screen whatever the zoom). The top bar, sidebar and panel are hidden there (`canvas-mode` on `#app`) and come back on the other routes. Three small glass islands float on top: top left a back chevron to the project, `<project> / <canvas>` and the live dot; top right the docs link and the theme button (the top bar's own elements, moved in); bottom centre `−`, the zoom readout (click for 100%), `+` and `Fit`.
+The canvas routes `#/project/<id>/canvas/<cid>` and `#/project/<id>/canvas/<cid>/screen/<sid>` are one full-window surface, like a design tool's canvas: a quiet dotted background with every screen on it at its real size (each a sandboxed frame of `width` x `height`, with its name and `W × H` above it, always 13 px on screen whatever the zoom). The top bar and panel are hidden there (`canvas-mode` on `#app`) and come back on the other routes. Three small glass islands float on top: top left a back chevron to the landing `#/`, the design name and the live dot; top right the docs link and the theme button (the top bar's own elements, moved in); bottom centre `−`, the zoom readout (click for 100%), `+` and `Fit`.
 
 Layout: a screen with `x` and `y` sits there; the others fill rows of three from 0,0, 160 px apart, each row as tall as its tallest screen.
 
@@ -94,6 +96,26 @@ Layout: a screen with `x` and `y` sits there; the others fill rows of three from
 
 The canvas route fits all screens on entry, a screen route fits that screen; fits animate for 220 ms (not under `prefers-reduced-motion`). Live updates never move the view. An empty canvas shows one line, "Waiting for Claude to set the first screen". After a `screen.set` event a small pill at the top says "Claude is writing `<name>`..." until the refetched html arrives, and that screen's name gets an accent dot for a few seconds.
 
-Live: a `canvas.created`, `screen.set`, `screen.removed` or `canvas.removed` event of the open project refetches the list, and the canvas too when it is the open one (debounced 150 ms, stale answers ignored). Screens update in place: a frame is created only for a new screen and its `srcdoc` is set again only when its html changed, so nothing flickers. The project page has a Canvases card (name, screen count, updated; empty: "No canvases yet. Ask Claude to create one."), and the open project's canvases appear indented under it in the sidebar.
+Live: a `canvas.created`, `screen.set`, `screen.removed` or `canvas.removed` event of the open project refetches the list, and the canvas too when it is the open one (debounced 150 ms, stale answers ignored). Screens update in place: a frame is created only for a new screen and its `srcdoc` is set again only when its html changed, so nothing flickers. The project page has a Canvases card (name, screen count, updated; empty: "No canvases yet. Ask Claude to create one.").
 
 Code: `web/canvas.ts` (shaping the API, ordering, "updated X ago", iframe spec, the frame diff, arrow-key stepping), `web/layout.ts` (auto layout), `web/viewport.ts` (fit, zoom at a point, pan), all unit-tested (`test/canvas.test.ts`, `test/layout.test.ts`, `test/viewport.test.ts`); `web/canvas-view.ts` draws them. The Activity stream shows these events as `set <name> in <canvas>`, `removed <name> from <canvas>`, `created canvas <name>`, `removed canvas <name>`.
+
+## Play
+
+The watch page can play a canvas (route `#/project/<id>/canvas/<cid>/play[/<screen>]`, the Play pill or key `P`; see [the watch page](ui.md)). `GET .../canvases/<cid>` carries `start_screen` and `transition` on `canvas`; the page reads them with defaults (`null`, `none`) and refetches on `flow.set` like on `screen.set`. Because Play must read `[data-to]` from the rendered screen, it shows screens in `sandbox="allow-same-origin"` frames, which is the one exception to the empty sandbox above; `allow-scripts` is never added (a unit test pins the string) and the CSP is unchanged. The canvas surface itself keeps `sandbox=""`.
+
+## Flow
+
+A canvas has a start screen and a default transition (stored by migration 5, see [Database](database.md)). The `set_flow` tool (`project`, `canvas`, `start_screen?` a screen id or null, `transition?` one of `none`, `fade`, `slide-left`, `slide-right`, `push`; at least one) answers `{flow:{canvas,start_screen,transition}}` and appends `flow.set` with that same payload (no event when nothing changes). Errors: `unknown screen "<id>" on canvas "<canvas>"`, `invalid transition "<t>": use none, fade, slide-left, slide-right, push`, `invalid flow: give start_screen or transition`. `read_canvas` returns `start_screen` and `transition` on `canvas`. Removing the start screen clears `start_screen`.
+
+Links live in screen html: `data-to="<screen id>"`, optional `data-transition`, and `data-back` for a back control; there is no link table. `set_screen` and `set_screens` add `dangling link: data-to="<id>" has no screen` to `warnings` (once per distinct id, checked against the canvas after the write; in `set_screens` after the whole batch, so links between screens of one call are fine). Warnings never reject a screen.
+
+## Replay
+
+The **Replay** button in the canvas's top-right island (next to the theme button) turns the surface into a read-only replay of how the design was made. It stays on the same route; **Exit** (or Escape, or leaving the canvas) returns to the live canvas.
+
+- **What shows.** The canvas as it was after the scrubbed event, from `GET .../timeline` (fetched once) and `GET .../at/<seq>` (fetched per step, cached per seq, same `Authorization` header as the page's other fetches). Screens appear in creation order, screens not yet made are absent, and the screen created at the current event gets a blue ring and a "just added" chip. The view is fixed to the final state's bounds so it does not jump while screens appear. Frames use the same sandboxed iframe (`iframeSpec`: empty `sandbox`, never `allow-scripts`) and the same frame diff as the live canvas, so only changed screens reload.
+- **The bar** (glass, bottom centre, at most 1040 px): Previous change, Play/Pause, Next change, a scrubber with one tick per event (screen names above the ticks where a screen was created; click or drag to scrub), the label `Event N of M · HH:MM`, speed 0.5x / 1x / 2x, Exit. A pill top left says "Replaying design". The Replay controls hide the live canvas's islands and zoom bar; the theme button stays.
+- **Keys.** ArrowLeft / ArrowRight step one change, Space plays or pauses, Escape exits. While replaying, the canvas's own keys are swallowed.
+- **Timing.** Playing advances by the recorded time between events, never less than 350 ms and never more than 1.5 s at 1x (idle time is compressed), divided by the speed; Play at the last event restarts from the first. Replay opens paused at the first event at or after the timeline `floor` (see [API](api.md)): older events are not shown, because their versions were pruned (20 kept per screen), so the scrubber never pretends those states exist.
+- **Code.** `web/replay.ts` (pure: `describeTimeline`, `describeFloor`, `replayEvents`, `describeAt`, `indexAtSeq`, `stepIndex`, `stepDelay`, `totalDuration`, `tickPositions`, `tickNames`, `justAdded`, `eventLabel`, `replayKey`; `test/replay.test.ts`) and `web/replay-view.ts` (DOM only). Desktop only.

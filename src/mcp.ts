@@ -4,7 +4,12 @@ import { createMcpHandler } from "agents/mcp/server";
 import { env } from "cloudflare:workers";
 import { z } from "zod";
 import { hub } from "./hub.ts";
-import { CANVAS_TEXT, MAX_SIZE, MIN_SIZE, SCREENS_PER_CALL } from "./canvases.ts";
+import { CANVAS_TEXT, MAX_SIZE, MIN_SIZE, SCREENS_PER_CALL, TRANSITIONS } from "./canvases.ts";
+import { FLOW_TEXT, PATCH_EDITS_MAX, TOUR_DWELL_MAX, TOUR_DWELL_MIN, TOUR_NOTE_MAX, TOUR_STEPS_MAX } from "./flow.ts";
+import {
+  SCENARIOS_MAX, SCENARIO_CAPTION_MAX, SCENARIO_DESCRIPTION_MAX, SCENARIO_DWELL_MAX, SCENARIO_DWELL_MIN, SCENARIO_NAME_MAX, SCENARIO_STEPS_MAX, SCENARIO_VIA_MAX,
+} from "./scenarios.ts";
+import { SCENE_TEXT, type SceneEdit } from "./scene-store.ts";
 import { OPEN_PROJECT_TEXT } from "./projects.ts";
 
 function createServer(): McpServer {
@@ -145,9 +150,209 @@ function createServer(): McpServer {
     ({ project, canvas, id }) => guard(async () => hub(env).removeScreen(project, canvas, id)),
   );
   server.registerTool(
+    "set_flow",
+    {
+      title: "Set a canvas flow",
+      description: CANVAS_TEXT.set_flow,
+      inputSchema: z.object({
+        project,
+        canvas,
+        start_screen: z.string().nullable().optional().describe("Id of a screen on the canvas, or null to clear."),
+        transition: z.enum(TRANSITIONS).optional().describe("Default transition."),
+      }),
+    },
+    ({ project, canvas, ...input }) => guard(async () => hub(env).setFlow(project, canvas, input)),
+  );
+  server.registerTool(
+    "read_flow",
+    { title: "Read a canvas flow", description: FLOW_TEXT.read_flow, inputSchema: z.object({ project, canvas }) },
+    ({ project, canvas }) => guard(async () => hub(env).readFlow(project, canvas)),
+  );
+  server.registerTool(
+    "validate_flow",
+    { title: "Validate a canvas flow", description: FLOW_TEXT.validate_flow, inputSchema: z.object({ project, canvas }) },
+    ({ project, canvas }) => guard(async () => hub(env).validateFlow(project, canvas)),
+  );
+  server.registerTool(
+    "review_prototype",
+    { title: "Review a prototype", description: FLOW_TEXT.review_prototype, inputSchema: z.object({ project, canvas }) },
+    ({ project, canvas }) => guard(async () => hub(env).reviewPrototype(project, canvas)),
+  );
+  server.registerTool(
+    "patch_screen",
+    {
+      title: "Patch a screen",
+      description: FLOW_TEXT.patch_screen,
+      inputSchema: z.object({
+        project,
+        canvas,
+        id: z.string().describe("Screen id from read_canvas."),
+        edits: z
+          .array(z.object({ find: z.string().describe("Plain text to find."), replace: z.string().describe("Replacement text (may be empty)."), all: z.boolean().optional().describe("Replace every occurrence. Default: find must occur exactly once.") }))
+          .min(1).max(PATCH_EDITS_MAX).optional().describe(`1 to ${PATCH_EDITS_MAX} edits, applied in order.`),
+        find: z.string().optional().describe("Single edit: plain text to find (instead of edits)."),
+        replace: z.string().optional().describe("Single edit: replacement text."),
+        all: z.boolean().optional().describe("Single edit: replace every occurrence."),
+      }),
+    },
+    ({ project, canvas, id, edits, find, replace, all }) =>
+      guard(async () => {
+        if ((edits === undefined) === (find === undefined)) throw new Error("invalid edits: give edits, or find and replace, not both");
+        if (edits === undefined && replace === undefined) throw new Error("invalid edits: replace is required with find");
+        return hub(env).patchScreen(project, canvas, id, edits ?? [{ find: find!, replace: replace!, ...(all !== undefined && { all }) }]);
+      }),
+  );
+  server.registerTool(
+    "set_tour",
+    {
+      title: "Set a tour",
+      description: FLOW_TEXT.set_tour,
+      inputSchema: z.object({
+        project,
+        canvas,
+        steps: z
+          .array(
+            z.object({
+              screen: z.string().describe("Screen id on the canvas."),
+              dwell_ms: z.number().int().min(TOUR_DWELL_MIN).max(TOUR_DWELL_MAX).describe(`How long to show it, ${TOUR_DWELL_MIN} to ${TOUR_DWELL_MAX} ms.`),
+              note: z.string().max(TOUR_NOTE_MAX).optional().describe("Caption shown while the step plays."),
+            }),
+          )
+          .max(TOUR_STEPS_MAX)
+          .describe(`0 to ${TOUR_STEPS_MAX} steps; empty clears the tour.`),
+      }),
+    },
+    ({ project, canvas, steps }) => guard(async () => hub(env).setTour(project, canvas, steps)),
+  );
+  server.registerTool(
+    "set_scenarios",
+    {
+      title: "Set scenarios",
+      description: FLOW_TEXT.set_scenarios,
+      inputSchema: z.object({
+        project,
+        canvas,
+        scenarios: z
+          .array(
+            z.object({
+              id: z.string().describe("Slug: lowercase letters, digits, -, at most 40."),
+              name: z.string().min(1).max(SCENARIO_NAME_MAX).describe("The user journey's name."),
+              description: z.string().max(SCENARIO_DESCRIPTION_MAX).optional().describe("One line about the journey."),
+              steps: z
+                .array(
+                  z.object({
+                    screen: z.string().describe("Screen id on the canvas."),
+                    via: z.string().max(SCENARIO_VIA_MAX).optional().describe("Part of the link text to click when several links in the previous screen go here."),
+                    dwell_ms: z.number().int().min(SCENARIO_DWELL_MIN).max(SCENARIO_DWELL_MAX).describe(`How long to show it, ${SCENARIO_DWELL_MIN} to ${SCENARIO_DWELL_MAX} ms.`),
+                    caption: z.string().max(SCENARIO_CAPTION_MAX).optional().describe("Plain-words narration shown while the step plays."),
+                  }),
+                )
+                .min(1).max(SCENARIO_STEPS_MAX),
+            }),
+          )
+          .max(SCENARIOS_MAX)
+          .describe(`0 to ${SCENARIOS_MAX} scenarios (write 2 to 4); empty clears them.`),
+      }),
+    },
+    ({ project, canvas, scenarios }) => guard(async () => hub(env).setScenarios(project, canvas, scenarios)),
+  );
+  server.registerTool(
+    "present",
+    {
+      title: "Start presenting",
+      description: FLOW_TEXT.present,
+      inputSchema: z.object({ project, canvas, screen: z.string().optional().describe("Screen id to open on. Default: the start screen, else the first.") }),
+    },
+    ({ project, ...input }) => guard(async () => hub(env).present(project, input)),
+  );
+  server.registerTool(
+    "goto",
+    {
+      title: "Go to a screen while presenting",
+      description: FLOW_TEXT.goto,
+      inputSchema: z.object({ project, screen: z.string().describe("Screen id on the presented canvas."), transition: z.enum(TRANSITIONS).optional().describe("Default: the canvas default transition.") }),
+    },
+    ({ project, ...input }) => guard(async () => hub(env).goto(project, input)),
+  );
+  server.registerTool(
+    "stop_present",
+    { title: "Stop presenting", description: FLOW_TEXT.stop_present, inputSchema: z.object({ project }) },
+    ({ project }) => guard(async () => hub(env).stopPresent(project)),
+  );
+  server.registerTool(
     "remove_canvas",
     { title: "Remove a canvas", description: CANVAS_TEXT.remove_canvas, inputSchema: z.object({ project, canvas }) },
     ({ project, canvas }) => guard(async () => hub(env).removeCanvas(project, canvas)),
+  );
+  const scene = z.string().describe("Scene id from list_scenes.");
+  server.registerTool(
+    "create_scene",
+    {
+      title: "Create a scene",
+      description: SCENE_TEXT.create_scene,
+      inputSchema: z.object({ project, name: z.string().min(1).max(80).describe("Scene name."), id: z.string().optional().describe("Slug: lowercase letters, digits, -, at most 40. Defaults to the slugified name.") }),
+    },
+    ({ project, ...input }) => guard(async () => hub(env).createScene(project, input)),
+  );
+  server.registerTool(
+    "set_scene",
+    {
+      title: "Set a scene",
+      description: SCENE_TEXT.set_scene,
+      inputSchema: z.object({ project, scene, data: z.record(z.string(), z.unknown()).describe("The scene: {name, objects, lights, sky, camera}. Checked by Lite; an error names the bad path.") }),
+    },
+    ({ project, scene, data }) => guard(async () => hub(env).setScene(project, scene, data)),
+  );
+  server.registerTool(
+    "patch_scene",
+    {
+      title: "Patch a scene",
+      description: SCENE_TEXT.patch_scene,
+      inputSchema: z.object({
+        project,
+        scene,
+        edits: z.array(z.object({ op: z.enum(["set", "remove"]), id: z.string().describe("Object id."), object: z.record(z.string(), z.unknown()).optional().describe("The new object (set only).") })).min(1).max(50),
+      }),
+    },
+    ({ project, scene, edits }) => guard(async () => hub(env).patchScene(project, scene, edits as SceneEdit[])),
+  );
+  server.registerTool(
+    "set_films",
+    {
+      title: "Set films",
+      description: SCENE_TEXT.set_films,
+      inputSchema: z.object({ project, scene, films: z.array(z.record(z.string(), z.unknown())).max(8).describe("0 to 8 films (write 2 to 4); empty clears them.") }),
+    },
+    ({ project, scene, films }) => guard(async () => hub(env).setFilms(project, scene, films)),
+  );
+  server.registerTool(
+    "set_page",
+    {
+      title: "Set the scene page",
+      description: SCENE_TEXT.set_page,
+      inputSchema: z.object({ project, scene, page: z.record(z.string(), z.unknown()).nullable().describe("{sections: [{id, title?, html, shot, align?, height_vh?, gap_vh?}]}, 1 to 12 sections; null or {} clears the page.") }),
+    },
+    ({ project, scene, page }) => guard(async () => hub(env).setPage(project, scene, page)),
+  );
+  server.registerTool(
+    "read_scene",
+    { title: "Read a scene", description: SCENE_TEXT.read_scene, inputSchema: z.object({ project, scene }) },
+    ({ project, scene }) => guard(async () => hub(env).readScene(project, scene)),
+  );
+  server.registerTool(
+    "list_scenes",
+    { title: "List scenes", description: SCENE_TEXT.list_scenes, inputSchema: z.object({ project }) },
+    ({ project }) => guard(async () => hub(env).listScenes(project)),
+  );
+  server.registerTool(
+    "validate_scene",
+    { title: "Validate a scene", description: SCENE_TEXT.validate_scene, inputSchema: z.object({ project, scene }) },
+    ({ project, scene }) => guard(async () => hub(env).validateScene(project, scene)),
+  );
+  server.registerTool(
+    "review_scene",
+    { title: "Review a scene", description: SCENE_TEXT.review_scene, inputSchema: z.object({ project, scene }) },
+    ({ project, scene }) => guard(async () => hub(env).reviewScene(project, scene)),
   );
   return server;
 }

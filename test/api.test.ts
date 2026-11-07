@@ -66,3 +66,22 @@ test("hub errors: unknown project is 404 with the MCP text, others 500", async (
   assert.deepEqual(await nf.json(), { error: 'unknown project "zzz"' });
   assert.equal(hubErrorResponse(new Error("boom")).status, 500);
 });
+
+test("scene routes parse; bad ids and shapes are 400, other methods 405, unknown scene is a 404 hub error", () => {
+  assert.deepEqual(routeApi("GET", "/api/projects/p/scenes"), { kind: "scenes", id: "p" });
+  assert.deepEqual(routeApi("HEAD", "/api/projects/p/scenes"), { kind: "scenes", id: "p" });
+  assert.deepEqual(routeApi("GET", "/api/projects/p/scenes/s"), { kind: "scene", id: "p", scene: "s" });
+  assert.deepEqual(routeApi("GET", `/api/projects/p/scenes/${"s".repeat(40)}`), { kind: "scene", id: "p", scene: "s".repeat(40) });
+  for (const p of ["/api/projects/p/scenes/", "/api/projects/p/scenes/Bad", "/api/projects/p/scenes/-x", `/api/projects/p/scenes/${"s".repeat(41)}`, "/api/projects/p/scenes/%2e%2e", "/api/projects/P/scenes", "/api/projects/p/scenes/a/films"])
+    assert.equal(status(routeApi("GET", p)), 400, p);
+  for (const m of ["POST", "PUT", "DELETE"]) {
+    const r = routeApi(m, "/api/projects/p/scenes/s");
+    assert.equal(status(r), 405, m);
+    assert.equal(r.kind === "error" && r.headers?.Allow, "GET, HEAD");
+  }
+});
+
+test("hubErrorResponse: unknown scene is 404", async () => {
+  assert.equal(hubErrorResponse(new Error('unknown scene "x"')).status, 404);
+  assert.equal(hubErrorResponse(new Error("boom")).status, 500);
+});

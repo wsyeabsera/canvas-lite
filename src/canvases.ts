@@ -1,8 +1,10 @@
 // Canvases and screens as pure functions over `Sql` (docs/canvas.md). Every change appends its event in the same
 // transaction and returns it for the Hub to broadcast. Events never carry html.
 import { appendEvent, type LiteEvent, type Sql } from "./store.ts";
+import { scanControls, unlinkedWarnings } from "./coverage.ts";
 import { slugify } from "./projects.ts";
 import { layoutScreens } from "./layout.ts";
+import { recordVersion } from "./timeline.ts";
 
 export const SCREEN_HTML_LIMIT = 200_000;
 export const SCREENS_PER_CANVAS = 50;
@@ -11,6 +13,9 @@ export const MIN_SIZE = 100;
 export const MAX_SIZE = 8000;
 export const SCREENS_PER_CALL = 20;
 export const HTML_WARN_BYTES = 150_000;
+
+export const TRANSITIONS = ["none", "fade", "slide-left", "slide-right", "push"] as const;
+export type Transition = (typeof TRANSITIONS)[number];
 
 const ID_RE = /^[a-z0-9][a-z0-9-]*$/;
 const byteLength = (s: string) => new TextEncoder().encode(s).length;
@@ -28,11 +33,12 @@ export const CANVAS_TEXT = {
     `Size the root element to width x height CSS pixels (width and height are integers from ${MIN_SIZE} to ${MAX_SIZE}). ` +
     `html is at most ${SCREEN_HTML_LIMIT} bytes (error "screen too large: <n> bytes, limit ${SCREEN_HTML_LIMIT}"); at most ${SCREENS_PER_CANVAS} screens per canvas (error "too many screens: limit ${SCREENS_PER_CANVAS}"). ` +
     `x and y (integers) place the screen on the canvas; leave them out for automatic layout. ` +
-    `The answer has bytes (UTF-8 size of html) and warnings (short strings, e.g. html contains <script>, html is large, html has no content); fix what they say.`,
+    `The answer has bytes (UTF-8 size of html) and warnings (short strings, e.g. html contains <script>, html is large, html has no content, dangling link, N unlinked controls: "<text>", ... for buttons/links/inputs with no data-to or data-back; add the link or mark it data-inert); fix what they say, then ALWAYS run validate_flow before showing anything.`,
   set_screens:
     `Create or replace up to ${SCREENS_PER_CALL} screens on one canvas in a single call. Use it whenever you set more than one screen (a whole flow, a redesign): it is one round trip and ALL OR NOTHING, so a bad screen rejects the call, nothing is written, and the error starts with "screen <index> (<name>): " (index counts from 0). ` +
     `Each screen takes the same fields and limits as set_screen (name, width, height, html, optional id, x, y); the id defaults to the slug of name truncated at 40 characters, so the same name replaces and a different name makes another screen: pass id explicitly to be safe. ` +
     `The answer is {screens:[{id, name, width, height, x, y, updated_at, bytes, created, warnings}]} in input order; the watch page gets one live update per screen.`,
+  set_flow: `Set a canvas's prototype flow: start_screen (the id of a screen on the canvas, or null to clear it) and the default transition (${TRANSITIONS.join(", ")}). Give at least one. Links live in screen html: data-to="<screen id>" on an element, optional data-transition="<transition>", and data-back for a back control. set_screen and set_screens warn about a data-to that has no screen on the canvas.`,
   remove_screen: `Remove a screen from a canvas (by its id from read_canvas). Removing a screen that is already gone does nothing. The change log keeps the removal; the html is gone, so set_screen it again to bring it back.`,
   remove_canvas: `Archive a canvas and its screens from view: it disappears from list_canvases and the watch page, and a canvas.removed event is recorded. Removing an already removed canvas does nothing; create_canvas with the same id brings it back.`,
 };
@@ -46,18 +52,58 @@ export function screenWarnings(html: string, bytes = byteLength(html)): string[]
   return w;
 }
 
+const TAG_RE = /<[a-zA-Z][^\s>\/]*((?:"[^"]*"|'[^']*'|[^>"'])*)>/g;
+const ATTR_RE = /([^\s"'<>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+
+/** True when any element carries the `data-back` attribute (a back control). Same tolerant reading as extractLinks. */
+export function hasBackLink(html: string): boolean {
+  for (const tag of html.replace(/<!--[\s\S]*?(?:-->|$)/g, "").matchAll(TAG_RE))
+    for (const a of tag[1].matchAll(ATTR_RE)) if (a[1].toLowerCase() === "data-back") return true;
+  return false;
+}
+
+/** Links in screen html: every element with `data-to`, with its `data-transition` (null when absent). Tolerant, no DOM: malformed html yields what can be read. */
+export function extractLinks(html: string): { to: string; transition: string | null }[] {
+  const out: { to: string; transition: string | null }[] = [];
+  for (const tag of html.replace(/<!--[\s\S]*?(?:-->|$)/g, "").matchAll(TAG_RE)) {
+    let to: string | null = null;
+    let transition: string | null = null;
+    for (const a of tag[1].matchAll(ATTR_RE)) {
+      const name = a[1].toLowerCase();
+      const value = (a[2] ?? a[3] ?? a[4] ?? "").trim();
+      if (name === "data-to" && to === null) to = value;
+      else if (name === "data-transition" && transition === null) transition = value;
+    }
+    if (to) out.push({ to, transition });
+  }
+  return out;
+}
+
+/** One warning per distinct `data-to` that names no screen on the canvas (checked against the rows as they are now). */
+function danglingWarnings(sql: Sql, project: string, canvas: string, html: string): string[] {
+  const have = new Set(sql.all<{ id: string }>("SELECT id FROM screens WHERE project = ? AND canvas = ?", project, canvas).map((r) => r.id));
+  const seen = new Set<string>();
+  const w: string[] = [];
+  for (const { to } of extractLinks(html))
+    if (!have.has(to) && !seen.has(to)) {
+      seen.add(to);
+      w.push(`dangling link: data-to="${to}" has no screen`);
+    }
+  return w;
+}
+
 export type CanvasSummary = { id: string; name: string; screens: number; created_at: number; updated_at: number };
 export type ScreenSummary = { id: string; name: string; width: number; height: number; x: number | null; y: number | null; updated_at: number };
 export type ScreenInput = { canvas: string; name: string; width: number; height: number; html: string; id?: string; x?: number; y?: number };
 export type ScreenFields = Omit<ScreenInput, "canvas">;
 export type ScreenResult = ScreenSummary & { bytes: number; created: boolean; warnings: string[] };
 
-type CanvasRow = { id: string; name: string; created_at: number; updated_at: number; archived_at: number | null; screens: number };
+export type CanvasRow = { id: string; name: string; created_at: number; updated_at: number; archived_at: number | null; screens: number; start_screen: string | null; transition: Transition };
 const CANVAS_SELECT =
-  "SELECT c.id, c.name, c.created_at, c.updated_at, c.archived_at, (SELECT count(*) FROM screens s WHERE s.project = c.project AND s.canvas = c.id) AS screens FROM canvases c";
+  "SELECT c.id, c.name, c.created_at, c.updated_at, c.archived_at, c.start_screen, c.transition, (SELECT count(*) FROM screens s WHERE s.project = c.project AND s.canvas = c.id) AS screens FROM canvases c";
 const canvasSummary = (r: CanvasRow): CanvasSummary => ({ id: r.id, name: r.name, screens: r.screens, created_at: r.created_at, updated_at: r.updated_at });
 
-function requireProject(sql: Sql, project: string): void {
+export function requireProject(sql: Sql, project: string): void {
   const [p] = sql.all<{ archived_at: number | null }>("SELECT archived_at FROM projects WHERE id = ?", project);
   if (!p || p.archived_at !== null) throw new Error(`unknown project "${project}"`);
 }
@@ -67,14 +113,14 @@ function checkName(name: unknown): string {
   return name;
 }
 
-function checkId(kind: "canvas" | "screen", id: unknown): string {
+export function checkId(kind: "canvas" | "screen" | "scene", id: unknown): string {
   if (typeof id !== "string" || id.length > 40 || !ID_RE.test(id))
     throw new Error(`invalid ${kind} id "${String(id)}": use lowercase letters, digits and -, at most 40`);
   return id;
 }
 
 /** The live (not removed) canvas row, else `unknown canvas`. */
-function requireCanvas(sql: Sql, project: string, canvas: string): CanvasRow {
+export function requireCanvas(sql: Sql, project: string, canvas: string): CanvasRow {
   checkId("canvas", canvas);
   const [c] = sql.all<CanvasRow>(`${CANVAS_SELECT} WHERE c.project = ? AND c.id = ?`, project, canvas);
   if (!c || c.archived_at !== null) throw new Error(`unknown canvas "${canvas}"`);
@@ -109,9 +155,38 @@ export function listCanvases(sql: Sql, project: string): { canvases: Pick<Canvas
   return { canvases: rows.map((r) => ({ id: r.id, name: r.name, screens: r.screens, updated_at: r.updated_at })) };
 }
 
+export type PageCanvasEntry = Pick<CanvasSummary, "id" | "name" | "screens" | "updated_at"> & { start_screen: string | null; dangling: number; unlinked: number };
+
+/** Link health of one canvas: `dangling` = links to a screen that does not exist (each target once per screen, as validate_flow counts),
+ *  `unlinked` = controls with no data-to/data-back/data-inert (the same scan as the write-time warning). Pure. */
+export function linkStats(screens: { id: string; html: string }[]): { dangling: number; unlinked: number } {
+  const ids = new Set(screens.map((s) => s.id));
+  let dangling = 0, unlinked = 0;
+  for (const s of screens) {
+    dangling += new Set(extractLinks(s.html).map((l) => l.to).filter((to) => !ids.has(to))).size;
+    unlinked += scanControls(s.html).unlinked;
+  }
+  return { dangling, unlinked };
+}
+
+/** `listCanvases` plus what the landing page needs in one call: `start_screen` (null = first screen), `dangling`, `unlinked`.
+ *  Kept apart from `listCanvases` so the `list_canvases` tool answer does not change. */
+export function listCanvasesForPage(sql: Sql, project: string): { canvases: PageCanvasEntry[] } {
+  requireProject(sql, project);
+  const rows = sql.all<CanvasRow>(`${CANVAS_SELECT} WHERE c.project = ? AND c.archived_at IS NULL ORDER BY c.updated_at DESC, c.id`, project);
+  return {
+    canvases: rows.map((r) => ({
+      id: r.id, name: r.name, screens: r.screens, updated_at: r.updated_at, start_screen: r.start_screen,
+      ...linkStats(sql.all<{ id: string; html: string }>("SELECT id, html FROM screens WHERE project = ? AND canvas = ?", project, r.id)),
+    })),
+  };
+}
+
 type ScreenRow = ScreenSummary & { bytes: number; layout: { x: number; y: number }; html?: string };
 /** A canvas and its screens in creation order; each with `bytes` (UTF-8 size of its html), the html itself only when `includeHtml`. */
-export function readCanvas(sql: Sql, project: string, canvas: string, includeHtml = false): { canvas: CanvasSummary; screens: ScreenRow[] } {
+export function readCanvas(
+  sql: Sql, project: string, canvas: string, includeHtml = false,
+): { canvas: CanvasSummary & { start_screen: string | null; transition: Transition }; screens: ScreenRow[] } {
   requireProject(sql, project);
   const c = requireCanvas(sql, project, canvas);
   const rows = sql.all<ScreenSummary & { html: string }>(
@@ -122,15 +197,15 @@ export function readCanvas(sql: Sql, project: string, canvas: string, includeHtm
   const screens = rows.map(({ html, ...r }, i): ScreenRow => ({
     ...r, bytes: byteLength(html), layout: { x: boxes[i].x, y: boxes[i].y }, ...(includeHtml ? { html } : {}),
   }));
-  return { canvas: canvasSummary(c), screens };
+  return { canvas: { ...canvasSummary(c), start_screen: c.start_screen, transition: c.transition }, screens };
 }
 
 const intIn = (v: unknown, lo: number, hi: number): v is number => typeof v === "number" && Number.isSafeInteger(v) && v >= lo && v <= hi;
 
-type Prepared = { id: string; name: string; width: number; height: number; html: string; x: number | null; y: number | null; bytes: number };
+export type Prepared = { id: string; name: string; width: number; height: number; html: string; x: number | null; y: number | null; bytes: number };
 
 /** Validates one screen's fields (everything but the canvas and project) and returns what is written. */
-function prepareScreen(input: ScreenFields): Prepared {
+export function prepareScreen(input: ScreenFields): Prepared {
   const name = checkName(input?.name);
   const id = checkId("screen", input.id ?? slugify(name));
   if (!intIn(input.width, MIN_SIZE, MAX_SIZE)) throw new Error(`invalid width: use an integer from ${MIN_SIZE} to ${MAX_SIZE}`);
@@ -144,7 +219,7 @@ function prepareScreen(input: ScreenFields): Prepared {
 }
 
 /** Writes one prepared screen inside a transaction (canvas already checked): row, canvas touch, `screen.set`. */
-function writeScreen(sql: Sql, project: string, canvas: string, p: Prepared, now: number): { result: ScreenResult; event: LiteEvent } {
+export function writeScreen(sql: Sql, project: string, canvas: string, p: Prepared, now: number): { result: ScreenResult; event: LiteEvent } {
   const exists = sql.all("SELECT 1 FROM screens WHERE project = ? AND canvas = ? AND id = ?", project, canvas, p.id).length > 0;
   if (!exists && sql.all<{ n: number }>("SELECT count(*) AS n FROM screens WHERE project = ? AND canvas = ?", project, canvas)[0].n >= SCREENS_PER_CANVAS)
     throw new Error(`too many screens: limit ${SCREENS_PER_CANVAS}`);
@@ -160,6 +235,7 @@ function writeScreen(sql: Sql, project: string, canvas: string, p: Prepared, now
     { project, kind: "screen.set", payload: { canvas, id: p.id, name: p.name, width: p.width, height: p.height, bytes: p.bytes, created: !exists } },
     now,
   );
+  recordVersion(sql, project, canvas, event.seq, { id: p.id, name: p.name, width: p.width, height: p.height, html: p.html, x: p.x, y: p.y });
   const result: ScreenResult = {
     id: p.id, name: p.name, width: p.width, height: p.height, x: p.x, y: p.y, updated_at: now,
     bytes: p.bytes, created: !exists, warnings: screenWarnings(p.html, p.bytes),
@@ -176,6 +252,7 @@ export function setScreen(
   return sql.transaction(() => {
     requireCanvas(sql, project, input.canvas);
     const { result, event } = writeScreen(sql, project, input.canvas, p, now);
+    result.warnings.push(...danglingWarnings(sql, project, input.canvas, p.html), ...unlinkedWarnings(p.html));
     const { created, bytes, warnings, ...screen } = result;
     return { screen, created, bytes, warnings, event };
   });
@@ -209,7 +286,32 @@ export function setScreens(
         throw new Error(label(i) + (e instanceof Error ? e.message : String(e)));
       }
     });
+    // Links are checked once every screen of the call is written, so a link to a later screen in the same call is fine.
+    out.forEach((r, i) => r.warnings.push(...danglingWarnings(sql, project, canvas, prepared[i].html), ...unlinkedWarnings(prepared[i].html)));
     return { screens: out, events };
+  });
+}
+
+/** Sets the start screen (an existing screen id, or null to clear) and/or the default transition; appends `flow.set`. No change: no event. */
+export function setFlow(
+  sql: Sql, project: string, canvas: string, input: { start_screen?: string | null; transition?: string }, now = Date.now(),
+): { flow: { canvas: string; start_screen: string | null; transition: Transition }; event: LiteEvent | null } {
+  requireProject(sql, project);
+  if (input?.start_screen === undefined && input?.transition === undefined) throw new Error("invalid flow: give start_screen or transition");
+  if (input.transition !== undefined && !(TRANSITIONS as readonly string[]).includes(input.transition))
+    throw new Error(`invalid transition "${String(input.transition)}": use ${TRANSITIONS.join(", ")}`);
+  if (input.start_screen !== undefined && input.start_screen !== null) checkId("screen", input.start_screen);
+  return sql.transaction(() => {
+    const c = requireCanvas(sql, project, canvas);
+    const start = input.start_screen === undefined ? c.start_screen : input.start_screen;
+    const transition = (input.transition as Transition | undefined) ?? c.transition;
+    if (start !== null && sql.all("SELECT 1 FROM screens WHERE project = ? AND canvas = ? AND id = ?", project, canvas, start).length === 0)
+      throw new Error(`unknown screen "${start}" on canvas "${canvas}"`);
+    const flow = { canvas, start_screen: start, transition };
+    if (start === c.start_screen && transition === c.transition) return { flow, event: null };
+    sql.run("UPDATE canvases SET start_screen = ?, transition = ?, updated_at = ? WHERE project = ? AND id = ?", start, transition, now, project, canvas);
+    const event = appendEvent(sql, { project, kind: "flow.set", payload: flow }, now);
+    return { flow, event };
   });
 }
 
@@ -224,8 +326,10 @@ export function removeScreen(
     const [s] = sql.all<{ name: string }>("SELECT name FROM screens WHERE project = ? AND canvas = ? AND id = ?", project, canvas, id);
     if (!s) return { screen: { canvas, id }, event: null };
     sql.run("DELETE FROM screens WHERE project = ? AND canvas = ? AND id = ?", project, canvas, id);
+    sql.run("UPDATE canvases SET start_screen = NULL WHERE project = ? AND id = ? AND start_screen = ?", project, canvas, id);
     sql.run("UPDATE canvases SET updated_at = ? WHERE project = ? AND id = ?", now, project, canvas);
     const event = appendEvent(sql, { project, kind: "screen.removed", payload: { canvas, id, name: s.name } }, now);
+    recordVersion(sql, project, canvas, event.seq, { id, name: s.name, width: 100, height: 100, html: "", x: null, y: null, removed: true });
     return { screen: { canvas, id, name: s.name }, event };
   });
 }

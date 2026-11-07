@@ -75,6 +75,52 @@ export const MIGRATIONS = [
      PRIMARY KEY (project, canvas, id),
      FOREIGN KEY (project, canvas) REFERENCES canvases(project, id)
    );`,
+  // 5: the canvas flow (docs/canvas.md): a start screen id and a default transition. Plain ADD COLUMNs: no rebuild, rows,
+  // events and triggers are untouched. `start_screen` has no foreign key: it is checked in src/canvases.ts and cleared
+  // when that screen is removed. Existing canvases get no start screen and transition 'none'.
+  `ALTER TABLE canvases ADD COLUMN start_screen TEXT;
+   ALTER TABLE canvases ADD COLUMN transition TEXT NOT NULL DEFAULT 'none' CHECK (transition IN ('none', 'fade', 'slide-left', 'slide-right', 'push'));`,
+  // 6: screen versions (docs/database.md), so a canvas can be replayed at any recorded event. New table + index only: rows,
+  // events and triggers are untouched. One row per screen.set / screen.removed, keyed by the seq of that event and written
+  // in the same transaction (src/timeline.ts). `removed` = 1 marks a removal (html is ''). Existing screens are backfilled
+  // with their current html at the seq of their latest screen.set event (0 if none), so replay works from there on.
+  `CREATE TABLE screen_versions (
+     project TEXT NOT NULL,
+     canvas  TEXT NOT NULL,
+     screen  TEXT NOT NULL,
+     seq     INTEGER NOT NULL,
+     name    TEXT NOT NULL,
+     width   INTEGER NOT NULL,
+     height  INTEGER NOT NULL,
+     html    TEXT NOT NULL,
+     x       INTEGER,
+     y       INTEGER,
+     removed INTEGER NOT NULL DEFAULT 0 CHECK (removed IN (0, 1)),
+     PRIMARY KEY (project, canvas, screen, seq),
+     FOREIGN KEY (project, canvas) REFERENCES canvases(project, id)
+   );
+   CREATE INDEX screen_versions_canvas_seq ON screen_versions (project, canvas, seq);
+   INSERT INTO screen_versions (project, canvas, screen, seq, name, width, height, html, x, y, removed)
+     SELECT s.project, s.canvas, s.id,
+            COALESCE((SELECT max(e.seq) FROM events e
+                      WHERE e.project = s.project AND e.kind = 'screen.set'
+                        AND json_extract(e.payload, '$.canvas') = s.canvas AND json_extract(e.payload, '$.id') = s.id), 0),
+            s.name, s.width, s.height, s.html, s.x, s.y, 0
+     FROM screens s ORDER BY s.rowid;`,
+  // 7: 3D scenes (docs/scenes.md). New table only: rows, events and triggers are untouched. One row per scene holds the current
+  // scene JSON in `data` and its films JSON in `films`; events never carry either (src/scene-store.ts is the only writer).
+  `CREATE TABLE scenes (
+     project    TEXT NOT NULL REFERENCES projects(id),
+     id         TEXT NOT NULL,
+     name       TEXT NOT NULL,
+     data       TEXT NOT NULL,
+     films      TEXT NOT NULL DEFAULT '[]',
+     updated_at INTEGER NOT NULL,
+     removed    INTEGER NOT NULL DEFAULT 0 CHECK (removed IN (0, 1)),
+     PRIMARY KEY (project, id)
+   );`,
+  // 8: the page of a scene (docs/scenes.md "Page"): sections bound to shots, as JSON text ('null' = no page). Plain ADD COLUMN.
+  `ALTER TABLE scenes ADD COLUMN page TEXT NOT NULL DEFAULT 'null';`,
 ];
 
 /** Runs pending migrations, each in its own transaction. Refuses a database written by a newer build. */

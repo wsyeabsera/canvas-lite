@@ -34,7 +34,7 @@ test("migration 4 on a populated v3 database keeps projects, events and triggers
   sql.run("INSERT INTO projects (id, name, kind, repo, manifest, opened_at, archived_at) VALUES ('old', 'Old', 'web', NULL, NULL, 6, 9)");
   const a = appendEvent(sql, { project: "tvdash", kind: "x", payload: { n: 1 } }, 7);
   migrate(sql);
-  assert.deepEqual(sql.all<{ version: number }>("SELECT version FROM _migrations ORDER BY version").map((r) => r.version), [1, 2, 3, 4]);
+  assert.deepEqual(sql.all<{ version: number }>("SELECT version FROM _migrations ORDER BY version").map((r) => r.version), [1, 2, 3, 4, 5, 6, 7, 8]);
   assert.deepEqual(sql.all<{ id: string; archived_at: number | null }>("SELECT id, archived_at FROM projects ORDER BY id").map((r) => ({ ...r })), [
     { id: "old", archived_at: 9 },
     { id: "tvdash", archived_at: null },
@@ -44,7 +44,7 @@ test("migration 4 on a populated v3 database keeps projects, events and triggers
   assert.throws(() => sql.run("DELETE FROM events WHERE seq = ?", a.seq), /append-only/);
   assert.deepEqual(
     sql.all<{ name: string }>("SELECT name FROM pragma_table_info('canvases') ORDER BY cid").map((c) => c.name),
-    ["project", "id", "name", "created_at", "updated_at", "archived_at"],
+    ["project", "id", "name", "created_at", "updated_at", "archived_at", "start_screen", "transition"],
   );
   assert.deepEqual(
     sql.all<{ name: string }>("SELECT name FROM pragma_table_info('screens') ORDER BY cid").map((c) => c.name),
