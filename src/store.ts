@@ -121,6 +121,12 @@ export const MIGRATIONS = [
    );`,
   // 8: the page of a scene (docs/scenes.md "Page"): sections bound to shots, as JSON text ('null' = no page). Plain ADD COLUMN.
   `ALTER TABLE scenes ADD COLUMN page TEXT NOT NULL DEFAULT 'null';`,
+  // 9: one design system per project (docs/design-system.md), JSON text; src/design-store.ts is the only writer. New table only.
+  `CREATE TABLE design_systems (
+     project    TEXT PRIMARY KEY REFERENCES projects(id),
+     data       TEXT NOT NULL,
+     updated_at INTEGER NOT NULL
+   );`,
 ];
 
 /** Runs pending migrations, each in its own transaction. Refuses a database written by a newer build. */

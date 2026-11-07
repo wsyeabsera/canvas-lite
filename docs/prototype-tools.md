@@ -7,6 +7,8 @@ slug: /prototype-tools
 
 How Claude drives the prototype player (see [Prototype](prototype.md) for the link model). Everything here is built; the tools live in `src/flow.ts` and `src/present.ts` (pure, unit tested) with thin Hub and MCP wiring. For how to write a prototype, read the [Prototyping guide](prototyping-guide.md).
 
+> **Design systems** have their own tools: `get_design_system`, `set_design_system` and `patch_design_system`; with one set, `review_prototype` also warns `off_token_color`, `off_token_font` and `off_token_size` (colors, fonts and font sizes in a screen's CSS that are not tokens). See [Design system](design-system.md).
+
 > **3D scenes** have their own tools: `create_scene`, `set_scene`, `patch_scene`, `read_scene`, `list_scenes`, `set_films`, `set_page`, `validate_scene` and `review_scene` (a completeness score like `review_prototype`). They follow the same pattern (pure modules, thin wiring, an event per write with no body) but store a scene in a table, not events. See [3D scenes and films](scenes.md).
 
 ## Decisions

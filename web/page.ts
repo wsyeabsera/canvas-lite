@@ -10,6 +10,8 @@ import { createWatchView } from "./watch-view.ts";
 import { createReplayView } from "./replay-view.ts";
 import { createLiveView } from "./live-view.ts";
 import { createLandingView } from "./landing-view.ts";
+import { createDesignScreen } from "./design-view.ts";
+import { designEventHits } from "./design.ts";
 import { initialFollow, onCanvasLoad, onPresenterEvent, pillModel, resumeFollow, takeOver, tourCaption, tourLabel, tourPause, tourResume, tourStart, tourTick, type FollowState, type Target, type TourRun } from "./follow.ts";
 import { initTheme } from "./theme.ts";
 import { hasWebGPU, parseTheme, shouldRun, shouldShow, themeColors } from "./backdrop.ts";
@@ -26,6 +28,7 @@ const viewProject = $("view-project");
 const viewCanvas = $("view-canvas");
 const viewScene = $("view-scene");
 const viewScenePage = $("view-scene-page");
+const viewDesign = $("view-design");
 const eventsEl = $("events");
 const projectEventsEl = $("project-events");
 const topBar = $("top-bar");
@@ -409,7 +412,7 @@ const watchView = createWatchView({
 });
 
 function renderCanvas() {
-  if (route.view === "activity" || route.view === "landing" || route.view === "project" || route.view === "scene" || route.view === "scene-page" || route.view === "scene-watch") return;
+  if (route.view === "activity" || route.view === "landing" || route.view === "project" || route.view === "scene" || route.view === "scene-page" || route.view === "scene-watch" || route.view === "design") return;
   const pid = route.id;
   const cid = route.canvas;
   canvasView.render({
@@ -437,6 +440,8 @@ setInterval(() => {
 
 // The landing page (web/landing-view.ts): `#/`, the gallery. Declared before the play view because `moved` remembers the screen.
 const landing = createLandingView({ headers, projects: () => sortedProjects(state), locked: () => setLocked(true) });
+// The project's design system (web/design-view.ts): `#/project/<id>/design`.
+const designScreen = createDesignScreen(viewDesign, { headers, locked: () => setLocked(true), projectName: (pid) => state.projects[pid]?.name ?? pid });
 
 // A 3D scene in Orbit mode (web/scene-view.ts, imported lazily; it imports Three.js lazily in turn): `#/project/<id>/scene/<sid>`.
 let sceneScreen: import("./scene-view.ts").SceneScreen | null = null;
@@ -507,7 +512,10 @@ function showRoute() {
   route = parseRoute(location.hash);
   landing.remember(route);
   viewLanding.hidden = route.view !== "landing";
-  app.classList.toggle("landing-mode", route.view === "landing");
+  app.classList.toggle("landing-mode", route.view === "landing" || route.view === "design");
+  viewDesign.hidden = route.view !== "design";
+  if (route.view === "design") designScreen.open(route.id);
+  else designScreen.close();
   if (route.view === "landing") landing.show();
   else landing.hide();
   viewActivity.hidden = route.view !== "activity";
@@ -527,7 +535,7 @@ function showRoute() {
   else sceneScreen?.close();
   if (route.view === "scene-watch") openSceneWatch(route.id, route.scene, route.film);
   else sceneWatch?.close();
-  (inCanvas ? cvTools : route.view === "landing" ? landing.toolsSlot : topBar).append(barTools);
+  (inCanvas ? cvTools : route.view === "landing" ? landing.toolsSlot : route.view === "design" ? designScreen.toolsSlot : topBar).append(barTools);
   const pid = routeProject(route);
   if (pid && pid !== prevProject) {
     void loadList(pid);
@@ -631,6 +639,7 @@ const watcher = new Watcher({
       append(projectEventsEl, row);
       if (row.kind === "project.opened") void loadProject(route.id);
     }
+    if (designEventHits(route, row)) designScreen.refetch();
     if (sceneEventHits(route, row)) {
       if (route.view === "scene-page") scenePage?.refetch();
       else if (route.view === "scene-watch") sceneWatch?.refetch();

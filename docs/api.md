@@ -69,6 +69,12 @@ The answer also carries `floor`: the oldest seq whose canvas state can still be 
   "start_screen": null, "transition": "none" }
 ```
 
+`GET /api/projects/<id>/design` returns 200 with the project's design system (see [Design system](design-system.md)), or `{"design": null}` when it has none:
+
+```json
+{ "design": { "tokens": { "name": "tvdash", "colors": { "bg": "#0a0c13" }, "fonts": {}, "sizes": { "body": 14 }, "space": {}, "radius": {}, "rules": "One accent color." }, "markdown": "# tvdash\n...", "updated_at": 1767225600000 } }
+```
+
 `GET /api/projects/<id>/scenes` returns 200 (removed scenes are left out; see [3D scenes](scenes.md)): the `list_scenes` answer (`objects`: declared top-level objects; `drawables`: objects after repeaters expand).
 
 ```json

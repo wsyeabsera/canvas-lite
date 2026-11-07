@@ -342,11 +342,35 @@
   .ld-mit span { color: var(--mu); }
   .ld-mit.new { color: var(--ac); }
   .ld-msep { height: 1px; margin: 6px 0; background: var(--line); }
+  .ld-head { display: flex; align-items: flex-end; gap: 16px; }
+  .ld-head[hidden] { display: none; }
+  .ld-ds { margin-left: auto; display: inline-flex; align-items: center; height: 38px; padding: 0 18px; border-radius: 999px; color: var(--tx); text-decoration: none; }
   .ld-head h1 { margin: 0; font-size: 34px; letter-spacing: -.02em; }
   .ld-hmeta { color: var(--mu); }
   .ld-newdlg { width: 480px; padding: 28px; border: 1px solid var(--gb); border-radius: 20px; background: var(--pill); color: var(--tx); box-shadow: var(--fsh); }
   .ld-newdlg::backdrop { background: rgba(5, 6, 12, .55); }
   .landing .ld-newdlg h2 { margin: 0 0 8px; font-size: 22px; letter-spacing: -.01em; text-transform: none; color: var(--tx); }
+  /* design-system page (web/design-view.ts): #/project/<id>/design */
+  .ds-back { display: inline-flex; align-items: center; height: 38px; padding: 0 16px; border-radius: 999px; color: var(--tx); text-decoration: none; }
+  .ds-tabs { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; margin-left: auto; }
+  .ds-tab { height: 30px; padding: 0 16px; border: 0; border-radius: 999px; background: transparent; color: var(--mu); font: inherit; cursor: pointer; }
+  .ds-tab.on { background: var(--sel); color: var(--tx); }
+  .ds-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .ds-card { padding: 18px 20px; border-radius: 16px; }
+  .ds-card.wide { grid-column: 1 / 4; }
+  .ds-card h2 { margin: 0 0 12px; }
+  .ds-sws { display: flex; flex-wrap: wrap; gap: 14px; }
+  .ds-sw { width: 140px; }
+  .ds-sw i { display: block; height: 64px; margin-bottom: 8px; border: 1px solid var(--gb); border-radius: 12px; }
+  .ds-sw b { display: block; }
+  .ds-sw span, .ds-row span { color: var(--mu); font: 12px ui-monospace, Menlo, monospace; }
+  .ds-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .ds-row:last-child { border: 0; }
+  .ds-bar { display: inline-block; height: 12px; margin-right: 10px; border-radius: 3px; background: var(--ac); vertical-align: middle; }
+  .ds-rd { display: inline-block; width: 44px; height: 28px; margin-right: 10px; border: 2px solid var(--ac); vertical-align: middle; }
+  .ds-rules { line-height: 1.6; white-space: pre-wrap; }
+  .ds-doc { margin: 0; padding: 24px 28px; border: 1px solid var(--line); border-radius: 16px; background: var(--surf); font: 13px/1.7 ui-monospace, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .ds-none { display: block; margin-bottom: 8px; font-size: 20px; }
   .ld-code { margin: 16px 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--g); font: 13px ui-monospace, Menlo, monospace; }
   .ld-tools #bar-tools { display: flex; align-items: center; gap: 12px; }
   .ld-tools #bar-tools a { color: var(--mu); }
@@ -711,6 +735,7 @@
   </section>
   <!-- 3D scene, Orbit mode (web/scene-view.ts fills it; Three.js draws into a canvas inside) -->
   <section id="view-scene" class="sc" hidden aria-label="3D scene"></section>
+  <section id="view-design" class="landing" hidden aria-label="Design system"></section>
   <section id="view-scene-page" class="pg" hidden aria-label="3D scene page"></section>
 </div>
 <section id="locked" class="glass" hidden>

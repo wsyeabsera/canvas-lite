@@ -30,6 +30,7 @@ export default {
         if (route.kind === "canvases") return json(200, await h.listCanvasesForPage(route.id));
         if (route.kind === "scenes") return json(200, await h.listScenes(route.id));
         if (route.kind === "scene") return json(200, await h.readScene(route.id, route.scene));
+        if (route.kind === "design") return json(200, await h.getDesignSystem(route.id));
         if (route.kind === "timeline") return json(200, await h.canvasTimeline(route.id, route.canvas));
         if (route.kind === "at") return json(200, await h.canvasAt(route.id, route.canvas, route.seq));
         return json(200, await h.readCanvasForPage(route.id, route.canvas));
