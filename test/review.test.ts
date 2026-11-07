@@ -165,3 +165,31 @@ test("nav: unrelated content links that share a target are not chained into one 
   });
   assert.deepEqual(r.issues.filter((i) => i.kind === "nav_differs").map((i) => i.screen), []);
 });
+
+test("nav: an extra shared link (a header gear on the tab screens) is not required of inner screens that carry the same bar", () => {
+  // Five tabs, plus a gear on the tab screens only; inner screens carry the five-item bar and no gear.
+  const bar = nav("t1", "t2", "t3", "t4", "t5");
+  const tab = (id: string) => s(id, `${bar}${nav("gear")}`);
+  const inner = (id: string) => s(id, `${bar}${nav("t1")}`);
+  const r = reviewPrototype({
+    screens: [tab("t1"), tab("t2"), tab("t3"), tab("t4"), tab("t5"), inner("i1"), inner("i2"), inner("i3"), inner("i4"), s("gear", nav("t1"))],
+    start: "t1",
+    tour: null,
+  });
+  assert.deepEqual(r.issues.filter((i) => i.kind === "nav_differs").map((i) => i.screen), []);
+});
+
+test("nav: a screen that lacks one item of a well-supported bar is still flagged, and the extra gear is not named", () => {
+  const bar = (drop?: string) => nav(...["t1", "t2", "t3", "t4", "t5"].filter((t) => t !== drop));
+  const tab = (id: string) => s(id, `${bar()}${nav("gear")}`);
+  const inner = (id: string, drop?: string) => s(id, `${bar(drop)}${nav("t1")}`);
+  const r = reviewPrototype({
+    screens: [tab("t1"), tab("t2"), tab("t3"), tab("t4"), tab("t5"), inner("i1", "t5"), inner("i2"), inner("i3"), inner("i4"), s("gear", nav("t1"))],
+    start: "t1",
+    tour: null,
+  });
+  const flagged = r.issues.filter((i) => i.kind === "nav_differs");
+  assert.deepEqual(flagged.map((i) => i.screen), ["i1"]);
+  assert.match(flagged[0].message, /"t5"/);
+  assert.equal(/gear/.test(flagged[0].message), false);
+});

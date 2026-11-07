@@ -98,7 +98,13 @@ export function reviewPrototype(input: ReviewInput): Review {
       const common = [...aug.get(ids[i])!].filter((t) => aug.get(ids[j])!.has(t));
       if (common.length >= NAV_MIN_ITEMS) candidates.set([...common].sort().join("\n"), new Set(common));
     }
-  const clusters = [...candidates.values()].filter((c) => ![...candidates.values()].some((o) => o !== c && o.size > c.size && [...c].every((t) => o.has(t))));
+  // Among nested candidates keep one bar: the larger set wins only while it keeps at least 3/4 of the smaller set's carriers
+  // (the screens that have every item). Otherwise the larger set is the bar plus an extra link only some screens share (a
+  // header gear on the tab screens) and the smaller set is the bar.
+  const sets = [...candidates.values()];
+  const carriers = new Map(sets.map((c) => [c, screens.filter((s) => [...c].every((t) => aug.get(s.id)!.has(t))).length]));
+  const inside = (a: Set<string>, b: Set<string>) => a.size < b.size && [...a].every((t) => b.has(t));
+  const clusters = sets.filter((c) => !sets.some((o) => (inside(c, o) && carriers.get(o)! * 4 >= carriers.get(c)! * 3) || (inside(o, c) && carriers.get(c)! * 4 < carriers.get(o)! * 3)));
   stats.nav_sets = clusters.length;
   for (const nav of clusters) {
     const have = (s: { id: string }) => [...nav].filter((t) => aug.get(s.id)!.has(t)).length;
