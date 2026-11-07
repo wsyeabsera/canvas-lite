@@ -10,6 +10,9 @@ export type ApiRoute =
   | { kind: "at"; id: string; canvas: string; seq: number }
   | { kind: "scenes"; id: string }
   | { kind: "scene"; id: string; scene: string }
+  | { kind: "design"; id: string }
+  | { kind: "admin-overview" }
+  | { kind: "archive"; id: string }
   | { kind: "error"; status: 400 | 404 | 405; message: string; headers?: Record<string, string> };
 
 const ID_RE = /^[a-z0-9][a-z0-9-]*$/;
@@ -23,14 +26,16 @@ export function isApiPath(pathname: string): boolean {
 /** Map a method and path to what the Worker should do. Does not know whether a project exists. */
 export function routeApi(method: string, pathname: string): ApiRoute {
   const parts = pathname.slice("/api/".length).split("/");
+  if (parts[0] === "admin") return routeAdmin(method, parts);
   if (parts[0] !== "projects") return { kind: "error", status: 404, message: "not found" };
   const sub = parts[4];
   if (parts[2] === "scenes") return routeScenes(method, parts);
+  if (parts[2] === "design" && parts.length === 3) return routeDesign(method, parts[1]);
   if (
     parts.length > 6 || (parts.length > 2 && parts[2] !== "canvases") || (parts.length >= 4 && parts[3] === "") ||
     (parts.length === 5 && sub !== "timeline") || (parts.length === 6 && sub !== "at")
   )
-    return { kind: "error", status: 400, message: "invalid path: expected /api/projects/<id>[/canvases[/<canvas>[/timeline | /at/<seq>]] | /scenes[/<scene>]]" };
+    return { kind: "error", status: 400, message: "invalid path: expected /api/projects/<id>[/canvases[/<canvas>[/timeline | /at/<seq>]] | /scenes[/<scene>] | /design]" };
   if (method !== "GET" && method !== "HEAD") return { kind: "error", status: 405, message: "method not allowed", headers: { Allow: "GET, HEAD" } };
   if (parts.length === 1) return { kind: "list" };
   const id = parts[1];
@@ -61,6 +66,25 @@ function routeScenes(method: string, parts: string[]): ApiRoute {
   return { kind: "scene", id, scene };
 }
 
+/** /api/admin/overview (GET) and /api/admin/projects/<id>/archive (POST): the admin page (docs/auth.md). */
+function routeAdmin(method: string, parts: string[]): ApiRoute {
+  if (parts.length === 2 && parts[1] === "overview") return method === "GET" || method === "HEAD" ? { kind: "admin-overview" } : { kind: "error", status: 405, message: "method not allowed", headers: { Allow: "GET, HEAD" } };
+  if (parts.length === 4 && parts[1] === "projects" && parts[3] === "archive") {
+    if (method !== "POST") return { kind: "error", status: 405, message: "method not allowed", headers: { Allow: "POST" } };
+    const id = parts[2];
+    if (id.length > 40 || !ID_RE.test(id)) return { kind: "error", status: 400, message: `invalid project id "${id}": use lowercase letters, digits and -, at most 40` };
+    return { kind: "archive", id };
+  }
+  return { kind: "error", status: 404, message: "not found" };
+}
+
+/** /api/projects/<id>/design: the project's design system, `{design}` (null when none). */
+function routeDesign(method: string, id: string): ApiRoute {
+  if (method !== "GET" && method !== "HEAD") return { kind: "error", status: 405, message: "method not allowed", headers: { Allow: "GET, HEAD" } };
+  if (id.length > 40 || !ID_RE.test(id)) return { kind: "error", status: 400, message: `invalid project id "${id}": use lowercase letters, digits and -, at most 40` };
+  return { kind: "design", id };
+}
+
 /** Same gate as /mcp: fail closed first, then the bearer token. */
 export function gateApi(authHeader: string | null, token: string | undefined, url: URL): "ok" | 401 | 503 {
   if (misconfigured(url, token)) return 503;
@@ -82,5 +106,6 @@ export function gateResponse(gate: 401 | 503): Response {
 /** A Hub error becomes 404 when it is the unknown-project, unknown-canvas or unknown-scene error, else 500. */
 export function hubErrorResponse(e: unknown): Response {
   const message = e instanceof Error ? e.message : String(e);
-  return /^unknown (project|canvas|scene) "/.test(message) ? json(404, { error: message }) : json(500, { error: "internal error" });
+  if (/^unknown (project|canvas|scene) "/.test(message)) return json(404, { error: message });
+  return /^project ".*" is not empty/.test(message) ? json(409, { error: message }) : json(500, { error: "internal error" });
 }

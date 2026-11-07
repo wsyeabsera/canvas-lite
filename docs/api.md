@@ -10,7 +10,7 @@ A read-only JSON API the watch page uses. It returns what the `list_projects` to
 
 ## Auth
 
-Send `Authorization: Bearer <LITE_TOKEN>`, as for `/mcp`. A deployed Worker without a token answers 503.
+Send `Authorization: Bearer <LITE_TOKEN>`, as for `/mcp`, or (the watch page) a valid session cookie from the password login ([Login and admin](auth.md), which also lists the admin endpoints). A deployed Worker without a token answers 503.
 Every response is `Content-Type: application/json` with `Cache-Control: no-store`.
 
 ## Endpoints
@@ -67,6 +67,12 @@ The answer also carries `floor`: the oldest seq whose canvas state can still be 
 { "canvas": { "id": "main", "name": "Main" }, "seq": 13, "floor": 0, "ts": 1767225600000,
   "screens": [{ "id": "home", "name": "Home", "width": 400, "height": 300, "x": null, "y": null, "seq": 13, "bytes": 9, "layout": { "x": 0, "y": 0 }, "html": "<p>hi</p>" }],
   "start_screen": null, "transition": "none" }
+```
+
+`GET /api/projects/<id>/design` returns 200 with the project's design system (see [Design system](design-system.md)), or `{"design": null}` when it has none:
+
+```json
+{ "design": { "tokens": { "name": "tvdash", "colors": { "bg": "#0a0c13" }, "fonts": {}, "sizes": { "body": 14 }, "space": {}, "radius": {}, "rules": "One accent color." }, "markdown": "# tvdash\n...", "updated_at": 1767225600000 } }
 ```
 
 `GET /api/projects/<id>/scenes` returns 200 (removed scenes are left out; see [3D scenes](scenes.md)): the `list_scenes` answer (`objects`: declared top-level objects; `drawables`: objects after repeaters expand).

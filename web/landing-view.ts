@@ -8,7 +8,7 @@ import {
   rememberRoute, rememberScreen, resolveProject, searchEntries, sortEntries, startScreenOf, thumbFit, type Entry, type Filter, type Last, type Sessions,
   describeSceneEntries, isScene, POSTER_CONCURRENCY, posterFresh, sceneActions, sceneChips, scenePosterAtKey, scenePosterKey,
 } from "./landing.ts";
-import { hrefActivity, hrefCanvas, hrefPlay, hrefScene, hrefWalk, hrefWatch, type ProjectInfo } from "./state.ts";
+import { hrefActivity, hrefCanvas, hrefDesign, hrefPlay, hrefScene, hrefWalk, hrefWatch, type ProjectInfo } from "./state.ts";
 import type { Scene } from "../src/scene.ts";
 import { hasWebGL2 } from "./webgl.ts";
 
@@ -462,7 +462,9 @@ export function createLandingView(deps: LandingDeps) {
     projBtn.hidden = headEl.hidden = !cur;
     if (!cur) return;
     projName.textContent = cur.name;
-    headEl.replaceChildren(el("h1", undefined, cur.name), el("div", "ld-hmeta", projectSummary(scoped)));
+    const title = el("div");
+    title.append(el("h1", undefined, cur.name), el("div", "ld-hmeta", projectSummary(scoped)));
+    headEl.replaceChildren(title, link(hrefDesign(project), "ld-ds glass", "Design system", `The ${cur.name} design system`));
     const add = el("button", "ld-mit new");
     add.type = "button";
     add.dataset.new = "1";

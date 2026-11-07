@@ -10,6 +10,12 @@ import { createWatchView } from "./watch-view.ts";
 import { createReplayView } from "./replay-view.ts";
 import { createLiveView } from "./live-view.ts";
 import { createLandingView } from "./landing-view.ts";
+import { createDesignScreen } from "./design-view.ts";
+import { createAdminScreen } from "./admin-view.ts";
+import { adminEventHits } from "./admin.ts";
+import { mountLogin } from "./login-view.ts";
+import { parseAuth } from "./login.ts";
+import { designEventHits } from "./design.ts";
 import { initialFollow, onCanvasLoad, onPresenterEvent, pillModel, resumeFollow, takeOver, tourCaption, tourLabel, tourPause, tourResume, tourStart, tourTick, type FollowState, type Target, type TourRun } from "./follow.ts";
 import { initTheme } from "./theme.ts";
 import { hasWebGPU, parseTheme, shouldRun, shouldShow, themeColors } from "./backdrop.ts";
@@ -26,6 +32,8 @@ const viewProject = $("view-project");
 const viewCanvas = $("view-canvas");
 const viewScene = $("view-scene");
 const viewScenePage = $("view-scene-page");
+const viewDesign = $("view-design");
+const viewAdmin = $("view-admin");
 const eventsEl = $("events");
 const projectEventsEl = $("project-events");
 const topBar = $("top-bar");
@@ -52,7 +60,39 @@ const setStatus = (text: string, s: "ok" | "wait" | "bad") => {
 const setLocked = (on: boolean) => {
   locked.hidden = !on;
   app.hidden = on;
+  if (on) void showLogin();
 };
+
+// Page sessions (docs/auth.md): `/api/auth` says whether a password login exists and whether this tab holds a session.
+let session = false;
+async function loadAuth() {
+  try {
+    const a = parseAuth(await (await fetch("/api/auth")).json());
+    session = a?.session ?? false;
+    $("ld-signout").hidden = !session;
+    return a;
+  } catch {
+    return null;
+  }
+}
+/** The locked screen asks for the password when there is a login, else for the token as before. */
+async function showLogin() {
+  const a = await loadAuth();
+  const form = $("login") as HTMLFormElement;
+  form.hidden = !a?.password;
+  $("locked-token").hidden = Boolean(a?.password);
+  if (a?.password) form.querySelector("input")?.focus();
+}
+const signOut = async () => {
+  try {
+    await fetch("/logout", { method: "POST" });
+  } finally {
+    location.reload();
+  }
+};
+mountLogin($("login") as HTMLFormElement, () => location.reload());
+$("ld-signout").addEventListener("click", signOut);
+void loadAuth();
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, cls?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -409,7 +449,7 @@ const watchView = createWatchView({
 });
 
 function renderCanvas() {
-  if (route.view === "activity" || route.view === "landing" || route.view === "project" || route.view === "scene" || route.view === "scene-page" || route.view === "scene-watch") return;
+  if (route.view === "activity" || route.view === "landing" || route.view === "project" || route.view === "scene" || route.view === "scene-page" || route.view === "scene-watch" || route.view === "design" || route.view === "admin") return;
   const pid = route.id;
   const cid = route.canvas;
   canvasView.render({
@@ -437,6 +477,9 @@ setInterval(() => {
 
 // The landing page (web/landing-view.ts): `#/`, the gallery. Declared before the play view because `moved` remembers the screen.
 const landing = createLandingView({ headers, projects: () => sortedProjects(state), locked: () => setLocked(true) });
+// The project's design system (web/design-view.ts): `#/project/<id>/design`.
+const adminScreen = createAdminScreen(viewAdmin, { headers, locked: () => setLocked(true), session: () => session, signOut });
+const designScreen = createDesignScreen(viewDesign, { headers, locked: () => setLocked(true), projectName: (pid) => state.projects[pid]?.name ?? pid });
 
 // A 3D scene in Orbit mode (web/scene-view.ts, imported lazily; it imports Three.js lazily in turn): `#/project/<id>/scene/<sid>`.
 let sceneScreen: import("./scene-view.ts").SceneScreen | null = null;
@@ -507,7 +550,13 @@ function showRoute() {
   route = parseRoute(location.hash);
   landing.remember(route);
   viewLanding.hidden = route.view !== "landing";
-  app.classList.toggle("landing-mode", route.view === "landing");
+  app.classList.toggle("landing-mode", route.view === "landing" || route.view === "design" || route.view === "admin");
+  viewAdmin.hidden = route.view !== "admin";
+  if (route.view === "admin") adminScreen.open();
+  else adminScreen.close();
+  viewDesign.hidden = route.view !== "design";
+  if (route.view === "design") designScreen.open(route.id);
+  else designScreen.close();
   if (route.view === "landing") landing.show();
   else landing.hide();
   viewActivity.hidden = route.view !== "activity";
@@ -527,7 +576,7 @@ function showRoute() {
   else sceneScreen?.close();
   if (route.view === "scene-watch") openSceneWatch(route.id, route.scene, route.film);
   else sceneWatch?.close();
-  (inCanvas ? cvTools : route.view === "landing" ? landing.toolsSlot : topBar).append(barTools);
+  (inCanvas ? cvTools : route.view === "landing" ? landing.toolsSlot : route.view === "design" ? designScreen.toolsSlot : route.view === "admin" ? adminScreen.toolsSlot : topBar).append(barTools);
   const pid = routeProject(route);
   if (pid && pid !== prevProject) {
     void loadList(pid);
@@ -631,6 +680,8 @@ const watcher = new Watcher({
       append(projectEventsEl, row);
       if (row.kind === "project.opened") void loadProject(route.id);
     }
+    if (designEventHits(route, row)) designScreen.refetch();
+    if (adminEventHits(route, row)) adminScreen.refetch();
     if (sceneEventHits(route, row)) {
       if (route.view === "scene-page") scenePage?.refetch();
       else if (route.view === "scene-watch") sceneWatch?.refetch();
