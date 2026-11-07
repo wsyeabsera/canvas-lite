@@ -80,3 +80,9 @@ test("drift: fonts by first family, sizes in px, at most five values shown", () 
 test("drift: a group with no tokens is not checked", () => {
   assert.deepEqual(driftIssues([screen("p{color:#123456;font-family:Georgia;font-size:13px}")], emptyDesignSystem()), []);
 });
+
+test("drift: an inline style that ends without a semicolon does not hide the colors after it", () => {
+  const html = "<body><div style='display:flex;gap:12px'>x</div><div style='background:linear-gradient(135deg,#1e293b,#4338ca)'></div><i style='color:#123456'></i></body>";
+  const [issue] = driftIssues([{ id: "home", html }], ds);
+  assert.match(issue.message, /#1e293b, #4338ca, #123456/);
+});

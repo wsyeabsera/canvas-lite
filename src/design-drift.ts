@@ -9,7 +9,8 @@ const COLOR_PROPS = /^(?:[a-z-]*color|background(?:-image)?|border(?:-[a-z]+)?|o
 function cssText(html: string): string {
   const blocks = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)].map((m) => m[1]);
   const attrs = [...html.matchAll(/\sstyle\s*=\s*(?:"([^"]*)"|'([^']*)')/gi)].map((m) => m[1] ?? m[2]);
-  return [...blocks, ...attrs].join("\n");
+  // Joined with `;`: the last declaration of an inline style has none, and without it the scan below would read the next attribute as part of its value.
+  return [...blocks, ...attrs].join(";\n");
 }
 
 const hex2 = (n: string) => Math.min(255, Number(n)).toString(16).padStart(2, "0");
