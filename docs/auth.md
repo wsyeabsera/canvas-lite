@@ -14,6 +14,18 @@ wrangler secret put LITE_TOKEN        # still required: /mcp and a deployed Work
 
 With `LITE_PASSWORD` unset nothing changes and `/login` answers 404.
 
+## The whole site
+
+With `LITE_PASSWORD` set, **nobody gets in without the password, not even to look at the page or the docs.** The Worker runs before the static files (`assets.run_worker_first` and the `ASSETS` binding in `wrangler.jsonc`) and asks `siteDecision` (`src/site-gate.ts`, pure and unit tested):
+
+| Request | No valid session | Valid session |
+|---|---|---|
+| `GET /login` and `/login-page.js` (the standalone sign-in page, `public/login.html`, and its own bundle) | served | served |
+| any other `GET` or `HEAD` (`/`, `/page.js`, `/docs/...`, anything) | `302` to `/login`, the `#fragment` is kept | served with `Cache-Control: private, no-cache` |
+| any other method | 404 | 404 |
+
+`/health` (reveals nothing), `POST /login`, `POST /logout`, `GET /api/auth` and the token-protected `/mcp`, `/events` and `/api` are answered before this gate. After signing in the page goes to `/` with the same fragment, so a link like `/#/admin` or `/#token=...` still works. Without `LITE_PASSWORD` (token mode, local dev) the files are served to anyone, as before; the data is behind the token. The guard test checks `run_worker_first` stays in `wrangler.jsonc`: without it the files would be served before the Worker ever saw the request.
+
 ## Session
 
 `POST /login` with `{"password": "..."}`. A right password answers 200 and sets one cookie:
@@ -43,4 +55,4 @@ Both need the token or a session. The admin page is the one place the watch page
 
 ## Code
 
-`src/session.ts` (cookie sign and verify), `src/login-limit.ts` (throttle), `src/login.ts` (the `/login` and `/logout` handlers), `src/admin.ts` (overview and archive), thin wiring in `src/index.ts` and `src/hub.ts`; the page is `web/login.ts`, `web/login-view.ts`, `web/admin.ts` and `web/admin-view.ts`.
+`src/site-gate.ts` (who may load the static files), `src/session.ts` (cookie sign and verify), `src/login-limit.ts` (throttle), `src/login.ts` (the `/login` and `/logout` handlers), `src/admin.ts` (overview and archive), thin wiring in `src/index.ts` and `src/hub.ts`; the page is `public/login.html` with `web/login-page.ts`, `web/login.ts`, `web/login-view.ts`, `web/admin.ts` and `web/admin-view.ts`.

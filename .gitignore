@@ -4,8 +4,11 @@ node_modules/
 site/build/
 site/.docusaurus/
 .wrangler/
+.env
+.dev.vars
 .claude/
 public/page.js
+public/login-page.js
 public/chunk-*.js
 public/docs/
 .lite-cache/

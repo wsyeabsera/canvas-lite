@@ -7,8 +7,9 @@
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
   "dev": { "port": 8790 },
-  // The watch page (/) and the docs (/docs/) are static assets served before the Worker runs; /mcp, /events, /health fall through to it.
-  "assets": { "directory": "./public" },
+  // The watch page (/) and the docs (/docs/) are static assets. The Worker runs first (run_worker_first) so it can refuse them to a visitor
+  // without a session when a password is set (src/site-gate.ts); it serves them through the ASSETS binding.
+  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": true },
   // The single Hub instance (getByName("default")) holds all state.
   "durable_objects": { "bindings": [{ "name": "HUB", "class_name": "Hub" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Hub"] }]
