@@ -5,7 +5,7 @@ slug: /ui
 
 # The watch page
 
-`/` on the Worker is a read-only page. It never sends anything except the websocket `hello` and `GET` requests.
+`/` on the Worker is a read-only page. It sends only the websocket `hello`, `GET` requests, and three writes: the password sign-in and sign-out, and the admin Archive of an empty project ([Login and admin](auth.md)).
 
 ## Views
 
@@ -21,6 +21,7 @@ slug: /ui
 | `#/project/<id>/canvas/<cid>/play[/<sid>]` | **Play** (present mode) over the canvas: one screen at a time, fitted to the window. Starts at `<sid>`, else the canvas start screen (first screen when unset). Linkable; the address follows the screen on show without adding history entries. See below. |
 | `#/project/<id>/canvas/<cid>/walk` | **Walkthrough**, a mode of Play: the same fitted stage with a step rail on the right (see [Walkthrough](#walkthrough)). |
 | `#/project/<id>/canvas/<cid>/watch[/<scenarioId>]` | **Watch**, the scenario video player: without an id the picker, with an id the player (see [Watch](#watch)). |
+| `#/admin` | **Admin** (see [Login and admin](auth.md)): totals, every project with its counts and last activity, and Archive for an empty project. Linked by the **Admin** pill on the landing; a **Sign out** pill appears while the page holds a password session. When the API answers 401 the page shows the **sign-in form** (password login) or the token message. |
 | `#/project/<id>/design` | The project's **design system**: tokens as swatches, a type scale, spacing and radius samples and the rules, and a **DESIGN.md** tab with the exact text Claude reads (see [Design system](design-system.md)). Reached from the **Design system** pill beside the project name on the landing; a project without one says so and what to ask Claude. Read-only, refetched on `design.set`; code in `web/design.ts` (pure, tested) and `web/design-view.ts`. |
 | `#/project/<id>/scene/<sid>` | A 3D **scene** in Orbit mode (see [Scenes](#scenes)). |
 | `#/project/<id>/scene/<sid>/watch[/<filmId>]` | The scene in **Watch** mode: without a film id the film picker, with one the film player (see [Watch mode](#watch-mode-films)). |

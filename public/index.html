@@ -344,6 +344,8 @@
   .ld-msep { height: 1px; margin: 6px 0; background: var(--line); }
   .ld-head { display: flex; align-items: flex-end; gap: 16px; }
   .ld-head[hidden] { display: none; }
+  .ld-pill { display: inline-flex; align-items: center; height: 38px; padding: 0 16px; border: 0; border-radius: 999px; color: var(--tx); font: inherit; text-decoration: none; cursor: pointer; }
+  #ld-admin { margin-left: 12px; }
   .ld-ds { margin-left: auto; display: inline-flex; align-items: center; height: 38px; padding: 0 18px; border-radius: 999px; color: var(--tx); text-decoration: none; }
   .ld-head h1 { margin: 0; font-size: 34px; letter-spacing: -.02em; }
   .ld-hmeta { color: var(--mu); }
@@ -439,6 +441,30 @@
   #locked { max-width: 460px; margin: 18vh auto 0; padding: 28px; text-align: center; width: calc(100% - 32px); }
   #locked h1 { margin-bottom: 10px; }
   #locked p { color: var(--mu); margin: 8px 0 0; }
+  .lg { text-align: left; }
+  .lg-l { display: block; margin: 22px 0 8px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--mu); }
+  .lg input { width: 100%; height: 44px; padding: 0 14px; border: 1px solid var(--gb); border-radius: 12px; background: var(--g); color: var(--tx); font: inherit; outline: 0; }
+  .lg input:focus { box-shadow: 0 0 0 2px var(--ac); }
+  .lg input[aria-invalid="true"] { border-color: var(--bad); }
+  .lg-msg { min-height: 1.4em; margin: 8px 0 0; color: var(--bad) !important; }
+  .lg .ld-btn { width: 100%; height: 44px; margin-top: 12px; justify-content: center; }
+  .ad-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+  .ad-n { display: block; font-size: 34px; letter-spacing: -.02em; }
+  .ad-tbl { padding: 0; overflow: hidden; }
+  .ad-tbl h2 { margin: 0; padding: 16px 20px 8px; }
+  .ad-r { display: grid; grid-template-columns: 2fr 1fr 1fr 2fr 1fr; align-items: center; padding: 12px 20px; border-top: 1px solid var(--line); }
+  .ad-r.hd { color: var(--mu); font-size: 12px; }
+  .ad-act { justify-self: end; color: var(--mu); font-size: 12px; }
+  .ad-arch { padding: 6px 14px; border: 1px solid var(--bad); border-radius: 999px; background: transparent; color: var(--bad); font: inherit; cursor: pointer; }
+  .ad-note { margin: 0; padding: 12px 16px; border-radius: 12px; }
+  .ad-note.ok { border: 1px solid var(--ok); color: var(--ok); }
+  .ad-note.bad { border: 1px solid var(--bad); color: var(--bad); }
+  .ad-foot { margin: 0; }
+  .ad-actions { display: flex; gap: 12px; margin-top: 22px; }
+  .ad-danger { background: var(--bad); color: #0a0c13; border: 0; }
+  .ad-out { border: 0; font: inherit; cursor: pointer; }
+  #view-admin { display: flex; flex-direction: column; gap: 22px; }
+  #view-admin[hidden] { display: none; }
   #locked code { font: 500 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--chip); padding: 1px 7px; border-radius: 8px; color: var(--tx); overflow-wrap: anywhere; }
 
   @media (max-width: 640px) {
@@ -675,6 +701,8 @@
       <button type="button" class="ld-proj glass" id="ld-project" popovertarget="ld-menu" aria-label="Project" hidden><i class="ld-pdot"></i><b id="ld-pname"></b><span aria-hidden="true">▾</span></button>
       <div class="ld-menu" id="ld-menu" popover role="menu"></div>
       <label class="ld-search glass"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg><input id="ld-search" type="search" placeholder="Search designs" aria-label="Search designs" autocomplete="off"></label>
+      <a class="ld-pill glass" id="ld-admin" href="#/admin">Admin</a>
+      <button class="ld-pill glass" id="ld-signout" type="button" hidden>Sign out</button>
       <div class="ld-tools" id="ld-tools"></div>
     </header>
     <div class="ld-head" id="ld-head" hidden></div>
@@ -736,11 +764,22 @@
   <!-- 3D scene, Orbit mode (web/scene-view.ts fills it; Three.js draws into a canvas inside) -->
   <section id="view-scene" class="sc" hidden aria-label="3D scene"></section>
   <section id="view-design" class="landing" hidden aria-label="Design system"></section>
+  <section id="view-admin" class="landing" hidden aria-label="Admin"></section>
   <section id="view-scene-page" class="pg" hidden aria-label="3D scene page"></section>
 </div>
 <section id="locked" class="glass" hidden>
-  <h1>Open Lite with your token</h1>
-  <p>Open <code>/#token=&lt;your token&gt;</code> once. Everything after the # stays in your browser and is never sent to the server.</p>
+  <div id="locked-token">
+    <h1>Open Lite with your token</h1>
+    <p>Open <code>/#token=&lt;your token&gt;</code> once. Everything after the # stays in your browser and is never sent to the server.</p>
+  </div>
+  <form id="login" class="lg" hidden>
+    <h1>Sign in</h1>
+    <p>Enter the password to watch what Claude is designing.</p>
+    <label class="lg-l" for="lg-pw">Password</label>
+    <input id="lg-pw" name="password" type="password" autocomplete="current-password" aria-describedby="lg-msg" required>
+    <p class="lg-msg" id="lg-msg" role="alert"></p>
+    <button class="ld-btn blue" type="submit">Sign in</button>
+  </form>
 </section>
 <script type="module" src="/page.js"></script>
 </body>

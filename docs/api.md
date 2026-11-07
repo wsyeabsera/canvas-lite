@@ -10,7 +10,7 @@ A read-only JSON API the watch page uses. It returns what the `list_projects` to
 
 ## Auth
 
-Send `Authorization: Bearer <LITE_TOKEN>`, as for `/mcp`. A deployed Worker without a token answers 503.
+Send `Authorization: Bearer <LITE_TOKEN>`, as for `/mcp`, or (the watch page) a valid session cookie from the password login ([Login and admin](auth.md), which also lists the admin endpoints). A deployed Worker without a token answers 503.
 Every response is `Content-Type: application/json` with `Cache-Control: no-store`.
 
 ## Endpoints

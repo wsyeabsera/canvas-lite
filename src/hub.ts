@@ -2,18 +2,21 @@
 // It also holds the read-only /events WebSockets (Hibernation API: an idle watcher costs nothing).
 import { DurableObject } from "cloudflare:workers";
 import { tokenOk } from "./auth.ts";
+import { SESSION_HEADER } from "./session.ts";
 import { parseHello, replay } from "./events.ts";
 import { createCanvas, listCanvases, listCanvasesForPage, readCanvas, removeCanvas, removeScreen, setFlow, setScreen, setScreens, type ScreenFields, type ScreenInput } from "./canvases.ts";
 import { canvasAt, canvasTimeline } from "./timeline.ts";
 import { patchScreen, readCanvasForPage, readFlow, reviewFlow, setTour, validateFlow, type PatchEdit } from "./flow.ts";
 import { setScenarios } from "./scenarios.ts";
+import { adminOverview, archiveEmptyProject } from "./admin.ts";
+import { checkLogin, clearFailures, recordFailure } from "./login-limit.ts";
 import { getDesignSystem, patchDesignSystem, setDesignSystem } from "./design-store.ts";
 import { createScene, listScenes, patchScene, readScene, reviewStoredScene, setFilms, setPage, setScene, validateStoredScene, type SceneEdit } from "./scene-store.ts";
 import { goto, present, stopPresent } from "./present.ts";
 import { listProjects, openProject, readProject, removeProject, type OpenInput, type ProjectSummary } from "./projects.ts";
 import { appendEvent,migrate, type LiteEvent, type Sql } from "./store.ts";
 
-type Attachment = { authed: boolean };
+type Attachment = { authed: boolean; session: boolean }; // session: the Worker saw a valid page session cookie on the upgrade
 
 export class Hub extends DurableObject<Env> {
   private sql: Sql;
@@ -235,6 +238,29 @@ export class Hub extends DurableObject<Env> {
     return result;
   }
 
+  /** Sign-in throttle (src/login-limit.ts): may this connection try, count a wrong password, forget failures after a right one. */
+  loginCheck(key: string) {
+    return checkLogin(this.sql, key);
+  }
+
+  loginFailed(key: string) {
+    return recordFailure(this.sql, key);
+  }
+
+  loginOk(key: string) {
+    clearFailures(this.sql, key);
+  }
+
+  adminOverview() {
+    return adminOverview(this.sql);
+  }
+
+  archiveProject(id: string) {
+    const { event } = archiveEmptyProject(this.sql, id);
+    if (event) this.broadcast(event);
+    return { archived: id };
+  }
+
   ping(note?: string): LiteEvent {
     return this.record({ kind: "ping", payload: note === undefined ? {} : { note } });
   }
@@ -244,7 +270,7 @@ export class Hub extends DurableObject<Env> {
     if (request.headers.get("Upgrade") !== "websocket") return new Response("expected a websocket", { status: 426 });
     const [client, server] = Object.values(new WebSocketPair());
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({ authed: false } satisfies Attachment);
+    server.serializeAttachment({ authed: false, session: request.headers.get(SESSION_HEADER) === "1" } satisfies Attachment);
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -252,8 +278,9 @@ export class Hub extends DurableObject<Env> {
     // Watchers are read-only: after the hello, any message at all ends the connection.
     if ((ws.deserializeAttachment() as Attachment | null)?.authed) return void ws.close(1008, "read-only");
     const hello = parseHello(message);
-    if (!hello || !tokenOk(hello.token, this.env.LITE_TOKEN)) return void ws.close(1008, "refused");
-    ws.serializeAttachment({ authed: true } satisfies Attachment);
+    const session = (ws.deserializeAttachment() as Attachment | null)?.session === true;
+    if (!hello || !(session || tokenOk(hello.token, this.env.LITE_TOKEN))) return void ws.close(1008, "refused");
+    ws.serializeAttachment({ authed: true, session } satisfies Attachment);
     for (const event of replay(this.sql, hello.after)) ws.send(JSON.stringify(event));
   }
 }

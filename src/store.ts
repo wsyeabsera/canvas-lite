@@ -127,6 +127,12 @@ export const MIGRATIONS = [
      data       TEXT NOT NULL,
      updated_at INTEGER NOT NULL
    );`,
+  // 10: the sign-in throttle (docs/auth.md), one row per connection key; src/login-limit.ts is the only code that touches it.
+  `CREATE TABLE login_attempts (
+     key      TEXT PRIMARY KEY,
+     count    INTEGER NOT NULL,
+     first_at INTEGER NOT NULL
+   );`,
 ];
 
 /** Runs pending migrations, each in its own transaction. Refuses a database written by a newer build. */

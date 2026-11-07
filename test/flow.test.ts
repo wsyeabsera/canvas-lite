@@ -25,7 +25,7 @@ test("migration 5 on a populated v4 database keeps canvases and screens, default
   sql.run("INSERT INTO canvases (project, id, name, created_at, updated_at) VALUES ('tvdash', 'main', 'Main', 1, 2)");
   sql.run("INSERT INTO screens (project, canvas, id, name, width, height, html, updated_at) VALUES ('tvdash', 'main', 'home', 'Home', 400, 300, '<p>x</p>', 3)");
   migrate(sql);
-  assert.deepEqual(sql.all<{ version: number }>("SELECT version FROM _migrations ORDER BY version").map((r) => r.version), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  assert.deepEqual(sql.all<{ version: number }>("SELECT version FROM _migrations ORDER BY version").map((r) => r.version), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   const r = readCanvas(sql, "tvdash", "main", true);
   assert.deepEqual(r.canvas, { id: "main", name: "Main", screens: 1, created_at: 1, updated_at: 2, start_screen: null, transition: "none" });
   assert.equal(r.screens[0].html, "<p>x</p>");
