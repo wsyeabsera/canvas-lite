@@ -132,7 +132,7 @@ interface SceneView {
 | shot duration | 500 to 60000 ms (`SHOT_MS_MIN`, `SHOT_MS_MAX`) |
 | waypoints per shot | 8 |
 
-The expanded count is computed arithmetically from the declared tree (nothing is expanded to measure it), so a repeater of an empty group or nested repeaters with a tiny payload are counted in full. A repeater (or group) that would pass the object limit is rejected before anything is stored, naming the object id and the expanded count (`repeater "forest" expands to 2001 objects (limit 2000)`). A repeater whose copies could land beyond ±1,000,000 on any axis (its `pos`, shifted by any outer repeater, plus its grid extent or ring/scatter radius plus the template `pos`) is rejected naming its id. Duplicate ids anywhere (including across nested groups) are rejected naming the id. Nesting deeper than 6 is rejected.
+The expanded count is computed arithmetically from the declared tree (nothing is expanded to measure it), so a repeater of an empty group or nested repeaters with a tiny payload are counted in full. A repeater (or group) that would pass the object limit is rejected before anything is stored, naming the object id and the expanded count (`repeater "forest" expands to 2001 objects (limit 2000)`). A repeater whose copies could land beyond ±1,000,000 on any axis (its `pos`, shifted by any outer repeater and by the `pos` of every group around it, plus its grid extent or ring/scatter radius plus the template `pos`) is rejected naming its id. Duplicate ids anywhere (including across nested groups) are rejected naming the id. Nesting deeper than 6 is rejected.
 
 ## Tools
 

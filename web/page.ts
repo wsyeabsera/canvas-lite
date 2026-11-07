@@ -1,7 +1,7 @@
 // The read-only watch page: the CLI's Watcher and formatter, drawn into views. It only reads; the one message it sends is the Watcher's hello.
 import { clock, detail as eventDetail, type WatchRow } from "../cli/format.ts";
 import { Watcher, normalizeUrl } from "../cli/watch-core.ts";
-import { addRow, describeProject, hrefActivity, hrefCanvas, hrefLanding, hrefPlay, hrefScene, hrefSceneWatch, hrefProject, hrefWalk, hrefWatch, hrefScreen, initialState, MAX_ROWS, parseRoute, routeCanvas, routeProject, sceneEventHits, sortedProjects, visibleRows, type Route, type State } from "./state.ts";
+import { addRow, describeProject, hrefCanvas, hrefLanding, hrefPlay, hrefScene, hrefSceneWatch, hrefWalk, hrefWatch, hrefScreen, initialState, MAX_ROWS, parseRoute, routeCanvas, routeProject, sceneEventHits, sortedProjects, visibleRows, type Route, type State } from "./state.ts";
 import { agoText, canvasEvent, describeCanvasDetail, describeCanvasList, dropCanvas, refetchPlan, screensLabel, type CanvasDetail, type CanvasSummary, type Pending } from "./canvas.ts";
 import { createCanvasView } from "./canvas-view.ts";
 import { createPlayView } from "./play-view.ts";

@@ -6,7 +6,7 @@ import { thumbFit } from "./landing.ts";
 import { fitStage, planTransition, playFrameSpec, resolveTransition, defaultFrame } from "./play.ts";
 import {
   buildTimeline, captionFor, centerOf, chapterFractions, clampPt, clockLabel, cursorStart, durationLabel, endCardActive, endCardCancel, endCardLine, endCardStart,
-  endCardTick, endOutcome, findScenario, fractionOf, goesBack, initialClock, lerpPt, nextStepMs, parseSpeed, pickerLine, pickLink, playableSteps, positionAt, prevStepMs,
+  endCardTick, endOutcome, fractionOf, goesBack, initialClock, lerpPt, nextStepMs, parseSpeed, pickerLine, pickLink, playableSteps, positionAt, prevStepMs,
   scenarioChip, scrubLabel, seekFraction, SPEEDS, speedLabel, stepAtFraction, stepsLabel, tick, travelState, tryItScreen, watchKey,
   type Clock, type EndCard, type LinkCandidate, type Position, type Pt, type Scenario, type ScenarioStep, type Timeline,
 } from "./watch.ts";

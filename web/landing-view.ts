@@ -55,7 +55,6 @@ function icon(d: string, size: number, fill = false): SVGSVGElement {
 }
 
 export function createLandingView(deps: LandingDeps) {
-  const root = $("view-landing");
   const bannerEl = $("ld-banner");
   const continueEl = $("ld-continue");
   const chipsEl = $("ld-chips");
