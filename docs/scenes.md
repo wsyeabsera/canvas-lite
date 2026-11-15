@@ -96,6 +96,7 @@ How the data is drawn (`web/scene-render.ts`; the maths is pure in `web/scene-ma
 - **Lights**: `sun` is a directional light from `pos` towards `target` with soft shadows (a 2048 shadow map fitted to the scene's bounds); `ambient` lights everything evenly; `point` and `spot` (a cone 30 degrees off its axis, soft edge) fall off with distance, `intensity` 1 lighting roughly 10 units around. Every opaque solid casts and receives shadows.
 - **Sky** is a large gradient dome around the camera: `bottom` at and below the horizon easing to `top` overhead, shown as written (not tone mapped). **Fog** is linear from `near` to `far`. Colours are sRGB, output is ACES tone mapped.
 - **Camera**: `fov` is vertical, in degrees; a string `look` aims at the centre of that object's bounds (a repeater template id aims at the whole repeater).
+- **No orthographic camera.** The viewer draws every scene with a perspective camera (`fov` 10 to 120), so a true isometric view is not possible. For an isometric-style preview of a room or a prop, put the camera on the diagonal at equal distance (`pos: [d, d, d]`, `look` at the object, about 35.26 degrees above the ground) and use the smallest `fov`, 10, with `d` large enough to fit the subject (about 6 times its radius): the lines then converge so little that it reads as isometric.
 - Frames are drawn on demand only, never while paused or while the tab is hidden; `poster()` draws one frame and returns a JPEG data URL.
 
 The API other modes build on:
