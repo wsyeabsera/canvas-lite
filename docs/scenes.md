@@ -116,6 +116,10 @@ interface SceneView {
 }
 ```
 
+## Export a scene as a JSON file
+
+`node cli/export.ts <project> <scene> [--out <file>|-]` saves the stored scene (`{name, objects, lights, sky, camera}`, no films) as indented JSON, by default `<scene>.json` in the current folder (`-` prints it). It reads `GET /api/projects/<id>/scenes/<sid>` ([API](api.md)) from `LITE_URL` (default `http://127.0.0.1:8790`) with `LITE_TOKEN` when set; local dev needs none. Another repo loads the file as scene data. The logic is `cli/export-core.ts`, covered by `test/export.test.ts`.
+
 ## Limits
 
 | What | Limit |
