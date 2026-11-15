@@ -1,5 +1,5 @@
 // validate_scene (docs/scenes.md): review a scene and its films like a director. Pure; every issue has a fix.
-import { expandObjects, objectIds, type Scene, type SceneObject, type Vec3 } from "./scene.ts";
+import { domeShape, expandObjects, objectIds, type Scene, type SceneObject, type Vec3 } from "./scene.ts";
 import { filmDuration, type Film } from "./shots.ts";
 
 export type SceneIssue = {
@@ -18,7 +18,10 @@ export function halfExtents(o: SceneObject): Vec3 | null {
   if (o.kind === "box") h = [(s[0] ?? 1) / 2, (s[1] ?? 1) / 2, (s[2] ?? 1) / 2];
   else if (o.kind === "sphere") h = [s[0] ?? 1, s[0] ?? 1, s[0] ?? 1];
   else if (o.kind === "cylinder" || o.kind === "cone" || o.kind === "capsule") h = [s[0] ?? 1, (s[1] ?? 2) / 2, s[0] ?? 1];
-  else if (o.kind === "torus") h = [(s[0] ?? 1) + (s[1] ?? 0.3), (s[1] ?? 0.3), (s[0] ?? 1) + (s[1] ?? 0.3)];
+  else if (o.kind === "dome") {
+    const d = domeShape(s);
+    h = [d.halfWidth, d.height / 2, d.halfWidth];
+  } else if (o.kind === "torus") h = [(s[0] ?? 1) + (s[1] ?? 0.3), (s[1] ?? 0.3), (s[0] ?? 1) + (s[1] ?? 0.3)];
   else return null;
   return [h[0] * Math.abs(k[0]), h[1] * Math.abs(k[1]), h[2] * Math.abs(k[2])];
 }

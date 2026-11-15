@@ -16,7 +16,7 @@ type Vec3 = [number, number, number];
 type Material = { color: string; roughness?: number; metalness?: number; emissive?: string; opacity?: number };
 type SceneObject = {
   id: string;
-  kind: "box" | "sphere" | "cylinder" | "cone" | "plane" | "torus" | "capsule" | "text" | "group" | "repeat" | "terrain";
+  kind: "box" | "sphere" | "cylinder" | "cone" | "plane" | "torus" | "capsule" | "dome" | "text" | "group" | "repeat" | "terrain";
   name?: string; pos?: Vec3; rot?: Vec3; scale?: Vec3; size?: number[]; material?: Material; text?: string;
   children?: SceneObject[];
   repeat?: { mode: "grid" | "ring" | "scatter"; count: number; spacing?: number; radius?: number; seed?: number; of: SceneObject };
@@ -28,13 +28,14 @@ type View = { pos: Vec3; look: Vec3 | string };            // a string is an obj
 type Scene = { name: string; objects: SceneObject[]; lights: Light[]; sky: Sky; camera: View & { fov: number } };
 ```
 
-- `size` has a fixed layout per kind (`SIZE_LAYOUT` in `src/scene.ts`); every value is 0 or more, and a list of the wrong length, a negative value or a size on a kind without one is rejected naming the path (`objects[0].size`). A missing size is 1 (cylinder, cone and capsule height 2, torus tube 0.3).
+- `size` has a fixed layout per kind (`SIZE_LAYOUT` in `src/scene.ts`); every value is 0 or more, and a list of the wrong length, a negative value or a size on a kind without one is rejected naming the path (`objects[0].size`). A missing size is 1 (cylinder, cone and capsule height 2, dome height 1, torus tube 0.3).
 
   | kind | `size` |
   |---|---|
   | `box` | `[width, height, depth]` |
   | `sphere` | `[radius]` |
   | `cylinder`, `cone`, `capsule` | `[radius, height]` |
+  | `dome` | `[radius, height]`: the top `height` of a sphere (0 to 2 radius; radius is a hemisphere), open below, centred on its bounding box, double-sided; for hair caps, mug rims and domes |
   | `torus` | `[radius, tube]` (ring radius, tube radius) |
   | `plane` | `[width, depth]` |
   | `text` | `[height]` (letter height) |

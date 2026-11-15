@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { checkScene, type Scene } from "../src/scene.ts";
 import type { Film } from "../src/shots.ts";
-import { validateScene } from "../src/scene-validate.ts";
+import { halfExtents, validateScene } from "../src/scene-validate.ts";
 
 const mk = (objects: unknown[], lights: unknown[] = [{ id: "sun", kind: "sun", color: "#ffffff", intensity: 1 }]): Scene =>
   checkScene({ name: "S", objects, lights, sky: { top: "#000000", bottom: "#ffffff" }, camera: { pos: [0, 1, 5], look: [0, 0, 0], fov: 50 } });
@@ -83,4 +83,9 @@ test("a shot whose focus object vanished is a focus_missing error", () => {
 
 test("a negative size cannot hide the camera inside a solid (sizes are checked)", () => {
   assert.throws(() => mk([{ ...BOX, size: [-4, -4, -4] }]), /objects\[0\]\.size\[0\]/);
+});
+
+test("a dome's solid is its bounding box, so overlap checks see it", () => {
+  assert.deepEqual(halfExtents({ id: "d", kind: "dome", size: [2, 1] }), [Math.sqrt(3), 0.5, Math.sqrt(3)]);
+  assert.deepEqual(halfExtents({ id: "d", kind: "dome" }), [1, 0.5, 1]);
 });

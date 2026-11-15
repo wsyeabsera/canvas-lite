@@ -7,7 +7,7 @@ import {
   MeshStandardMaterial, Object3D, PCFShadowMap, PerspectiveCamera, PlaneGeometry, PointLight, Quaternion, Scene as ThreeScene,
   SphereGeometry, SpotLight, Sprite, SpriteMaterial, SRGBColorSpace, TorusGeometry, Vector3, WebGLRenderer, type Material as ThreeMaterial,
 } from "three";
-import { expandObjects, type Material, type Scene, type SceneObject, type Vec3, type View } from "../src/scene.ts";
+import { domeShape, expandObjects, type Material, type Scene, type SceneObject, type Vec3, type View } from "../src/scene.ts";
 import { farFor, fullSize, hexToInt, instanceable, shouldDraw, skyAt, terrainGrid, terrainSegments, toRadians } from "./scene-math.ts";
 
 /** A camera for setCamera: a position, a look-at point or object id, and optionally a new vertical field of view (degrees). */
@@ -71,6 +71,11 @@ export function createSceneView(container: HTMLElement, scene: Scene): SceneView
       case "cylinder": g = new CylinderGeometry(s[0], s[0], s[1], 32); break;
       case "cone": g = new ConeGeometry(s[0], s[1], 32); break;
       case "capsule": g = new CapsuleGeometry(s[0], Math.max(0, s[1] - 2 * s[0]), 8, 16); break; // height is the whole capsule
+      case "dome": { // top `height` of a sphere, recentred on its bounding box
+        const d = domeShape(s);
+        g = new SphereGeometry(d.radius, 32, 16, 0, Math.PI * 2, 0, d.theta).translate(0, d.offsetY, 0);
+        break;
+      }
       case "torus": g = new TorusGeometry(s[0], s[1], 16, 48); break;
       default: g = new PlaneGeometry(s[0], s[1]); // plane: in the XY plane; rot [-90, 0, 0] lays it flat
     }
@@ -154,7 +159,7 @@ export function createSceneView(container: HTMLElement, scene: Scene): SceneView
   const instanced = (o: SceneObject): Object3D => {
     const copies = expandObjects([o]);
     const tpl = o.repeat!.of;
-    const mesh = new InstancedMesh(geometry(tpl), material(tpl.material, tpl.kind === "plane"), copies.length);
+    const mesh = new InstancedMesh(geometry(tpl), material(tpl.material, tpl.kind === "plane" || tpl.kind === "dome"), copies.length);
     const q = new Quaternion().setFromEuler(new Euler(...toRadians(tpl.rot), "XYZ"));
     const s = new Vector3(...(tpl.scale ?? [1, 1, 1]));
     const m4 = new Matrix4();
@@ -198,7 +203,7 @@ export function createSceneView(container: HTMLElement, scene: Scene): SceneView
       obj = terrainMesh(o);
       place(obj, o);
     } else {
-      const m = new Mesh(geometry(o), material(o.material, o.kind === "plane"));
+      const m = new Mesh(geometry(o), material(o.material, o.kind === "plane" || o.kind === "dome"));
       shadows(m, o);
       obj = m;
       place(obj, o);

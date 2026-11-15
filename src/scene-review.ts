@@ -1,6 +1,6 @@
 // review_scene (docs/scenes.md): is the scene composed, lit and filmed like a finished piece, not just valid? Pure; every issue has a fix.
 // It reuses validateScene's issues and adds approximate checks: bounding spheres against the camera cone, sampled along each shot path.
-import { expandObjects, type Scene, type SceneObject, type Vec3 } from "./scene.ts";
+import { domeShape, expandObjects, type Scene, type SceneObject, type Vec3 } from "./scene.ts";
 import { boxes, inside, validateScene, type SceneIssue } from "./scene-validate.ts";
 import { filmDuration, type Film, type Shot } from "./shots.ts";
 
@@ -36,6 +36,7 @@ function radius(o: SceneObject): number {
     case "box": r = Math.hypot(s[0] ?? 1, s[1] ?? 1, s[2] ?? 1) / 2; break;
     case "sphere": r = s[0] ?? 1; break;
     case "cylinder": case "cone": case "capsule": r = Math.hypot(s[0] ?? 1, (s[1] ?? 2) / 2); break;
+    case "dome": { const d = domeShape(s); r = Math.hypot(d.halfWidth, d.height / 2); break; }
     case "torus": r = (s[0] ?? 1) + (s[1] ?? 0.3); break;
     case "plane": r = Math.hypot(s[0] ?? 1, s[1] ?? 1) / 2; break;
     case "text": r = ((s[0] ?? 1) * Math.max(1, (o.text ?? "").length * 0.3)) / 2; break;
