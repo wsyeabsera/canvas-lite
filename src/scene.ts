@@ -3,7 +3,7 @@
 
 export type Vec3 = [number, number, number];
 export type Material = { color: string; roughness?: number; metalness?: number; emissive?: string; opacity?: number };
-export type ObjectKind = "box" | "sphere" | "cylinder" | "cone" | "plane" | "torus" | "capsule" | "text" | "group" | "repeat" | "terrain";
+export type ObjectKind = "box" | "sphere" | "cylinder" | "cone" | "plane" | "torus" | "capsule" | "dome" | "text" | "group" | "repeat" | "terrain";
 export type Repeat = { mode: "grid" | "ring" | "scatter"; count: number; spacing?: number; radius?: number; seed?: number; of: SceneObject };
 export type Terrain = { size: [number, number]; height: number; scale: number; octaves: number; seed: number };
 export type SceneObject = {
@@ -22,13 +22,21 @@ export const SCENE_NAME_MAX = 80;
 export const SCENE_NUMBER_MAX = 1_000_000;
 const TEXT_MAX = 200;
 
+/** A dome is the top `height` of a sphere of `radius` (height 0 to 2 radius: radius = hemisphere, 2 radius = whole sphere), open below and centred on its bounding box like the other shapes. */
+export function domeShape(size?: number[]): { radius: number; height: number; theta: number; offsetY: number; halfWidth: number } {
+  const radius = size?.[0] ?? 1;
+  const height = Math.min(Math.max(size?.[1] ?? radius, 0), 2 * radius);
+  const theta = radius > 0 ? Math.acos(Math.min(1, Math.max(-1, 1 - height / radius))) : 0; // polar angle of the cut
+  return { radius, height, theta, offsetY: height / 2 - radius, halfWidth: height <= radius ? Math.sqrt(Math.max(0, 2 * radius * height - height * height)) : radius };
+}
+
 /** `size` layout per kind (docs/scenes.md); kinds not listed take no size. */
 export const SIZE_LAYOUT: Partial<Record<ObjectKind, string[]>> = {
   box: ["width", "height", "depth"], sphere: ["radius"], cylinder: ["radius", "height"], cone: ["radius", "height"],
-  capsule: ["radius", "height"], torus: ["radius", "tube"], plane: ["width", "depth"], text: ["height"],
+  capsule: ["radius", "height"], dome: ["radius", "height"], torus: ["radius", "tube"], plane: ["width", "depth"], text: ["height"],
 };
 
-const KINDS = ["box", "sphere", "cylinder", "cone", "plane", "torus", "capsule", "text", "group", "repeat", "terrain"];
+const KINDS = ["box", "sphere", "cylinder", "cone", "plane", "torus", "capsule", "dome", "text", "group", "repeat", "terrain"];
 const LIGHT_KINDS = ["sun", "ambient", "point", "spot"];
 const MODES = ["grid", "ring", "scatter"];
 const ID_RE = /^[a-z0-9][a-z0-9-]*$/;

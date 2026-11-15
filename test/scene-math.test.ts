@@ -60,6 +60,7 @@ test("fullSize fills the documented defaults per kind", () => {
   assert.deepEqual(fullSize("cone", [3]), [3, 2]);
   assert.deepEqual(fullSize("capsule"), [1, 2]);
   assert.deepEqual(fullSize("torus"), [1, 0.3]);
+  assert.deepEqual(fullSize("dome"), [1, 1]);
   assert.deepEqual(fullSize("sphere", [0]), [0]);
   assert.deepEqual(fullSize("text"), [1]);
   assert.deepEqual(fullSize("group"), []);

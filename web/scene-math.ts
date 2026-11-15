@@ -31,12 +31,12 @@ export function skyAt(top: string, bottom: string, y: number): [number, number, 
 // --- objects ---------------------------------------------------------------
 
 /** Kinds drawn as one mesh from `size` (text, terrain, group and repeat are drawn otherwise). */
-export const PRIMITIVES: readonly ObjectKind[] = ["box", "sphere", "cylinder", "cone", "plane", "torus", "capsule"];
+export const PRIMITIVES: readonly ObjectKind[] = ["box", "sphere", "cylinder", "cone", "plane", "torus", "capsule", "dome"];
 
-/** `size` with the documented defaults filled in (docs/scenes.md): 1 everywhere, cylinder/cone/capsule height 2, torus tube 0.3. */
+/** `size` with the documented defaults filled in (docs/scenes.md): 1 everywhere, cylinder/cone/capsule height 2, dome height 1, torus tube 0.3. */
 export function fullSize(kind: ObjectKind, size?: number[]): number[] {
   const d: Partial<Record<ObjectKind, number[]>> = {
-    box: [1, 1, 1], sphere: [1], cylinder: [1, 2], cone: [1, 2], capsule: [1, 2], torus: [1, 0.3], plane: [1, 1], text: [1],
+    box: [1, 1, 1], sphere: [1], cylinder: [1, 2], cone: [1, 2], capsule: [1, 2], dome: [1, 1], torus: [1, 0.3], plane: [1, 1], text: [1],
   };
   const def = d[kind] ?? [];
   return def.map((v, i) => (size && typeof size[i] === "number" && Number.isFinite(size[i]) ? size[i] : v));

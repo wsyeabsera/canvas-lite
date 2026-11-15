@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkScene, expandedCount, expandObjects, objectIds, SCENE_NESTING_MAX, type SceneObject } from "../src/scene.ts";
+import { checkScene, domeShape, expandedCount, expandObjects, objectIds, SCENE_NESTING_MAX, type SceneObject } from "../src/scene.ts";
 
 const base = (objects: unknown[] = []) => ({
   name: "Town",
@@ -142,7 +142,7 @@ test("nested repeaters give unique, deterministic expanded ids", () => {
 });
 
 test("object sizes must have the right length per kind and be non-negative", () => {
-  const ok: [string, number[]][] = [["box", [1, 2, 3]], ["sphere", [1]], ["cylinder", [1, 2]], ["cone", [1, 2]], ["capsule", [1, 2]], ["torus", [2, 0.5]], ["plane", [10, 10]], ["text", [2]]];
+  const ok: [string, number[]][] = [["box", [1, 2, 3]], ["sphere", [1]], ["cylinder", [1, 2]], ["cone", [1, 2]], ["capsule", [1, 2]], ["dome", [1, 0.5]], ["torus", [2, 0.5]], ["plane", [10, 10]], ["text", [2]]];
   for (const [kind, size] of ok) assert.doesNotThrow(() => checkScene(base([{ id: "a", kind, size, ...(kind === "text" ? { text: "Hi" } : {}) }])), kind);
   assert.throws(() => checkScene(base([{ id: "a", kind: "cylinder", size: [8, 0.2, 8] }])), /objects\[0\]\.size: a cylinder size is \[radius, height\]/);
   assert.throws(() => checkScene(base([{ id: "a", kind: "box", size: [1, 2] }])), /objects\[0\]\.size: a box size is \[width, height, depth\]/);
@@ -173,4 +173,18 @@ test("a repeater inside a group counts the group's own pos (and outer groups') t
   const inner = { id: "g2", kind: "group", pos: [0, 600_000, 0], children: [rep] };
   assert.throws(() => checkScene(base([{ id: "g1", kind: "group", pos: [0, 600_000, 0], children: [inner] }])), /repeater "row" places copies up to 1200000/);
   assert.doesNotThrow(() => checkScene(base([{ id: "g", kind: "group", pos: [100, 0, 0], children: [rep] }])));
+});
+
+test("domeShape: hemisphere by default, clamped to a whole sphere, centred on its bounding box", () => {
+  const half = domeShape();
+  assert.equal(half.height, 1);
+  assert.ok(Math.abs(half.theta - Math.PI / 2) < 1e-9);
+  assert.equal(half.halfWidth, 1);
+  assert.equal(half.offsetY, -0.5); // sphere centre sits half a height below the box centre
+  const cap = domeShape([2, 0.5]); // a shallow cap: narrower than the sphere
+  assert.ok(Math.abs(cap.halfWidth - Math.sqrt(2 * 2 * 0.5 - 0.25)) < 1e-9);
+  const whole = domeShape([1, 99]);
+  assert.equal(whole.height, 2);
+  assert.ok(Math.abs(whole.theta - Math.PI) < 1e-9);
+  assert.equal(domeShape([0, 1]).theta, 0); // radius 0 never divides by zero
 });
