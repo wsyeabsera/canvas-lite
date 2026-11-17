@@ -453,9 +453,22 @@ const watchView = createWatchView({
   },
 });
 
-/** The tab title; the design's name comes from the loaded detail when the list was not fetched yet. */
+const sceneNames: Record<string, string> = {}; // `<project>/<scene>` -> name, from the scene list
+const sceneListsAsked = new Set<string>();
+/** The tab title; the design's name comes from the loaded detail when the list was not fetched yet, a scene's from its project's scene list. */
 function setTitle() {
-  document.title = pageTitle(route, (id) => state.projects[id]?.name ?? id, (id, c) => (detail?.canvas.id === c ? detail.canvas.name : canvasLists[id]?.find((x) => x.id === c)?.name) ?? c);
+  document.title = pageTitle(route, (id) => state.projects[id]?.name ?? id, (id, c) => (detail?.canvas.id === c ? detail.canvas.name : canvasLists[id]?.find((x) => x.id === c)?.name) ?? c, (id, sc) => sceneNames[`${id}/${sc}`] ?? sc);
+  if ((route.view === "scene" || route.view === "scene-page" || route.view === "scene-watch") && !sceneListsAsked.has(route.id)) {
+    const pid = route.id;
+    sceneListsAsked.add(pid);
+    void fetch(`/api/projects/${pid}/scenes`, { headers: headers() })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body: { scenes?: { id?: unknown; name?: unknown }[] } | null) => {
+        for (const sc of body?.scenes ?? []) if (typeof sc.id === "string" && typeof sc.name === "string") sceneNames[`${pid}/${sc.id}`] = sc.name;
+        setTitle();
+      })
+      .catch(() => sceneListsAsked.delete(pid));
+  }
 }
 
 function renderCanvas() {

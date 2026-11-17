@@ -179,14 +179,14 @@ export const hrefPlay = (id: string, canvas: string, screen?: string | null) => 
 export const hrefWatch = (id: string, canvas: string, scenario?: string | null) => `#/project/${id}/canvas/${canvas}/watch${scenario ? `/${scenario}` : ""}`;
 
 /** The browser tab title for a route: `Revamp desktop · paperfolio · Lite`, so tabs and history entries tell apart. */
-export function pageTitle(route: Route, projectName: (id: string) => string, canvasName: (id: string, canvas: string) => string): string {
+export function pageTitle(route: Route, projectName: (id: string) => string, canvasName: (id: string, canvas: string) => string, sceneName: (id: string, scene: string) => string = (_, scene) => scene): string {
   const parts: string[] = [];
   const view: Partial<Record<Route["view"], string>> = { walk: "Walkthrough", watch: "Watch", play: "Play", variants: "Variants", tournament: "Tournament", trace: "Walk", design: "Design system", "scene-page": "Page", "scene-watch": "Watch" };
   if (route.view === "activity") parts.push("Activity");
   else if (route.view === "admin") parts.push("Admin");
   else if (route.view !== "landing") {
     if ("canvas" in route) parts.push(canvasName(route.id, route.canvas));
-    else if ("scene" in route) parts.push(route.scene);
+    else if ("scene" in route) parts.push(sceneName(route.id, route.scene));
     if (view[route.view]) parts.unshift(view[route.view]!);
     if ("id" in route) parts.push(projectName(route.id));
   }

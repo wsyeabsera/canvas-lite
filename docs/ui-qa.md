@@ -91,4 +91,9 @@ The original findings follow, unchanged, for reference.
 
 ## Not covered
 
-Playing a scene film, and a scene with a page.
+Nothing known.
+
+## Last items closed
+
+- The tab title of a scene shows its name (from the project's scene list), not its id.
+- Scene film playback and a scene with a page (`tvdash/harbor-town`) were opened live; contrast was re-measured on the design system, admin, activity, project page and variants in both themes.

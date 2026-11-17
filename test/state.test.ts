@@ -163,4 +163,5 @@ test("page titles tell tabs apart", () => {
   assert.equal(pageTitle({ view: "play", id: "p", canvas: "c", screen: null }, pn, cn), "Play · Canvas c · P · Lite");
   assert.equal(pageTitle({ view: "design", id: "p" }, pn, cn), "Design system · P · Lite");
   assert.equal(pageTitle({ view: "scene", id: "p", scene: "town" }, pn, cn), "town · P · Lite");
+  assert.equal(pageTitle({ view: "scene-watch", id: "p", scene: "town", film: null }, pn, cn, (_, s) => `Small ${s}`), "Watch · Small town · P · Lite");
 });
