@@ -168,6 +168,15 @@ function setMeta(kind: string, repo: string | null, description: string, message
   meta.replaceChildren(...parts);
 }
 
+/** A project route lands on its details under the gallery. The page grows while data arrives, so it re-aims a few times, and stops the moment the viewer scrolls themselves. */
+let detailsAimed = 0;
+let viewerScrolled = false;
+for (const ev of ["wheel", "touchstart", "keydown", "pointerdown"]) window.addEventListener(ev, () => (viewerScrolled = true), { passive: true });
+function scrollToDetails() {
+  if (route.view !== "project" || viewerScrolled) return;
+  viewProject.scrollIntoView({ behavior: "auto", block: "start" });
+}
+
 async function loadProject(id: string) {
   const mine = ++fetchSeq;
   try {
@@ -183,6 +192,7 @@ async function loadProject(id: string) {
     $("project-files").replaceChildren(...v.files.map((f) => el("li", f)));
     projectRows = v.rows;
     fill(projectEventsEl, mergedProjectRows());
+    scrollToDetails();
   } catch {
     if (mine === fetchSeq) setMeta("", null, "", "Could not load");
   }
@@ -573,7 +583,9 @@ function showRoute() {
   else if (route.view === "project") {
     landing.select(route.id);
     landing.show();
-    requestAnimationFrame(() => requestAnimationFrame(() => viewProject.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" })));
+    viewerScrolled = false;
+    const aim = ++detailsAimed;
+    for (const ms of [0, 400, 1200]) setTimeout(() => aim === detailsAimed && scrollToDetails(), ms); // the gallery above it fills in over the first second
   } else landing.hide();
   viewActivity.hidden = route.view !== "activity";
   viewProject.hidden = route.view !== "project";

@@ -541,8 +541,8 @@ export function createLandingView(deps: LandingDeps) {
 
   function render() {
     if (!visible) return;
+    drawProjects(entries); // first: it picks the project and scopes the entries the strip below reads
     drawLatest();
-    drawProjects(entries);
     drawContinue();
     drawChips(stackVariants(scoped));
     drawGallery();
