@@ -15,14 +15,19 @@ Desktop only. Found by hand on the deployed Worker with Claude in Chrome (1512 x
 - Project page: letter tiles instead of grey placeholders, **Open gallery** and **Design system** links.
 - Design system page: font specimens, swatches copy their value on click, the summary line sits under the title, the tabs switch with the arrow keys.
 
+## Done in the follow-up pass
+
+- One shared state block (`web/states.ts`, `web/states-view.ts`) for loading, empty, missing and error, with a retry or a way back, used by the canvas, design system, variants, tournament, admin and landing. A missing design hides Play, Walkthrough, zoom and the map.
+- A canvas **minimap** (bottom left, shown above 4 screens): click or drag to move the view.
+- The activity and project pages now use the landing's flat top bar and pill buttons; empty lists say so.
+- Browser tab titles per route (`Revamp desktop · paperfolio · Lite`); the landing is a `main` landmark; filter chips are 28 px high; thumbnails fade in instead of flashing white; fonts specimen order fixed; the sign-in copy no longer says "watch what Claude is designing".
+- Page and rail motion use the transitions.dev tokens (12 px, 250 ms ease-out), off under reduced motion.
+- Covered by hand on the deployed site: Admin, Activity, variants, tournament (empty), a 3D scene in Orbit, the sign-in page and the docs site. Admin, variants, scenes and docs needed no change beyond the shared pieces above.
+
 ## Still open
 
-- Shared loading, empty and error components for every view (each view still draws its own).
-- A minimap on the canvas (the Go to screen menu covers jumping by name).
-- Folding the project page into the home layout (it still has its own bar with the status and read-only chips).
-- A full focus-order and `aria-label` audit beyond the focus rings, and a measured contrast pass.
-- Applying the transitions.dev tokens to the panels and page changes.
-- The areas under "Not covered" below.
+- A measured contrast pass with a tool (muted text was lightened by eye).
+- A keyboard-only walkthrough of every view.
 
 The original findings follow, unchanged, for reference.
 
@@ -84,4 +89,4 @@ The original findings follow, unchanged, for reference.
 
 ## Not covered
 
-Admin page, Activity page, scenes (3D), tournament and variants views, sign-in page, error pages and the docs site. Cover them in the next pass.
+Scene Page and Watch modes, tournament results with data, and a trace view.

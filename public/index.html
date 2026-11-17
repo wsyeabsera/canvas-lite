@@ -83,7 +83,14 @@
   body:has(#app.canvas-mode:not([hidden])) #backdrop { visibility: hidden; }
   #app, #locked { position: relative; z-index: 1; }
   #app { display: flex; flex-direction: column; gap: 16px; max-width: 1280px; margin: 0 auto; padding: 16px; min-height: 100dvh; }
-  .bar { display: flex; align-items: center; gap: 14px; padding: 8px 10px 8px 20px; border-radius: 999px; flex-wrap: wrap; }
+  /* the older pages (activity, project) share the landing's top bar: flat, no pill around it */
+  .bar { display: flex; align-items: center; gap: 14px; padding: 6px 4px; flex-wrap: wrap; background: none; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 0; }
+  .bar .brand { font-size: 20px; order: -1; }
+  .bar-back { height: 38px; padding: 0 16px; border-radius: 999px; background: var(--g); border: 1px solid var(--gb); color: var(--tx); }
+  .bar .ro { display: none; }
+  .bar #bar-tools a, .bar #theme-toggle { display: inline-flex; align-items: center; height: 38px; padding: 0 16px; border-radius: 999px; color: var(--tx); background: var(--g); border: 1px solid var(--gb); text-decoration: none; }
+  #events:empty::before, #project-events:empty::before, #project-files:empty::before { content: "Nothing yet. It shows up here as Claude works."; color: var(--mu); font-family: inherit; }
+  .ad-act { font-size: 13px; }
   .bar-back { display: inline-flex; align-items: center; gap: 4px; color: var(--mu); font-weight: 500; }
   .brand { font-weight: 600; font-size: 16px; letter-spacing: -.02em; }
   #status { color: var(--mu); display: inline-flex; align-items: center; gap: 8px; min-width: 0; overflow-wrap: anywhere; }
@@ -101,7 +108,7 @@
   #theme-toggle:hover { background: var(--sel); }
 
   .layout { display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch; flex: 1; min-height: 0; }
-  main { flex: 999 1 560px; min-width: 0; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+  main { flex: 999 1 560px; min-width: 0; padding: 0; display: flex; flex-direction: column; gap: 16px; }
 
   #view-activity { display: flex; flex-direction: column; min-height: 0; }
   #view-activity h1 { margin-bottom: 12px; }
@@ -179,7 +186,17 @@
   .scr .lbl { container-type: inline-size; }
   @container (max-width: 260px) { .scr .lbl .dim { display: none; } }
   .scr .lbl .dim { margin-left: auto; flex: none; font: 400 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--mu); }
-  .cv-note { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); margin: 0; color: var(--mu); font-size: 14px; pointer-events: none; text-align: center; }
+  .cv-note { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); margin: 0; color: var(--mu); font-size: 14px; text-align: center; }
+  .st-block { display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 420px; margin: 40px auto; text-align: center; color: var(--mu); }
+  .st-block b { color: var(--tx); font-size: 16px; font-weight: 600; }
+  .st-actions { display: flex; gap: 10px; margin-top: 10px; }
+  .st-loading b::before { content: ""; display: inline-block; width: 12px; height: 12px; margin-right: 8px; vertical-align: -1px; border: 2px solid var(--gb); border-top-color: var(--ac); border-radius: 50%; }
+  @media (prefers-reduced-motion: no-preference) { .st-loading b::before { animation: lite-spin .8s linear infinite; } @keyframes lite-spin { to { transform: rotate(360deg); } } }
+  .cv-map { left: 16px; bottom: 16px; width: 180px; height: 112px; padding: 0; border-radius: 12px; display: block; cursor: crosshair; overflow: hidden; touch-action: none; }
+  .cv-map[hidden] { display: none; }
+  .cv-map i { position: absolute; background: color-mix(in srgb, var(--tx) 38%, transparent); border-radius: 1px; pointer-events: none; }
+  .cv-map-view { position: absolute; border: 1.5px solid var(--ac); background: color-mix(in srgb, var(--ac) 14%, transparent); border-radius: 2px; pointer-events: none; }
+  .cv-dead .cv-tr, .cv-dead .cv-zoom, .cv-dead .cv-map { display: none; }
   .island { position: absolute; z-index: 2; display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: 999px; font-size: 13px; }
   #cv-jump { max-width: 170px; background: transparent; color: var(--tx); border: 0; font: inherit; font-size: 13px; cursor: pointer; }
   #cv-watch[hidden] { display: none; }
@@ -417,7 +434,7 @@
   .ld-dh { display: flex; align-items: baseline; gap: 18px; margin-bottom: 14px; }
   .ld-dh h2 { margin: 0; }
   .ld-chips { display: flex; gap: 4px; }
-  .ld-chip { font: inherit; font-size: 13px; color: var(--mu); background: transparent; border: 0; border-radius: 999px; padding: 2px 11px; cursor: pointer; }
+  .ld-chip { font: inherit; font-size: 13px; color: var(--mu); background: transparent; border: 0; border-radius: 999px; padding: 4px 12px; min-height: 28px; cursor: pointer; }
   .ld-chip:hover { color: var(--tx); }
   .ld-chip[aria-pressed=true] { color: var(--tx); background: var(--chip); font-weight: 500; }
   .ld-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
@@ -425,7 +442,9 @@
   .ld-card:hover, .ld-card:focus-within { box-shadow: var(--sh), 0 0 0 1px color-mix(in srgb, var(--ac) 55%, transparent); }
   .ld-thumbwrap { position: relative; height: 150px; flex: none; }
   .ld-thumb { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--sk); }
-  .ld-thumb iframe { position: absolute; border: 0; background: #fff; transform-origin: 0 0; pointer-events: none; max-width: none; }
+  .ld-thumb iframe { position: absolute; border: 0; background: #fff; transform-origin: 0 0; pointer-events: none; max-width: none; opacity: 0; }
+  .ld-thumb iframe.loaded { opacity: 1; }
+  @media (prefers-reduced-motion: no-preference) { .ld-thumb iframe { transition: opacity .25s ease; } }
   .ld-thumb.empty::after { content: "No screens"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--mu); font-size: 12.5px; }
   .ld-scrim { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; gap: 8px; background: rgba(8,10,18,.55); opacity: 0; transition: opacity .15s ease; }
   .ld-card:hover .ld-scrim, .ld-card:focus-within .ld-scrim { opacity: 1; }
@@ -487,6 +506,13 @@
   .ad-danger { background: var(--bad); color: #0a0c13; border: 0; }
   .ad-out { border: 0; font: inherit; cursor: pointer; }
   /* variants and tournament (web/variants-view.ts, web/tournament-view.ts): motion from transitions.dev (modal, texts reveal), tokens below */
+  /* page and panel motion: the transitions.dev tokens (distance 12 px, ease-out, 250 ms in), only when the viewer has not asked for less */
+  @media (prefers-reduced-motion: no-preference) {
+    :is(#view-landing, #view-activity, #view-project, #view-admin, #view-design, #view-variants, #view-tournament):not([hidden]) { animation: view-in var(--modal-open-dur) var(--modal-ease) both; }
+    .wk-rail:not([hidden]), .sc-rail:not([hidden]) { animation: rail-in var(--modal-open-dur) var(--modal-ease) both; }
+    @keyframes view-in { from { opacity: 0; transform: translateY(var(--stagger-distance)); } }
+    @keyframes rail-in { from { opacity: 0; transform: translateX(var(--stagger-distance)); } }
+  }
   :root { --modal-open-dur: 250ms; --modal-close-dur: 150ms; --modal-scale: .96; --modal-ease: cubic-bezier(.22, 1, .36, 1);
     --stagger-dur: 500ms; --stagger-distance: 12px; --stagger-stagger: 40ms; --stagger-blur: 3px; --stagger-ease: cubic-bezier(.22, 1, .36, 1); --bar-dur: 400ms; }
   dialog.t-modal { transform-origin: center; transform: scale(var(--modal-scale)); opacity: 0; transition: transform var(--modal-open-dur) var(--modal-ease), opacity var(--modal-open-dur) var(--modal-ease); will-change: transform, opacity; }
@@ -757,8 +783,8 @@
     <div class="sp" id="bar-tools"><a href="/docs/">docs</a><button id="theme-toggle" type="button" aria-label="Theme: auto (click to change)">Theme: auto</button></div>
   </header>
   <div class="layout">
-    <main class="glass">
-      <section id="view-activity">
+    <main>
+      <section id="view-activity" class="glass">
         <h1>Activity</h1>
         <ul id="events" aria-live="polite"></ul>
       </section>
@@ -770,7 +796,7 @@
       </section>
     </main>
   </div>
-  <section id="view-landing" class="landing" hidden aria-label="Designs">
+  <section id="view-landing" class="landing" role="main" hidden aria-label="Designs">
     <header class="ld-top">
       <span class="ld-brand">Lite</span>
       <button type="button" class="ld-proj glass" id="ld-project" popovertarget="ld-menu" aria-label="Project" hidden><i class="ld-pdot"></i><b id="ld-pname"></b><span aria-hidden="true">▾</span></button>
@@ -798,7 +824,7 @@
   </section>
   <section id="view-canvas" hidden aria-label="Canvas">
     <div class="cv-surface" id="cv-surface"><div class="cv-world" id="cv-world"></div></div>
-    <p class="cv-note" id="cv-note" aria-live="polite" hidden></p>
+    <div class="cv-note" id="cv-note" hidden></div>
     <div class="island glass cv-tl">
       <a class="ib" id="cv-back" href="#/" aria-label="Back to designs" title="Back to designs"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></a>
       <nav class="crumb" id="cv-crumb" aria-label="Breadcrumb"></nav>
@@ -811,6 +837,7 @@
       <form method="dialog"><button class="ld-btn blue" autofocus>Got it</button></form>
     </dialog>
     <div class="island glass cv-writing" id="cv-writing" aria-live="polite" hidden></div>
+    <div class="island glass cv-map" id="cv-map" role="img" aria-label="Overview of the canvas: click or drag to move" hidden></div>
     <div class="island glass cv-zoom" role="toolbar" aria-label="Zoom">
       <select class="ib" id="cv-jump" aria-label="Go to screen"></select>
       <button class="ib" id="cv-out" type="button" aria-label="Zoom out">−</button>
@@ -858,7 +885,7 @@
   </div>
   <form id="login" class="lg" hidden>
     <h1>Sign in</h1>
-    <p>Enter the password to watch what Claude is designing.</p>
+    <p>Enter the password to see your designs.</p>
     <label class="lg-l" for="lg-pw">Password</label>
     <input id="lg-pw" name="password" type="password" autocomplete="current-password" aria-describedby="lg-msg" required>
     <p class="lg-msg" id="lg-msg" role="alert"></p>

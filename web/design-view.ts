@@ -3,6 +3,7 @@
 import { agoText } from "./canvas.ts";
 import { describeDesign, designSummary, paintable, type DesignModel, type DesignTab } from "./design.ts";
 import { hrefLanding } from "./state.ts";
+import { stateBlock } from "./states-view.ts";
 
 export interface DesignScreen {
   /** The slot the theme pill and docs link move into while the page is on screen. */
@@ -60,15 +61,16 @@ export function createDesignScreen(host: HTMLElement, deps: Deps): DesignScreen 
           const r = el("div", "ds-row");
           const sample = el("div", undefined, t.name);
           if (g.key === "fonts") sample.style.setProperty("font-family", String(t.value));
+
+          if (g.key === "sizes" && typeof t.value === "number") sample.style.fontSize = `${t.value}px`;
+          if (g.key === "space" && typeof t.value === "number") sample.prepend(Object.assign(el("i", "ds-bar"), { style: `width:${t.value}px` }));
+          if (g.key === "radius" && typeof t.value === "number") sample.prepend(Object.assign(el("i", "ds-rd"), { style: `border-radius:${t.value}px` }));
+          r.append(sample, el("span", undefined, g.key === "fonts" ? String(t.value) : `${t.value}`));
           if (g.key === "fonts") {
             const spec = el("div", "ds-spec", "Aa The quick brown fox jumps over 0123456789");
             spec.style.setProperty("font-family", String(t.value));
             r.append(spec);
           }
-          if (g.key === "sizes" && typeof t.value === "number") sample.style.fontSize = `${t.value}px`;
-          if (g.key === "space" && typeof t.value === "number") sample.prepend(Object.assign(el("i", "ds-bar"), { style: `width:${t.value}px` }));
-          if (g.key === "radius" && typeof t.value === "number") sample.prepend(Object.assign(el("i", "ds-rd"), { style: `border-radius:${t.value}px` }));
-          r.append(sample, el("span", undefined, g.key === "fonts" ? String(t.value) : `${t.value}`));
           card.append(r);
         }
       wrap.append(card);
@@ -92,7 +94,7 @@ export function createDesignScreen(host: HTMLElement, deps: Deps): DesignScreen 
     parts.push(head);
     if (state !== "ready") {
       head.append(el("div", "ld-hmeta", name));
-      parts.push(el("p", "ld-empty", state === "loading" ? "" : "Could not load the design system."));
+      parts.push(state === "loading" ? stateBlock("loading", "design system") : stateBlock("error", "design system", [{ label: "Try again", onClick: () => void load() }]));
     } else if (!model) {
       head.append(el("div", "ld-hmeta", name));
       const empty = el("div", "ld-empty");

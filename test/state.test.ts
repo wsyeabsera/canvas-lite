@@ -153,3 +153,14 @@ test("the design route parses and is a project route", () => {
   assert.deepEqual(parseRoute("#/project/tvdash/design/x"), { view: "activity" });
   assert.equal(routeProject({ view: "design", id: "tvdash" }), "tvdash");
 });
+
+import { pageTitle } from "../web/state.ts";
+test("page titles tell tabs apart", () => {
+  const pn = (id: string) => id.toUpperCase(), cn = (_: string, c: string) => `Canvas ${c}`;
+  assert.equal(pageTitle({ view: "landing" }, pn, cn), "Lite");
+  assert.equal(pageTitle({ view: "activity" }, pn, cn), "Activity · Lite");
+  assert.equal(pageTitle({ view: "canvas", id: "p", canvas: "c" }, pn, cn), "Canvas c · P · Lite");
+  assert.equal(pageTitle({ view: "play", id: "p", canvas: "c", screen: null }, pn, cn), "Play · Canvas c · P · Lite");
+  assert.equal(pageTitle({ view: "design", id: "p" }, pn, cn), "Design system · P · Lite");
+  assert.equal(pageTitle({ view: "scene", id: "p", scene: "town" }, pn, cn), "town · P · Lite");
+});

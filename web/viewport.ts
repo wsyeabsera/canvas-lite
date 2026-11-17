@@ -58,3 +58,24 @@ export function stepZoom(k: number, dir: 1 | -1): number {
   if (dir > 0) return ZOOM_STOPS.find((z) => z > k + eps) ?? ZOOM_STOPS[ZOOM_STOPS.length - 1]!;
   return [...ZOOM_STOPS].reverse().find((z) => z < k - eps) ?? ZOOM_STOPS[0]!;
 }
+
+export type Minimap = { rects: { id: string; x: number; y: number; w: number; h: number }[]; view: Rect; scale: number; ox: number; oy: number; world: Rect };
+
+/** The overview map: every screen box and the visible area, scaled into `size`. The map's world is the content joined with what is on screen, so the visible box is always inside it. */
+export function minimap(boxes: readonly (Rect & { id: string })[], v: View, surface: Size, size: Size, pad = 6): Minimap | null {
+  const content = boundsOf([...boxes]);
+  if (!content || surface.w <= 0 || surface.h <= 0) return null;
+  const vis: Rect = { x: -v.x / v.k, y: -v.y / v.k, w: surface.w / v.k, h: surface.h / v.k };
+  const world = boundsOf([content, vis])!;
+  const scale = Math.min((size.w - 2 * pad) / world.w, (size.h - 2 * pad) / world.h);
+  const ox = (size.w - world.w * scale) / 2 - world.x * scale;
+  const oy = (size.h - world.h * scale) / 2 - world.y * scale;
+  const map = (r: Rect) => ({ x: r.x * scale + ox, y: r.y * scale + oy, w: r.w * scale, h: r.h * scale });
+  return { rects: boxes.map((b) => ({ id: b.id, ...map(b) })), view: map(vis), scale, ox, oy, world };
+}
+
+/** The view that centres the world point under map pixel (mx, my), at the same zoom. */
+export function viewFromMap(m: Minimap, mx: number, my: number, v: View, surface: Size): View {
+  const wx = (mx - m.ox) / m.scale, wy = (my - m.oy) / m.scale;
+  return { k: v.k, x: surface.w / 2 - wx * v.k, y: surface.h / 2 - wy * v.k };
+}

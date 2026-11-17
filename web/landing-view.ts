@@ -8,6 +8,7 @@ import {
   rememberRoute, rememberScreen, resolveProject, searchEntries, sortEntries, startScreenOf, thumbFit, type Entry, type Filter, type Last,
   describeSceneEntries, isScene, POSTER_CONCURRENCY, posterFresh, sceneActions, sceneChips, scenePosterAtKey, scenePosterKey,
 } from "./landing.ts";
+import { stateBlock } from "./states-view.ts";
 import { hrefVariants, hrefActivity, hrefCanvas, hrefDesign, hrefPlay, hrefScene, hrefWalk, hrefWatch, type ProjectInfo } from "./state.ts";
 import type { Scene } from "../src/scene.ts";
 import { hasWebGL2 } from "./webgl.ts";
@@ -135,6 +136,7 @@ export function createLandingView(deps: LandingDeps) {
     f.setAttribute("aria-hidden", "true");
     f.width = String(spec.width);
     f.height = String(spec.height);
+    f.addEventListener("load", () => f.classList.add("loaded")); // no white flash while it paints
     f.srcdoc = spec.srcdoc;
     const fit = () => {
       const r = thumbFit(spec.width, spec.height, box.clientWidth, box.clientHeight);
@@ -498,7 +500,7 @@ export function createLandingView(deps: LandingDeps) {
     if (scoped.length === 0) {
       const name = projName.textContent ?? "";
       galleryEl.replaceChildren(
-        loaded && settled && project ? el("p", "ld-empty", name ? `Nothing yet in ${name}. Ask Claude to design something.` : "Nothing yet. Ask Claude to design something.") : el("p", "ld-empty"),
+        loaded && settled && project ? stateBlock("empty", "design", [], { title: name ? `Nothing yet in ${name}` : "Nothing yet", hint: "Ask Claude to design something." }) : stateBlock("loading", "designs"),
       );
       return;
     }

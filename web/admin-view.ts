@@ -2,6 +2,7 @@
 // confirm dialog. Rules and shaping live in admin.ts (unit tested). Every value goes in with textContent.
 import { activityText, archiveFailure, describeOverview, projectNote, type AdminModel } from "./admin.ts";
 import { hrefLanding } from "./state.ts";
+import { stateBlock } from "./states-view.ts";
 
 export interface AdminScreen {
   toolsSlot: HTMLElement;
@@ -68,7 +69,7 @@ export function createAdminScreen(host: HTMLElement, deps: Deps): AdminScreen {
     head.append(title);
     const parts: HTMLElement[] = [top, head];
     if (note) parts.push(el("div", note.kind === "ok" ? "ad-note ok" : "ad-note bad", note.text));
-    if (state !== "ready" || !model) parts.push(el("p", "ld-empty", state === "failed" ? "Could not load the overview." : ""));
+    if (state !== "ready" || !model) parts.push(state === "failed" ? stateBlock("error", "overview", [{ label: "Try again", onClick: () => void load() }]) : stateBlock("loading", "overview"));
     else {
       const stats = el("div", "ad-stats");
       for (const [label, n] of [["Projects", model.totals.projects], ["Designs", model.totals.designs], ["Scenes", model.totals.scenes], ["Events", model.totals.events]] as const) {

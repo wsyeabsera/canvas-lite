@@ -4,6 +4,7 @@ import { agoText } from "./canvas.ts";
 import { anchor, el, showSentence, tabs, topBar } from "./chrome.ts";
 import { rise } from "./motion.ts";
 import { hrefTournament, hrefTrace, hrefVariants } from "./state.ts";
+import { stateBlock } from "./states-view.ts";
 import { columnProgress, describeResults, describeVariants, keepSentence, NODE_H, NODE_W, percent, traceLayout, walkSummary, type ResultsModel } from "./variants.ts";
 
 export interface TournamentScreen {
@@ -55,7 +56,7 @@ export function createTournamentScreen(host: HTMLElement, deps: Deps): Tournamen
         const empty = el("div", "ld-empty");
         empty.append(el("b", "ds-none", "No tournament yet"), el("div", "ld-hmeta", "Claude sends blind users through every version toward the same goals. Ask:"), el("div", "ld-code", `run a tournament on ${baseName || "this design"}`));
         parts.push(empty);
-      } else parts.push(el("p", "ld-empty", state === "failed" ? "Could not load the tournament." : ""));
+      } else parts.push(state === "failed" ? stateBlock("error", "tournament", [{ label: "Try again", onClick: () => void load() }]) : stateBlock("loading", "tournament"));
       host.replaceChildren(...parts);
       return;
     }
@@ -127,7 +128,7 @@ export function createTournamentScreen(host: HTMLElement, deps: Deps): Tournamen
     title.append(el("h1", undefined, "A blind user"), el("div", "ld-hmeta", t ? `Goal: ${t.goal} · ${walkSummary({ status: t.status, score: t.score })}` : ""));
     head.append(title);
     parts.push(head);
-    if (state !== "ready" || !t) parts.push(el("p", "ld-empty", state === "failed" ? "Could not load the walk." : ""));
+    if (state !== "ready" || !t) parts.push(state === "failed" ? stateBlock("error", "walk", [{ label: "Try again", onClick: () => void load() }]) : stateBlock("loading", "walk"));
     else {
       const lay = traceLayout(t.screens, t.steps, t.path[0]);
       const stage = el("div", "ds-card glass vr-trace");

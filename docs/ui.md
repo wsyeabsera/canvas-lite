@@ -165,3 +165,5 @@ On the Activity and project pages, browsers with WebGPU draw a slow, calm mesh g
 ## Canvas controls (QA pass, 2026-11-17)
 
 Zoom buttons and `+` / `-` move between fixed stops (`ZOOM_STOPS` in `web/viewport.ts`); Ctrl-scroll and pinch stay smooth. The top-left island shows `project / design`. The zoom island has a **Go to screen** menu and a **?** button (or the `?` key) that lists the shortcuts. **Watch** is hidden while the canvas has no scenarios. The Walkthrough header reads `1 of 25 screens (the linked path)` when there is no tour and the linked path covers part of the canvas. The first frame of Play and Walkthrough shows a **Loading…** label.
+
+Below 5 screens the overview map is hidden; above it a 180 x 112 map sits bottom left (click or drag to move the view). When a design is missing or fails to load, the canvas shows a state block (`web/states-view.ts`) with **Back to designs** (and **Try again** on an error) and hides the tools. Every view uses the same block for loading, empty and error. The tab title is `<screen> · <design> · <project> · Lite` (`pageTitle` in `web/state.ts`).

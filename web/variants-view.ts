@@ -5,6 +5,7 @@ import { startScreenOf, thumbFit } from "./landing.ts";
 import { anchor, el, showSentence, tabs, topBar } from "./chrome.ts";
 import { closeModal, openModal, rise } from "./motion.ts";
 import { hrefCanvas, hrefTournament, hrefVariants } from "./state.ts";
+import { stateBlock } from "./states-view.ts";
 import { describeVariants, forkSentence, variantsLabel, type Card, type VariantsModel } from "./variants.ts";
 
 export interface VariantsScreen {
@@ -141,7 +142,7 @@ export function createVariantsScreen(host: HTMLElement, deps: Deps): VariantsScr
     title.append(el("h1", undefined, m?.base.name ?? "Variants"), el("div", "ld-hmeta", m ? `${variantsLabel(m.variants.length)} forked from the base` : ""));
     head.append(title, tabs("compare", { compare: hrefVariants(pid, cid), tournament: hrefTournament(pid, cid) }));
     parts.push(head);
-    if (state !== "ready" || !m) parts.push(el("p", "ld-empty", state === "failed" ? "Could not load the variants." : ""));
+    if (state !== "ready" || !m) parts.push(state === "failed" ? stateBlock("error", "variants", [{ label: "Try again", onClick: () => void load() }]) : stateBlock("loading", "variants"));
     else if (m.variants.length === 0) {
       const empty = el("div", "ld-empty");
       empty.append(el("b", "ds-none", "Try it three ways"), el("div", "ld-hmeta", "Ask Claude to fork this design into variants, then run a tournament."), el("div", "ld-code", forkSentence(m.base.name)));

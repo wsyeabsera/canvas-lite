@@ -1,9 +1,10 @@
 // The canvas view: one full-screen surface, screens at their real size on a world moved by one CSS transform.
 // DOM only; the math lives in viewport.ts and layout.ts, the diffing in canvas.ts (all unit-tested).
 import { hrefLanding } from "./state.ts";
+import { stateBlock } from "./states-view.ts";
 import { diffScreens, iframeSpec, stepScreen, writingText, type CanvasDetail, type Pending, type Screen, type Shown } from "./canvas.ts";
 import { layoutScreens, type Box } from "./layout.ts";
-import { boundsOf, fitRect, panBy, pct, stepZoom, wheelZoomFactor, zoomAt, zoomTo, type View } from "./viewport.ts";
+import { boundsOf, fitRect, minimap, panBy, pct, stepZoom, viewFromMap, wheelZoomFactor, zoomAt, zoomTo, type View } from "./viewport.ts";
 
 /** Fit padding in px: leaves room for the floating islands and the label row above the first screens. */
 const FIT_PADDING = 120;
@@ -64,7 +65,51 @@ export function createCanvasView(select: (id: string | null) => void, play: () =
     world.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.k})`;
     world.style.setProperty("--k", String(view.k));
     pctBtn.textContent = pct(view.k);
+    drawMap();
   }
+
+  // The overview map (bottom left): the screens as small boxes and the visible area; a click or drag moves the view there.
+  const mapEl = $("cv-map");
+  const mapView = el("div", "cv-map-view");
+  const MAP = { w: 180, h: 112 };
+  let mapGeo: ReturnType<typeof minimap> = null;
+  function drawMap() {
+    mapGeo = boxes.length > 4 ? minimap(boxes, view, { w: surface.clientWidth, h: surface.clientHeight }, MAP) : null;
+    mapEl.hidden = !mapGeo;
+    if (!mapGeo) return;
+    if (mapEl.children.length !== boxes.length + 1) {
+      mapEl.replaceChildren(...boxes.map(() => el("i")), mapView);
+    }
+    mapGeo.rects.forEach((r, i) => {
+      const d = mapEl.children[i] as HTMLElement;
+      d.style.cssText = `left:${r.x}px;top:${r.y}px;width:${Math.max(1, r.w)}px;height:${Math.max(1, r.h)}px`;
+    });
+    const v = mapGeo.view;
+    mapView.style.cssText = `left:${v.x}px;top:${v.y}px;width:${v.w}px;height:${v.h}px`;
+  }
+  function mapTo(ev: PointerEvent) {
+    if (!mapGeo) return;
+    const r = mapEl.getBoundingClientRect();
+    view = viewFromMap(mapGeo, ev.clientX - r.left, ev.clientY - r.top, view, { w: surface.clientWidth, h: surface.clientHeight });
+    world.classList.remove("anim");
+    world.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.k})`;
+    drawMapOnly();
+  }
+  /** While dragging the map keeps its scale (so it does not move under the pointer); only the visible box follows. */
+  const drawMapOnly = () => {
+    const g = mapGeo;
+    if (!g) return;
+    const w = surface.clientWidth / view.k * g.scale, h = surface.clientHeight / view.k * g.scale;
+    mapView.style.cssText = `left:${-view.x / view.k * g.scale + g.ox}px;top:${-view.y / view.k * g.scale + g.oy}px;width:${w}px;height:${h}px`;
+  };
+  mapEl.addEventListener("pointerdown", (ev) => {
+    mapEl.setPointerCapture(ev.pointerId);
+    mapTo(ev);
+  });
+  mapEl.addEventListener("pointermove", (ev) => {
+    if (mapEl.hasPointerCapture(ev.pointerId)) mapTo(ev);
+  });
+  mapEl.addEventListener("pointerup", drawMap); // settle the scale again
 
   /** Fits one screen when `id` is laid out, otherwise every screen. */
   function fit(id: string | null, animate: boolean) {
@@ -165,14 +210,18 @@ export function createCanvasView(select: (id: string | null) => void, play: () =
     const wtext = writingText(next.pending);
     writing.hidden = !wtext;
     writing.textContent = wtext ?? "";
-    const msg =
-      next.state === "missing" ? "This canvas does not exist or was removed."
-      : next.state === "error" && !next.detail ? "Could not load this canvas."
-      : !next.detail ? "Loading…"
-      : screens.length === 0 && !wtext ? "Waiting for Claude to set the first screen"
+    const dead = next.state === "missing" || (next.state === "error" && !next.detail);
+    $("view-canvas").classList.toggle("cv-dead", dead); // nothing to play or zoom: the tools hide
+    const toDesigns = { label: "Back to designs", href: hrefLanding };
+    const block =
+      next.state === "missing" ? stateBlock("missing", "design", [toDesigns])
+      : next.state === "error" && !next.detail ? stateBlock("error", "design", [{ label: "Try again", onClick: () => location.reload() }, toDesigns])
+      : !next.detail ? stateBlock("loading", "design")
+      : screens.length === 0 && !wtext ? stateBlock("empty", "design", [], { title: "Waiting for Claude to set the first screen", hint: "" })
       : null;
-    note.hidden = !msg;
-    note.textContent = msg ?? "";
+    note.hidden = !block;
+    note.replaceChildren(...(block ? [block] : []));
+    drawMap();
 
     if (needFit && boxes.length > 0) {
       needFit = false;

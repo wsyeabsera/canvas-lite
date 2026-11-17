@@ -1,7 +1,7 @@
 // The read-only watch page: the CLI's Watcher and formatter, drawn into views. It only reads; the one message it sends is the Watcher's hello.
 import { clock, detail as eventDetail, type WatchRow } from "../cli/format.ts";
 import { Watcher, normalizeUrl } from "../cli/watch-core.ts";
-import { addRow, describeProject, hrefCanvas, hrefDesign, hrefLanding, hrefPlay, hrefScene, hrefSceneWatch, hrefWalk, hrefWatch, hrefScreen, initialState, MAX_ROWS, parseRoute, routeCanvas, routeProject, sceneEventHits, sortedProjects, visibleRows, type Route, type State } from "./state.ts";
+import { addRow, describeProject, hrefCanvas, hrefDesign, hrefLanding, hrefPlay, pageTitle, hrefScene, hrefSceneWatch, hrefWalk, hrefWatch, hrefScreen, initialState, MAX_ROWS, parseRoute, routeCanvas, routeProject, sceneEventHits, sortedProjects, visibleRows, type Route, type State } from "./state.ts";
 import { agoText, canvasEvent, describeCanvasDetail, describeCanvasList, dropCanvas, refetchPlan, screensLabel, type CanvasDetail, type CanvasSummary, type Pending } from "./canvas.ts";
 import { createCanvasView } from "./canvas-view.ts";
 import { createPlayView } from "./play-view.ts";
@@ -556,6 +556,7 @@ function showRoute() {
   const prev = route;
   route = parseRoute(location.hash);
   landing.remember(route);
+  document.title = pageTitle(route, (id) => state.projects[id]?.name ?? id, (id, c) => canvasLists[id]?.find((x) => x.id === c)?.name ?? c);
   viewLanding.hidden = route.view !== "landing";
   app.classList.toggle("landing-mode", route.view === "landing" || route.view === "design" || route.view === "admin" || route.view === "variants" || route.view === "tournament" || route.view === "trace");
   viewVariants.hidden = route.view !== "variants";

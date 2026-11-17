@@ -36,7 +36,7 @@ test("a large canvas gets more columns so it is not a tower; small ones keep thr
   assert.equal(Math.max(...boxes.map((b) => b.y)) / (100 + GAP), 3);
 });
 
-import { stepZoom } from "../web/viewport.ts";
+import { minimap, stepZoom, viewFromMap } from "../web/viewport.ts";
 test("zoom steps land on round stops from any scale", () => {
   assert.equal(stepZoom(0.0816, 1), 0.1);
   assert.equal(stepZoom(0.1, 1), 0.125);
@@ -44,4 +44,17 @@ test("zoom steps land on round stops from any scale", () => {
   assert.equal(stepZoom(2, 1), 2);
   assert.equal(stepZoom(0.05, -1), 0.05);
   assert.equal(stepZoom(1, -1), 0.75);
+});
+
+test("minimap keeps the visible box inside and a click on it centres the view there", () => {
+  const boxes = [{ id: "a", x: 0, y: 0, w: 1000, h: 500 }, { id: "b", x: 2000, y: 0, w: 1000, h: 500 }];
+  const surface = { w: 800, h: 600 };
+  const v = { k: 0.5, x: 0, y: 0 }; // sees world 0..1600 x 0..1200
+  const m = minimap(boxes, v, surface, { w: 180, h: 112 })!;
+  assert.equal(m.rects.length, 2);
+  assert.ok(m.view.x >= 0 && m.view.y >= 0 && m.view.x + m.view.w <= 180.001 && m.view.y + m.view.h <= 112.001);
+  const next = viewFromMap(m, m.rects[1]!.x + m.rects[1]!.w / 2, m.rects[1]!.y + m.rects[1]!.h / 2, v, surface);
+  assert.equal(next.k, 0.5);
+  assert.ok(Math.abs((surface.w / 2 - next.x) / 0.5 - 2500) < 1); // the centre of b
+  assert.equal(minimap([], v, surface, { w: 180, h: 112 }), null);
 });
