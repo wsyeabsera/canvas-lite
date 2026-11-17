@@ -91,7 +91,7 @@ All timing lives in `web/watch.ts` (timeline of per-step travel and dwell, `posi
 `#/project/<id>/scene/<sid>` (`{view: "scene", id, scene}` in `web/state.ts`, `hrefScene`, `routeScene`) shows a 3D scene (see [3D scenes](scenes.md)) full window, read only, in **Orbit** mode. The landing page's scene cards open it.
 
 - The scene comes from `GET /api/projects/<id>/scenes/<sid>` with the page's token and is drawn by Lite's renderer (Three.js, loaded only on this route).
-- **Orbit.** Drag to orbit around the point the camera looks at (dragging never takes the camera below that point's level), scroll to zoom, `Shift`-drag or right-drag to pan. `R` goes back to the scene's own camera. A glass hint at the bottom lists these.
+- **Orbit.** Drag to orbit around the point the camera looks at (dragging never takes the camera below that point's level), scroll to zoom, `Shift`-drag or right-drag to pan. The arrow keys orbit (`Shift` for bigger steps) and `+` / `-` zoom, so the scene can be moved without a pointer. `R` goes back to the scene's own camera. A glass hint at the bottom lists these.
 - A glass chip top left shows the scene name, the mode segments **Orbit | Watch | Page** (links to the three routes, the one on show highlighted; drawn from `SCENE_MODES` in `web/scene-modes.ts` in `web/scene-view.ts` so another mode is one line) and **Exit** (`Esc` too), which goes back to the landing page `#/`.
 - **Live.** A `scene.set` or `films.set` event for the scene on show refetches it and redraws; a camera you moved stays where it is.
 - Frames are drawn only when something changes and never while the tab is hidden; the shader backdrop is paused while a scene is open.

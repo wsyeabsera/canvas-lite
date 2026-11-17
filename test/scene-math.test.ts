@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  boxCorners, cameraBasis, projectPoint, screenBox, farFor, fbm, fromOrbit, fullSize, hexToInt, instanceable, mixRgb, ORBIT_MAX_RADIUS, ORBIT_MIN_RADIUS, ORBIT_PHI_DRAG_MAX, orbitAxes, orbitPan, orbitRotate, orbitZoom,
+  boxCorners, cameraBasis, projectPoint, screenBox, farFor, fbm, fromOrbit, fullSize, hexToInt, instanceable, mixRgb, ORBIT_MAX_RADIUS, ORBIT_MIN_RADIUS, ORBIT_PHI_DRAG_MAX, orbitAxes, orbitKey, orbitPan, orbitRotate, orbitZoom,
   parseHex, shouldDraw, skyAt, terrainGrid, terrainHeight, terrainSegments, toOrbit, toRadians, valueNoise,
 } from "../web/scene-math.ts";
 import type { Terrain, Vec3 } from "../src/scene.ts";
@@ -171,4 +171,14 @@ test("farFor and shouldDraw", () => {
   assert.equal(shouldDraw({ dirty: false, paused: false, hidden: false }), false);
   assert.equal(shouldDraw({ dirty: true, paused: true, hidden: false }), false);
   assert.equal(shouldDraw({ dirty: true, paused: false, hidden: true }), false);
+});
+
+test("keyboard orbit: arrows rotate like a drag, + and - zoom like a wheel, other keys are left alone", () => {
+  const o = { target: [0, 0, 0] as [number, number, number], radius: 10, theta: 0, phi: 0.5 };
+  assert.deepEqual(orbitKey(o, "ArrowRight"), orbitRotate(o, 24, 0));
+  assert.deepEqual(orbitKey(o, "ArrowUp", true), orbitRotate(o, 0, -96));
+  assert.ok(orbitKey(o, "+")!.radius < o.radius);
+  assert.ok(orbitKey(o, "-")!.radius > o.radius);
+  assert.equal(orbitKey(o, "x"), null);
+  assert.equal(orbitKey(o, "Enter"), null);
 });

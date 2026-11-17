@@ -87,11 +87,12 @@ export function createTournamentScreen(host: HTMLElement, deps: Deps): Tournamen
     for (const r of m.rows) {
       const row = el("div", "vr-mrow");
       row.append(el("b", undefined, r.goal));
-      for (const c of r.cells) {
+      r.cells.forEach((c, i) => {
         const cell = c.walk ? anchor(hrefTrace(pid, cid, c.walk), `vr-cell ${c.tone}${c.best ? " best" : ""}`, "") : el("div", `vr-cell ${c.tone}${c.best ? " best" : ""}`);
         cell.append(el("b", undefined, c.text), el("div", "ld-hmeta", c.detail));
+        if (c.walk) cell.setAttribute("aria-label", `${r.goal}, ${m.columns[i]?.name ?? "version"}: ${c.text}, ${c.detail}. Open this walk.`); // a screen reader needs the goal and the version, not just the numbers
         row.append(cell);
-      }
+      });
       grid.append(row);
     }
     blocks.push(grid);
@@ -133,6 +134,9 @@ export function createTournamentScreen(host: HTMLElement, deps: Deps): Tournamen
       const lay = traceLayout(t.screens, t.steps, t.path[0]);
       const stage = el("div", "ds-card glass vr-trace");
       stage.style.height = `${Math.max(lay.height, 160)}px`;
+      stage.tabIndex = 0; // it scrolls sideways: the keyboard must be able to scroll it
+      stage.setAttribute("role", "region");
+      stage.setAttribute("aria-label", "The path this user took through the screens (scrolls sideways)");
       const ns = "http://www.w3.org/2000/svg";
       const svg = document.createElementNS(ns, "svg");
       svg.setAttribute("width", String(lay.width));

@@ -2,7 +2,7 @@
 // (web/scene-render.ts, imported lazily so Three.js loads only here) and turns drag, wheel and shift/right-drag into orbit, zoom
 // and pan. page.ts imports this module lazily too. DOM only; the orbit maths is pure in web/scene-math.ts.
 import { checkScene, type Scene } from "../src/scene.ts";
-import { fromOrbit, orbitPan, orbitRotate, orbitZoom, toOrbit, type Orbit } from "./scene-math.ts";
+import { fromOrbit, orbitKey, orbitPan, orbitRotate, orbitZoom, toOrbit, type Orbit } from "./scene-math.ts";
 import { hasWebGL2 } from "./webgl.ts";
 import type { SceneView } from "./scene-render.ts";
 import { scenePosterKey } from "./landing.ts";
@@ -64,7 +64,7 @@ export function createSceneScreen(host: HTMLElement, deps: Deps): SceneScreen {
   exitBtn.title = "Back to designs (Esc)";
   exitBtn.append("Exit ", el("kbd", undefined, "Esc"));
   chip.append(chipName, chipMode, exitBtn);
-  const hint = el("p", "sc-hint sc-g", "Drag to orbit · Scroll to zoom · Shift-drag or right-drag to pan · R resets");
+  const hint = el("p", "sc-hint sc-g", "Drag or arrow keys to orbit · Scroll or + − to zoom · Shift-drag or right-drag to pan · R resets");
   const msg = el("div", "sc-msg");
   msg.hidden = true;
   host.replaceChildren(stage, chip, hint, msg);
@@ -249,6 +249,13 @@ export function createSceneScreen(host: HTMLElement, deps: Deps): SceneScreen {
     } else if ((e.key === "r" || e.key === "R") && view && scene) {
       orbit = toOrbit(scene.camera.pos, view.lookPoint(scene.camera.look));
       moved = false;
+      apply();
+    } else if (orbit && view && !(e.target as HTMLElement | null)?.closest?.("button, a")) {
+      const next = orbitKey(orbit, e.key, e.shiftKey); // keyboard users orbit and zoom without a pointer
+      if (!next) return;
+      e.preventDefault();
+      orbit = next;
+      moved = true;
       apply();
     }
   };

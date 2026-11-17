@@ -147,6 +147,20 @@ export function orbitZoom(o: Orbit, deltaY: number, speed = 0.0015): Orbit {
   return { ...o, radius: clamp(o.radius * Math.exp(deltaY * speed), ORBIT_MIN_RADIUS, ORBIT_MAX_RADIUS) };
 }
 
+/** Keyboard orbit: arrows rotate (24 px of drag each, 96 px with Shift), + and - zoom (like a wheel notch of 120). Null for any other key, so the caller leaves the event alone. */
+export function orbitKey(o: Orbit, key: string, shift = false): Orbit | null {
+  const step = shift ? 96 : 24;
+  switch (key) {
+    case "ArrowLeft": return orbitRotate(o, -step, 0);
+    case "ArrowRight": return orbitRotate(o, step, 0);
+    case "ArrowUp": return orbitRotate(o, 0, -step);
+    case "ArrowDown": return orbitRotate(o, 0, step);
+    case "+": case "=": return orbitZoom(o, -120);
+    case "-": case "_": return orbitZoom(o, 120);
+    default: return null;
+  }
+}
+
 /** The camera's right and up vectors for an orbit (unit length). */
 export function orbitAxes(o: Orbit): { right: Vec3; up: Vec3 } {
   const cp = Math.cos(o.phi), sp = Math.sin(o.phi), ct = Math.cos(o.theta), st = Math.sin(o.theta);
