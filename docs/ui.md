@@ -171,3 +171,5 @@ Below 5 screens the overview map is hidden; above it a 180 x 112 map sits bottom
 The home header links to **Files and events** (opens `#/project/<id>`: the same page scrolled to the project details under the gallery) and **Design system**. Blue buttons are `#3660f0` (white text 5.1:1). In the light theme green text uses `--ok-text` (`#166534`).
 
 Motion follows the transitions.dev token scale (the `:root` block in `public/index.html`): page and rail changes 250 ms with an 8 px rise and 3 px blur; the project menu opens in 250 ms from 0.97 and closes in 150 ms to 0.99; card hover is quick in (150 ms) and softer out (350 ms, strong bounce); thumbnails reveal in 400 ms with a 2 px blur; the first gallery draw rises in with a 40 ms stagger capped at 8 cards; the first load shows shimmering placeholder cards. All of it is off under `prefers-reduced-motion`.
+
+While Play, Walkthrough or Watch is on top of a canvas, the canvas's own controls (back, Play, zoom, map, the screens) are `inert`, so Tab, the screen reader and clicks stay inside the mode that is showing.

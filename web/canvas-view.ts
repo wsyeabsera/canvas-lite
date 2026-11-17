@@ -351,6 +351,10 @@ export function createCanvasView(select: (id: string | null) => void, play: () =
       fitAnimated = sameCanvas && frames.size > 0;
       if (!sameCanvas) reset();
     },
+    /** Play, Walkthrough and Watch sit over the canvas: its controls leave the tab order and the accessibility tree, so the keyboard stays on the mode that is on top. */
+    setCovered(on: boolean) {
+      for (const e of document.querySelectorAll<HTMLElement>("#cv-surface, #view-canvas > .island:not(.pl-bar), #cv-note")) e.inert = on;
+    },
     /** Play covers the canvas: its keys stop but the view (pan, zoom, frames) stays as it was. */
     pause() {
       active = false;

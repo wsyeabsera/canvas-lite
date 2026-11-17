@@ -663,6 +663,7 @@ function showRoute() {
     canvasView.leave();
     replay.close();
   }
+  canvasView.setCovered(route.view === "play" || route.view === "walk" || route.view === "watch");
   if (route.view === "project") {
     const p = state.projects[route.id];
     $("project-title").textContent = p?.name ?? route.id;
