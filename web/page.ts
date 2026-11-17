@@ -1,7 +1,7 @@
 // The read-only watch page: the CLI's Watcher and formatter, drawn into views. It only reads; the one message it sends is the Watcher's hello.
 import { clock, detail as eventDetail, type WatchRow } from "../cli/format.ts";
 import { Watcher, normalizeUrl } from "../cli/watch-core.ts";
-import { addRow, describeProject, hrefCanvas, hrefDesign, hrefLanding, hrefPlay, pageTitle, hrefScene, hrefSceneWatch, hrefWalk, hrefWatch, hrefScreen, initialState, MAX_ROWS, parseRoute, routeCanvas, routeProject, sceneEventHits, sortedProjects, visibleRows, type Route, type State } from "./state.ts";
+import { addRow, describeProject, hrefCanvas, hrefLanding, hrefPlay, pageTitle, hrefScene, hrefSceneWatch, hrefWalk, hrefWatch, hrefScreen, initialState, MAX_ROWS, parseRoute, routeCanvas, routeProject, sceneEventHits, sortedProjects, visibleRows, type Route, type State } from "./state.ts";
 import { agoText, canvasEvent, describeCanvasDetail, describeCanvasList, dropCanvas, refetchPlan, screensLabel, type CanvasDetail, type CanvasSummary, type Pending } from "./canvas.ts";
 import { createCanvasView } from "./canvas-view.ts";
 import { createPlayView } from "./play-view.ts";
@@ -211,7 +211,6 @@ async function loadList(pid: string) {
     const list = describeCanvasList(await res.json());
     if (mine !== listSeq) return;
     canvasLists[pid] = list;
-    if (route.view === "project" && route.id === pid) renderCanvasCard();
     renderCanvas();
   } catch {
     /* keep what we have */
@@ -279,26 +278,6 @@ const svg = (d: string, size = 15) => {
   return e;
 };
 
-function renderCanvasCard() {
-  if (route.view !== "project") return;
-  const pid = route.id;
-  const list = canvasLists[pid] ?? [];
-  const now = Date.now();
-  $("canvases-h").textContent = list.length ? `Canvases · ${list.length}` : "Canvases";
-  $("canvas-empty").hidden = list.length > 0 || canvasLists[pid] === undefined;
-  $("canvas-list").replaceChildren(
-    ...list.map((c) => {
-      const li = el("li");
-      const a = el("a");
-      a.href = hrefCanvas(pid, c.id);
-      const chev = svg("M9 6l6 6-6 6", 16);
-      chev.classList.add("chev");
-      a.append(el("span", (c.name.trim()[0] ?? "?").toUpperCase(), "ico"), el("span", c.name, "nm"), el("span", screensLabel(c.screens), "mu"), el("span", `updated ${agoText(c.updated_at, now)}`, "mu"), chev);
-      li.append(a);
-      return li;
-    }),
-  );
-}
 
 const canvasView = createCanvasView(
   (id) => {
@@ -496,7 +475,6 @@ function renderCanvas() {
 }
 
 setInterval(() => {
-  if (route.view === "project") renderCanvasCard();
 }, 30_000);
 
 // The landing page (web/landing-view.ts): `#/`, the gallery. Declared before the play view because `moved` remembers the screen.
@@ -576,8 +554,8 @@ function showRoute() {
   route = parseRoute(location.hash);
   landing.remember(route);
   setTitle();
-  viewLanding.hidden = route.view !== "landing";
-  app.classList.toggle("landing-mode", route.view === "landing" || route.view === "design" || route.view === "admin" || route.view === "variants" || route.view === "tournament" || route.view === "trace");
+  viewLanding.hidden = route.view !== "landing" && route.view !== "project"; // a project route is the gallery with that project's details under it
+  app.classList.toggle("landing-mode", route.view === "landing" || route.view === "project" || route.view === "design" || route.view === "admin" || route.view === "variants" || route.view === "tournament" || route.view === "trace");
   viewVariants.hidden = route.view !== "variants";
   viewTournament.hidden = route.view !== "tournament" && route.view !== "trace";
   if (route.view === "variants") variantsScreen.open(route.id, route.canvas);
@@ -592,7 +570,11 @@ function showRoute() {
   if (route.view === "design") designScreen.open(route.id);
   else designScreen.close();
   if (route.view === "landing") landing.show();
-  else landing.hide();
+  else if (route.view === "project") {
+    landing.select(route.id);
+    landing.show();
+    requestAnimationFrame(() => requestAnimationFrame(() => viewProject.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" })));
+  } else landing.hide();
   viewActivity.hidden = route.view !== "activity";
   viewProject.hidden = route.view !== "project";
   const inCanvas = routeCanvas(route) !== null;
@@ -672,13 +654,11 @@ function showRoute() {
   if (route.view === "project") {
     const p = state.projects[route.id];
     $("project-title").textContent = p?.name ?? route.id;
-    ($("project-design") as HTMLAnchorElement).href = hrefDesign(route.id);
     setMeta(p?.kind ?? "", p?.repo ?? null, "");
     $("project-files").replaceChildren();
     projectRows = [];
     fill(projectEventsEl, mergedProjectRows());
     void loadProject(route.id);
-    renderCanvasCard();
   } else if (wasProject) {
     fetchSeq++;
   }
@@ -764,12 +744,3 @@ const watcher = new Watcher({
 });
 showRoute();
 watcher.start();
-
-// "Open gallery" on a project page: the landing shows the project you came from.
-$("project-gallery").addEventListener("click", () => {
-  try {
-    if (route.view === "project") localStorage.setItem("lite.project", route.id);
-  } catch {
-    /* storage blocked: the landing picks its own project */
-  }
-});

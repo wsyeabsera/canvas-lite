@@ -129,9 +129,9 @@
 
   #view-project { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
   #view-project > * { min-width: 0; }
+  #view-project[hidden] { display: none; }
+  #view-project .hd { padding: 0; }
   .hd { grid-column: 1 / -1; padding: 18px 20px; }
-  .hd-links { display: flex; gap: 10px; margin-top: 12px; }
-  .hd-links .ld-pill { height: 32px; font-size: 13px; }
   #project-title { overflow-wrap: anywhere; }
   #project-meta { color: var(--mu); margin-top: 6px; overflow-wrap: anywhere; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
   #project-meta .chip { background: color-mix(in srgb, var(--ac) 22%, transparent); color: var(--ac); border-radius: 999px; padding: 1px 11px; font-size: 12.5px; font-weight: 500; }
@@ -167,7 +167,7 @@
   }
   .cv-surface.grabbing { cursor: grabbing; }
   .cv-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
-  .cv-world.anim { transition: transform 220ms cubic-bezier(.2,.7,.2,1), --k 220ms cubic-bezier(.2,.7,.2,1); }
+  .cv-world.anim { transition: transform var(--duration-fast) var(--ease-smooth-out), --k var(--duration-fast) var(--ease-smooth-out); }
   @media (prefers-reduced-motion: reduce) { .cv-world.anim { transition: none; } }
   .scr { position: absolute; }
   .scr .frame {
@@ -202,11 +202,13 @@
   #cv-watch[hidden] { display: none; }
   .ld-vchip::before { content: "⧉ "; }
   @media (prefers-reduced-motion: no-preference) {
-    .ld-card { transition: transform .2s cubic-bezier(.22, 1, .36, 1), box-shadow .2s ease; }
-    .ld-card:hover { transform: translateY(-2px); }
-    .ld-menu[popover] { opacity: 0; transform: translateY(-4px) scale(.98); transition: opacity .15s ease, transform .15s ease, display .15s allow-discrete, overlay .15s allow-discrete; }
-    .ld-menu[popover]:popover-open { opacity: 1; transform: none; }
-    @starting-style { .ld-menu[popover]:popover-open { opacity: 0; transform: translateY(-4px) scale(.98); } }
+    /* hover in is quick and direct; hover out is softer and springs back (transitions-polish: hover in vs out) */
+    .ld-card { transition: transform var(--duration-medium) var(--ease-bounce-strong), box-shadow var(--duration-medium) var(--ease-smooth-out); }
+    .ld-card:hover { transform: translateY(-2px); transition-duration: var(--duration-quick); transition-timing-function: var(--ease-smooth-out); }
+    /* dropdown: open 250 ms from 0.97, close 150 ms to 0.99 (the close is quicker and quieter than the open) */
+    .ld-menu[popover] { opacity: 0; transform: scale(var(--scale-tiny)); transition: opacity var(--duration-quick) var(--ease-smooth-out), transform var(--duration-quick) var(--ease-smooth-out), display var(--duration-quick) allow-discrete, overlay var(--duration-quick) allow-discrete; }
+    .ld-menu[popover]:popover-open { opacity: 1; transform: none; transition: opacity var(--duration-fast) var(--ease-smooth-out), transform var(--duration-fast) var(--ease-smooth-out), display var(--duration-fast) allow-discrete, overlay var(--duration-fast) allow-discrete; }
+    @starting-style { .ld-menu[popover]:popover-open { opacity: 0; transform: scale(var(--scale-medium)); } }
   }
   .crumb .cp, .crumb .cs { color: var(--mu); }
   .crumb .cs { margin: 0 6px; }
@@ -251,7 +253,7 @@
   .pl-scr { position: absolute; left: 0; top: 0; overflow: hidden; background: #fff; }
   .pl-scr iframe { display: block; border: 0; width: 100%; height: 100%; pointer-events: none; background: #fff; }
   /* transitions: classes chosen by planTransition(); 220 ms; the entering screen is on top so nothing flashes blank */
-  .pl-fade-in, .pl-in-r, .pl-in-l, .pl-slide-out-l, .pl-slide-out-r, .pl-push-out-l, .pl-push-out-r { animation-duration: 220ms; animation-timing-function: cubic-bezier(.2,.7,.2,1); animation-fill-mode: both; }
+  .pl-fade-in, .pl-in-r, .pl-in-l, .pl-slide-out-l, .pl-slide-out-r, .pl-push-out-l, .pl-push-out-r { animation-duration: var(--duration-fast); animation-timing-function: var(--ease-smooth-out); animation-fill-mode: both; }
   .pl-fade-in { animation-name: pl-fade-in; }
   .pl-in-r { animation-name: pl-in-r; }
   .pl-in-l { animation-name: pl-in-l; }
@@ -288,7 +290,7 @@
   .pl-hs:hover .pl-chip, .pl-hs.focus .pl-chip { opacity: 1; }
   .pl-hs.dead .pl-chip { color: var(--warn); }
   .pl-msg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); margin: 0; color: #a7aec2; font-size: 14px; pointer-events: none; }
-  .pl-bar { top: 14px; left: 50%; transform: translateX(-50%); gap: 6px; padding: 5px 6px 5px 5px; white-space: nowrap; transition: opacity .35s ease; }
+  .pl-bar { top: 14px; left: 50%; transform: translateX(-50%); gap: 6px; padding: 5px 6px 5px 5px; white-space: nowrap; transition: opacity var(--duration-medium) var(--ease-in-out); }
   .pl.idle .pl-bar { opacity: 0; pointer-events: none; }
   .pl.idle { cursor: none; }
   .pl.idle .pl-hs { cursor: pointer; }
@@ -447,7 +449,10 @@
   .ld-thumb { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--sk); }
   .ld-thumb iframe { position: absolute; border: 0; background: #fff; transform-origin: 0 0; pointer-events: none; max-width: none; opacity: 0; }
   .ld-thumb iframe.loaded { opacity: 1; }
-  @media (prefers-reduced-motion: no-preference) { .ld-thumb iframe { transition: opacity .25s ease; } }
+  /* skeleton content reveal: 400 ms ease-in-out with a 2 px blur settling to 0 */
+  .ld-thumb iframe { filter: blur(var(--blur-small)); }
+  .ld-thumb iframe.loaded { filter: none; }
+  @media (prefers-reduced-motion: no-preference) { .ld-thumb iframe { transition: opacity var(--duration-slow) var(--ease-in-out), filter var(--duration-slow) var(--ease-in-out); } }
   .ld-thumb.empty::after { content: "No screens"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--mu); font-size: 12.5px; }
   .ld-scrim { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; gap: 8px; background: rgba(8,10,18,.68); opacity: 0; transition: opacity .15s ease; }
   .ld-card:hover .ld-scrim, .ld-card:focus-within .ld-scrim { opacity: 1; }
@@ -469,6 +474,15 @@
   .ld-foot a { color: var(--tx); }
   .ld-count { color: var(--mu); font-size: 12.5px; }
   .ld-sort { margin-left: auto; height: 28px; padding: 0 10px; border-radius: 999px; font: inherit; font-size: 13px; color: var(--tx); cursor: pointer; }
+  /* first reveal of the gallery: cards rise in with a 40 ms stagger, at most 8 steps (320 ms in total) */
+  @media (prefers-reduced-motion: no-preference) {
+    .ld-grid.enter > .ld-card { animation: card-in var(--duration-very-slow) var(--ease-smooth-out) both; animation-delay: calc(var(--i, 0) * var(--duration-stagger)); }
+    @keyframes card-in { from { opacity: 0; transform: translateY(var(--distance-medium)); filter: blur(var(--blur-medium)); } }
+    .ld-skel .ld-thumbwrap, .ld-skel .ld-sk-l { background: linear-gradient(90deg, var(--chip) 25%, var(--sel) 50%, var(--chip) 75%); background-size: 200% 100%; animation: sk-shimmer 1.4s var(--ease-linear) infinite; }
+    @keyframes sk-shimmer { to { background-position: -200% 0; } }
+  }
+  .ld-skel .ld-thumbwrap, .ld-skel .ld-sk-l { background: var(--chip); }
+  .ld-skel .ld-sk-l { height: 12px; border-radius: 6px; margin: 8px 14px; width: 60%; }
   .ld-linkbtn { border: 0; background: none; color: var(--ac); font: inherit; cursor: pointer; text-decoration: underline; padding: 0; }
   a:focus-visible, button:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
   /* scene cards (3D): sky gradient, then a rendered poster; chips for films and page */
@@ -509,12 +523,45 @@
   .ad-danger { background: var(--bad); color: #0a0c13; border: 0; }
   .ad-out { border: 0; font: inherit; cursor: pointer; }
   /* variants and tournament (web/variants-view.ts, web/tournament-view.ts): motion from transitions.dev (modal, texts reveal), tokens below */
+  /* motion tokens (the transitions.dev scale) */
+  :root {
+    /* Durations */
+    --duration-stagger: 40ms;  /* per-item stagger offset */
+    --duration-micro: 80ms;  /* tooltip/path delay, shake segment, large stagger */
+    --duration-quick: 150ms;  /* modal/dropdown close, text swap, tooltip appear */
+    --duration-fast: 250ms;  /* icon swap, dropdown/modal open, tabs sliding, page slide */
+    --duration-medium: 350ms;  /* panel close, toast close */
+    --duration-slow: 400ms;  /* panel open, skeleton content reveal, input clear */
+    --duration-very-slow: 500ms;  /* emphasis moments, badge appear, text reveal, success check */
+    /* Easings */
+    --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);  /* modal/dropdown/panel open + close, page slide, resize, position change */
+    --ease-in-out: ease-in-out;  /* icon swap, text swap, text reveal, skeleton reveal */
+    --ease-out: ease-out;  /* tooltip open / close */
+    --ease-linear: linear;  /* shimmer, skeleton pulse, spinner */
+    --ease-bounce: cubic-bezier(0.34, 1.36, 0.64, 1);  /* badge pop open */
+    --ease-bounce-strong: cubic-bezier(0.34, 3.85, 0.64, 1);  /* bouncy hover-out (avatar return) */
+    /* Distances */
+    --distance-micro: 4px;  /* text swap */
+    --distance-small: 6px;  /* error shake (small segment) */
+    --distance-base: 8px;  /* badge diagonal reveal, page slide, error shake (large segment) */
+    --distance-medium: 12px;  /* text reveal */
+    --distance-large: 30px;  /* check badge appear */
+    /* Scales */
+    --scale-large: 0.96;  /* modal open / close */
+    --scale-medium: 0.97;  /* dropdown open */
+    --scale-small: 0.98;  /* tooltip open */
+    --scale-tiny: 0.99;  /* dropdown close */
+    /* Blur */
+    --blur-small: 2px;  /* panel reveal, icon swap, text swap, skeleton reveal, number pop-in */
+    --blur-medium: 3px;  /* page slide, text reveal */
+    --blur-large: 8px;  /* success check open */
+  }
   /* page and panel motion: the transitions.dev tokens (distance 12 px, ease-out, 250 ms in), only when the viewer has not asked for less */
   @media (prefers-reduced-motion: no-preference) {
-    :is(#view-landing, #view-activity, #view-project, #view-admin, #view-design, #view-variants, #view-tournament):not([hidden]) { animation: view-in var(--modal-open-dur) var(--modal-ease) both; }
-    .wk-rail:not([hidden]), .sc-rail:not([hidden]) { animation: rail-in var(--modal-open-dur) var(--modal-ease) both; }
-    @keyframes view-in { from { opacity: 0; transform: translateY(var(--stagger-distance)); } }
-    @keyframes rail-in { from { opacity: 0; transform: translateX(var(--stagger-distance)); } }
+    :is(#view-landing, #view-activity, #view-project, #view-admin, #view-design, #view-variants, #view-tournament):not([hidden]) { animation: view-in var(--duration-fast) var(--ease-smooth-out) both; }
+    .wk-rail:not([hidden]), .sc-rail:not([hidden]) { animation: rail-in var(--duration-fast) var(--ease-smooth-out) both; }
+    @keyframes view-in { from { opacity: 0; transform: translateY(var(--distance-base)); filter: blur(var(--blur-medium)); } }
+    @keyframes rail-in { from { opacity: 0; transform: translateX(var(--distance-base)); filter: blur(var(--blur-medium)); } }
   }
   :root { --modal-open-dur: 250ms; --modal-close-dur: 150ms; --modal-scale: .96; --modal-ease: cubic-bezier(.22, 1, .36, 1);
     --stagger-dur: 500ms; --stagger-distance: 12px; --stagger-stagger: 40ms; --stagger-blur: 3px; --stagger-ease: cubic-bezier(.22, 1, .36, 1); --bar-dur: 400ms; }
@@ -547,7 +594,7 @@
   .vr-prog { display: flex; align-items: center; gap: 14px; padding: 8px 0; }
   .vr-prog .vr-name { width: 160px; }
   .vr-bar { width: 300px; height: 8px; border-radius: 4px; background: var(--chip); }
-  .vr-bar i { display: block; height: 100%; border-radius: 4px; background: var(--tone, var(--ac)); transition: width var(--bar-dur) cubic-bezier(.22, 1, .36, 1); }
+  .vr-bar i { display: block; height: 100%; border-radius: 4px; background: var(--tone, var(--ac)); transition: width var(--bar-dur) var(--ease-smooth-out); }
   .vr-matrix { padding: 18px 20px; }
   .vr-mrow { display: grid; grid-template-columns: 1.3fr repeat(var(--cols), 1fr); gap: 12px; align-items: center; padding: 6px 0; }
   .vr-mrow .cap span { color: var(--tone, var(--mu)); }
@@ -620,8 +667,8 @@
   .wk-b-n { font-size: 14px; line-height: 1.4; }
   .wk-b-h { color: var(--mu); font-size: 12px; margin-top: 8px; }
   @media (prefers-reduced-motion: no-preference) {
-    .wk-dim.in { animation: wk-in 180ms ease-out; }
-    .wk-bubble { animation: wk-in 180ms ease-out; }
+    .wk-dim.in { animation: wk-in var(--duration-quick) var(--ease-out); }
+    .wk-bubble { animation: wk-in var(--duration-quick) var(--ease-out); }
     @keyframes wk-in { from { opacity: 0; } to { opacity: 1; } }
   }
   /* <<< walkthrough mode */
@@ -793,12 +840,6 @@
         <h1>Activity</h1>
         <ul id="events" aria-live="polite"></ul>
       </section>
-      <section id="view-project" hidden>
-        <div class="hd glass"><h1 id="project-title"></h1><div id="project-meta"></div><div class="hd-links"><a class="ld-pill glass" id="project-gallery" href="#/">Open gallery</a><a class="ld-pill glass" id="project-design" href="#/">Design system</a></div></div>
-        <div class="card glass" style="grid-column: 1 / -1"><h2 id="canvases-h">Canvases</h2><ul id="canvas-list" class="clist"></ul><p id="canvas-empty" hidden>No canvases yet. Ask Claude to create one.</p></div>
-        <div class="card glass"><h2>Files</h2><ul id="project-files"></ul></div>
-        <div class="card glass"><h2>Events</h2><ul id="project-events"></ul></div>
-      </section>
     </main>
   </div>
   <section id="view-landing" class="landing" role="main" hidden aria-label="Designs">
@@ -817,6 +858,11 @@
     <section aria-label="Designs">
       <div class="ld-dh"><h2>Designs</h2><div class="ld-chips" id="ld-chips" role="group" aria-label="Filter designs"></div><span class="ld-count" id="ld-count" aria-live="polite"></span><select class="ld-sort glass" id="ld-sort" aria-label="Sort designs"></select></div>
       <div id="ld-gallery"></div>
+    </section>
+    <section id="view-project" aria-label="Project details" hidden>
+      <div class="hd"><h2 id="project-title"></h2><div id="project-meta"></div></div>
+      <div class="card glass"><h2>Files</h2><ul id="project-files"></ul></div>
+      <div class="card glass"><h2>Events</h2><ul id="project-events"></ul></div>
     </section>
     <footer class="ld-foot"><a class="ld-pill glass" href="#/activity">Activity log</a></footer>
     <dialog class="ld-newdlg" id="ld-newdlg" aria-label="Create a project">

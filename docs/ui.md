@@ -13,7 +13,7 @@ slug: /ui
 |---|---|
 | `#/` | **Landing**: the designer's gallery of designs (canvases), see below. |
 | `#/activity` | **Activity**: every event, newest at the bottom, live. Reached from the small **Activity** link at the bottom of the landing page. Any unreadable hash also lands here. |
-| `#/project/<id>` | One project (no longer linked from the UI; old links still open it): kind, repo link, a line from its README, the file list Claude told Lite about, and its events. |
+| `#/project/<id>` | **The landing for that project with its details folded in underneath**: the page selects the project, scrolls to a **Project details** section (kind, repo link, a line from its README, the file list Claude told Lite about, and its events). Reached from **Files and events** in the home header; there is no separate page. |
 | `#/project/<id>/canvas/<cid>` | A canvas: the whole window is a pannable, zoomable surface with every screen at its real size, live. See [Canvas and screens](canvas.md) for the keys. |
 | `#/project/<id>/canvas/<cid>/screen/<sid>` | The same surface, fitted to one screen. |
 
@@ -28,7 +28,7 @@ slug: /ui
 | `#/project/<id>/scene/<sid>/watch[/<filmId>]` | The scene in **Watch** mode: without a film id the film picker, with one the film player (see [Watch mode](#watch-mode-films)). |
 | `#/project/<id>/scene/<sid>/page` | The scene's scrolling **page**: scroll drives the camera, text overlays on top (see [Page mode](#page-mode)). |
 
-The project page also has a **Canvases** card, but nothing in the UI links to it any more: the page shows designs only. There is no sidebar on any view. The activity and project pages are full-width under the top bar (a **Designs** back arrow to `#/`, the wordmark, status, the docs link and the theme pill); the canvas's top-left pill shows the design name with a back arrow to `#/`.
+There is no sidebar on any view. The activity page is full-width under the same flat top bar (a **Designs** back pill, the wordmark, status, the docs link and the theme pill); the canvas's top-left pill shows the design name with a back arrow to `#/`.
 
 The page targets desktop browsers; narrow screens are not a goal yet.
 
@@ -168,4 +168,6 @@ Zoom buttons and `+` / `-` move between fixed stops (`ZOOM_STOPS` in `web/viewpo
 
 Below 5 screens the overview map is hidden; above it a 180 x 112 map sits bottom left (click or drag to move the view). When a design is missing or fails to load, the canvas shows a state block (`web/states-view.ts`) with **Back to designs** (and **Try again** on an error) and hides the tools. Every view uses the same block for loading, empty and error. The tab title is `<screen> · <design> · <project> · Lite` (`pageTitle` in `web/state.ts`).
 
-The home header links to **Files and events** (the project page: the manifest file list and recent events) and **Design system**. Blue buttons are `#3660f0` (white text 5.1:1). In the light theme green text uses `--ok-text` (`#166534`).
+The home header links to **Files and events** (opens `#/project/<id>`: the same page scrolled to the project details under the gallery) and **Design system**. Blue buttons are `#3660f0` (white text 5.1:1). In the light theme green text uses `--ok-text` (`#166534`).
+
+Motion follows the transitions.dev token scale (the `:root` block in `public/index.html`): page and rail changes 250 ms with an 8 px rise and 3 px blur; the project menu opens in 250 ms from 0.97 and closes in 150 ms to 0.99; card hover is quick in (150 ms) and softer out (350 ms, strong bounce); thumbnails reveal in 400 ms with a 2 px blur; the first gallery draw rises in with a 40 ms stagger capped at 8 cards; the first load shows shimmering placeholder cards. All of it is off under `prefers-reduced-motion`.

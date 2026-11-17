@@ -79,6 +79,7 @@ export function createLandingView(deps: LandingDeps) {
   let loaded = false; // false until the first list has arrived: no "0 designs" or empty state before that
   let sortKey: SortKey = "newest";
   let scrollY = 0;
+  let entered = false; // the gallery has risen in once
   let query = "";
   let filter: Filter = "all";
   let project = ""; // the project on show; "" only while Lite knows no project
@@ -495,6 +496,18 @@ export function createLandingView(deps: LandingDeps) {
     );
   }
 
+  /** Eight placeholder cards that shimmer while the first list is on its way. */
+  function skeleton(): HTMLElement {
+    const grid = el("div", "ld-grid");
+    grid.setAttribute("aria-busy", "true");
+    for (let i = 0; i < 8; i++) {
+      const c = el("div", "ld-card glass ld-skel");
+      c.append(el("div", "ld-thumbwrap"), el("div", "ld-sk-l"), el("div", "ld-sk-l"));
+      grid.append(c);
+    }
+    return grid;
+  }
+
   function drawGallery() {
     const stacked = stackVariants(scoped);
     const shown = sortEntries(applyFilter(searchEntries(stacked, query), filter), sortKey);
@@ -502,7 +515,7 @@ export function createLandingView(deps: LandingDeps) {
     if (scoped.length === 0) {
       const name = projName.textContent ?? "";
       galleryEl.replaceChildren(
-        loaded && settled && project ? stateBlock("empty", "design", [], { title: name ? `Nothing yet in ${name}` : "Nothing yet", hint: "Ask Claude to design something." }) : stateBlock("loading", "designs"),
+        loaded && settled && project ? stateBlock("empty", "design", [], { title: name ? `Nothing yet in ${name}` : "Nothing yet", hint: "Ask Claude to design something." }) : skeleton(),
       );
       return;
     }
@@ -519,8 +532,10 @@ export function createLandingView(deps: LandingDeps) {
       none.append(clear);
       return galleryEl.replaceChildren(none);
     }
-    const grid = el("div", "ld-grid");
+    const grid = el("div", entered ? "ld-grid" : "ld-grid enter");
     grid.append(...shown.map(card));
+    grid.querySelectorAll<HTMLElement>(":scope > .ld-card").forEach((c, i) => c.style.setProperty("--i", String(Math.min(i, 7))));
+    entered = true; // only the first draw rises in; filtering and ticking must not replay it
     galleryEl.replaceChildren(grid);
   }
 
@@ -592,6 +607,19 @@ export function createLandingView(deps: LandingDeps) {
   };
 
   return {
+    /** Shows another project (the project route): remembered like a pick from the switcher; the search and filter are cleared. */
+    select(pid: string) {
+      if (pid === project) return;
+      project = savedProject = pid;
+      try {
+        localStorage.setItem(PROJECT_KEY, pid);
+      } catch {
+        /* ignore */
+      }
+      query = "";
+      searchEl.value = "";
+      filter = "all";
+    },
     /** The element the theme pill and docs link move into while the landing is on screen. */
     toolsSlot: slot,
     show() {

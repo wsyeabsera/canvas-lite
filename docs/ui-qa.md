@@ -97,3 +97,5 @@ Nothing known.
 
 - The tab title of a scene shows its name (from the project's scene list), not its id.
 - Scene film playback and a scene with a page (`tvdash/harbor-town`) were opened live; contrast was re-measured on the design system, admin, activity, project page and variants in both themes.
+- The project page is now truly folded in: `#/project/<id>` shows the home gallery for that project with a **Project details** section (files, events) under it; the separate page, its Canvases card and the Open gallery link are gone.
+- Motion audited against the transitions.dev tokens (the `transitions review` rules): ad-hoc durations and easings replaced by tokens, open/close asymmetry on the project menu, hover in versus out on cards, a staggered first reveal, and shimmering placeholders instead of a bare spinner while the gallery loads.
