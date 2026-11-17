@@ -51,6 +51,7 @@ export function createWalkView(hooks: WalkHooks) {
   sw.type = "button";
   sw.setAttribute("role", "switch");
   sw.setAttribute("aria-checked", "false");
+  sw.setAttribute("aria-label", "Auto-advance");
   sw.append(el("span", "wk-knob"));
   autoRow.append(el("span", "", "Auto-advance"), sw);
   const btns = el("div", "wk-btns");
