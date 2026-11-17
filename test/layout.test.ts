@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { GAP, layoutScreens, type Placeable } from "../web/layout.ts";
+import { GAP, columnsFor, layoutScreens, type Placeable } from "../web/layout.ts";
 
 const s = (id: string, width: number, height: number, x: number | null = null, y: number | null = null): Placeable => ({ id, width, height, x, y });
 
@@ -26,4 +26,22 @@ test("placed screens keep x and y; auto ones still fill rows from 0,0", () => {
     ["b", 2 * (100 + GAP), 0],
   ]);
   assert.deepEqual(layoutScreens([]), []);
+});
+
+test("a large canvas gets more columns so it is not a tower; small ones keep three", () => {
+  assert.deepEqual([1, 9, 10, 25, 50].map(columnsFor), [3, 3, 4, 7, 9]);
+  const many = Array.from({ length: 25 }, (_, i) => s(`s${i}`, 100, 100));
+  const boxes = layoutScreens(many);
+  assert.equal(boxes.filter((b) => b.y === 0).length, 7);
+  assert.equal(Math.max(...boxes.map((b) => b.y)) / (100 + GAP), 3);
+});
+
+import { stepZoom } from "../web/viewport.ts";
+test("zoom steps land on round stops from any scale", () => {
+  assert.equal(stepZoom(0.0816, 1), 0.1);
+  assert.equal(stepZoom(0.1, 1), 0.125);
+  assert.equal(stepZoom(0.137, -1), 0.125);
+  assert.equal(stepZoom(2, 1), 2);
+  assert.equal(stepZoom(0.05, -1), 0.05);
+  assert.equal(stepZoom(1, -1), 0.75);
 });

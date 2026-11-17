@@ -1,7 +1,7 @@
 // The read-only watch page: the CLI's Watcher and formatter, drawn into views. It only reads; the one message it sends is the Watcher's hello.
 import { clock, detail as eventDetail, type WatchRow } from "../cli/format.ts";
 import { Watcher, normalizeUrl } from "../cli/watch-core.ts";
-import { addRow, describeProject, hrefCanvas, hrefLanding, hrefPlay, hrefScene, hrefSceneWatch, hrefWalk, hrefWatch, hrefScreen, initialState, MAX_ROWS, parseRoute, routeCanvas, routeProject, sceneEventHits, sortedProjects, visibleRows, type Route, type State } from "./state.ts";
+import { addRow, describeProject, hrefCanvas, hrefDesign, hrefLanding, hrefPlay, hrefScene, hrefSceneWatch, hrefWalk, hrefWatch, hrefScreen, initialState, MAX_ROWS, parseRoute, routeCanvas, routeProject, sceneEventHits, sortedProjects, visibleRows, type Route, type State } from "./state.ts";
 import { agoText, canvasEvent, describeCanvasDetail, describeCanvasList, dropCanvas, refetchPlan, screensLabel, type CanvasDetail, type CanvasSummary, type Pending } from "./canvas.ts";
 import { createCanvasView } from "./canvas-view.ts";
 import { createPlayView } from "./play-view.ts";
@@ -293,7 +293,7 @@ function renderCanvasCard() {
       a.href = hrefCanvas(pid, c.id);
       const chev = svg("M9 6l6 6-6 6", 16);
       chev.classList.add("chev");
-      a.append(el("span", undefined, "ico"), el("span", c.name, "nm"), el("span", screensLabel(c.screens), "mu"), el("span", `updated ${agoText(c.updated_at, now)}`, "mu"), chev);
+      a.append(el("span", (c.name.trim()[0] ?? "?").toUpperCase(), "ico"), el("span", c.name, "nm"), el("span", screensLabel(c.screens), "mu"), el("span", `updated ${agoText(c.updated_at, now)}`, "mu"), chev);
       li.append(a);
       return li;
     }),
@@ -652,6 +652,7 @@ function showRoute() {
   if (route.view === "project") {
     const p = state.projects[route.id];
     $("project-title").textContent = p?.name ?? route.id;
+    ($("project-design") as HTMLAnchorElement).href = hrefDesign(route.id);
     setMeta(p?.kind ?? "", p?.repo ?? null, "");
     $("project-files").replaceChildren();
     projectRows = [];
@@ -743,3 +744,12 @@ const watcher = new Watcher({
 });
 showRoute();
 watcher.start();
+
+// "Open gallery" on a project page: the landing shows the project you came from.
+$("project-gallery").addEventListener("click", () => {
+  try {
+    if (route.view === "project") localStorage.setItem("lite.project", route.id);
+  } catch {
+    /* storage blocked: the landing picks its own project */
+  }
+});

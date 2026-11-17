@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  applyFilter, badgeOf, bannerModel, continueModel, describeEntries, filterCounts, filterByProject, foldSession, metaLine, parseLast, projectItems, projectSummary, rememberRoute, rememberScreen, resolveProject,
-  searchEntries, sortEntries, startScreenOf, thumbFit, type Entry, type Sessions,
+  applyFilter, badgeOf, latestModel, continueModel, describeEntries, filterCounts, filterByProject, metaLine, parseLast, projectItems, projectSummary, rememberRoute, rememberScreen, resolveProject,
+  countLine, searchEntries, sortEntries, startScreenOf, thumbFit, type Entry,
   describeSceneEntries, isScene, POSTER_CONCURRENCY, posterFresh, sceneActions, sceneChips, scenePosterAtKey, scenePosterKey,
 } from "../web/landing.ts";
 
@@ -110,20 +110,12 @@ test("continueModel: text, missing canvas, unknown screen id", () => {
   assert.equal(continueModel(null, list, () => null, 0), null);
 });
 
-test("presenter sessions fold across projects and drive the banner", () => {
-  let s: Sessions = {};
-  const row = (kind: string, project: string, payload: unknown, ts: number) => ({ kind, project, payload, ts });
-  s = foldSession(s, row("presenter.started", "tv", { canvas: "main", screen: "a" }, 1));
-  s = foldSession(s, row("presenter.goto", "tv", { canvas: "main", screen: "b" }, 2));
-  s = foldSession(s, row("presenter.started", "other", { canvas: "x", screen: "q" }, 3));
-  const list = [e({ screens: 4 }), e({ pid: "other", project: "O", id: "x", name: "Ex", screens: 2 })];
-  assert.deepEqual(bannerModel(s, list), { pid: "other", canvas: "x", name: "Ex", text: "Ex, step 1 of 2" });
-  s = foldSession(s, row("presenter.stopped", "other", { canvas: "x" }, 4));
-  assert.equal(bannerModel(s, list)?.text, "Main, step 2 of 4");
-  s = foldSession(s, row("presenter.stopped", "tv", { canvas: "main" }, 5));
-  assert.equal(bannerModel(s, list), null);
-  assert.equal(foldSession(s, row("canvas.created", "tv", {}, 6)), s);
-  assert.equal(bannerModel({ tv: { active: true, canvas: "gone", screen: "a", visited: ["a"], ts: 1 } }, list), null);
+test("the latest design is the most recently updated canvas, never a scene", () => {
+  const list = [e({ id: "old", name: "Old", screens: 1, updated_at: 1000 }), e({ id: "new", name: "New", screens: 4, updated_at: 5000 }), ...describeSceneEntries("tv", "TV", { scenes: [{ id: "s", name: "S", updated_at: 9000 }] })];
+  assert.deepEqual(latestModel(list, 5000)?.entry.id, "new");
+  assert.equal(latestModel(list, 5000)?.text, "4 screens · updated just now");
+  assert.equal(latestModel([], 0), null);
+  assert.equal(latestModel(describeSceneEntries("tv", "TV", { scenes: [{ id: "s", name: "S", updated_at: 9000 }] }), 0), null);
 });
 
 test("scene entries: shaped from the scene list, always Playable, never Needs links, badge and meta", () => {
@@ -173,9 +165,19 @@ test("scene cards: chips, hover actions and the poster key", () => {
   assert.equal(POSTER_CONCURRENCY, 2);
 });
 
-test("Continue and the presenter banner ignore a scene with a canvas's id", () => {
+test("Continue ignores a scene with a canvas's id", () => {
   const s = describeSceneEntries("tv", "TV", { scenes: [{ id: "main", name: "Scene main", updated_at: 1 }] });
   assert.equal(continueModel({ project: "tv", canvas: "main", screen: null, ts: 0 }, s, () => null, 0), null);
-  const sess: Sessions = { tv: { active: true, canvas: "main", screen: "a", visited: ["a"], ts: 1 } };
-  assert.equal(bannerModel(sess, s), null);
+});
+
+test("sort keys, the narrowing count, the header count that matches the gallery, and portrait thumbnails", () => {
+  const list = [e({ id: "b", name: "B", screens: 2, updated_at: 5 }), e({ id: "a", name: "A", screens: 9, updated_at: 1 })];
+  assert.deepEqual(sortEntries(list, "name").map((x) => x.id), ["a", "b"]);
+  assert.deepEqual(sortEntries(list, "screens").map((x) => x.id), ["a", "b"]);
+  assert.deepEqual(sortEntries(list).map((x) => x.id), ["b", "a"]);
+  assert.equal(countLine(3, 8), "3 of 8");
+  assert.equal(countLine(8, 8), "");
+  const withVariants = [e({ id: "base" }), e({ id: "v1", forked_from: "base" }), e({ id: "v2", forked_from: "base" })];
+  assert.equal(projectSummary(withVariants), "1 design · 2 variants");
+  assert.deepEqual(thumbFit(390, 844, 260, 150), { scale: 260 / 390, left: 0, top: 0 });
 });

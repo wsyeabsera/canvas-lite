@@ -48,3 +48,13 @@ export function boundsOf(rects: Rect[]): Rect | null {
   }
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
+
+/** The zoom stops the buttons and keys move between, so the readout always shows a round number. */
+export const ZOOM_STOPS = [0.05, 0.08, 0.1, 0.125, 0.15, 0.2, 0.25, 0.33, 0.5, 0.75, 1, 1.5, 2] as const;
+
+/** The next stop above (dir 1) or below (dir -1) `k`; stays at the end of the list. */
+export function stepZoom(k: number, dir: 1 | -1): number {
+  const eps = 0.005;
+  if (dir > 0) return ZOOM_STOPS.find((z) => z > k + eps) ?? ZOOM_STOPS[ZOOM_STOPS.length - 1]!;
+  return [...ZOOM_STOPS].reverse().find((z) => z < k - eps) ?? ZOOM_STOPS[0]!;
+}

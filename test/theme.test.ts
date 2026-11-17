@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buttonLabel, nextPref, parsePref, resolveTheme } from "../web/theme.ts";
+import { buttonLabel, buttonText, nextPref, parsePref, resolveTheme } from "../web/theme.ts";
 
 test("parsePref accepts only the three choices", () => {
   for (const p of ["auto", "light", "dark"]) assert.equal(parsePref(p), p);
@@ -23,4 +23,10 @@ test("resolveTheme follows the system only for auto", () => {
 test("buttonLabel names the current choice", () => {
   assert.equal(buttonLabel("auto"), "Theme: auto");
   assert.equal(buttonLabel("dark"), "Theme: dark");
+});
+
+test("buttonText is an icon and the capitalised choice", () => {
+  assert.equal(buttonText("auto"), "◐ Auto");
+  assert.equal(buttonText("dark"), "☾ Dark");
+  assert.equal(buttonText("light"), "☀ Light");
 });

@@ -37,8 +37,8 @@ export function walkSteps(screens: readonly WalkScreen[], start: string | null, 
 }
 
 /** Rail header: `5 steps · about 13 s` from the tour's total, `N screens` without a tour. */
-export function walkHeader(steps: readonly WalkStep[], fromTour: boolean): string {
-  if (!fromTour) return `${steps.length} ${steps.length === 1 ? "screen" : "screens"}`;
+export function walkHeader(steps: readonly WalkStep[], fromTour: boolean, total = steps.length): string {
+  if (!fromTour) return `${steps.length}${total > steps.length ? ` of ${total}` : ""} ${total === 1 ? "screen" : "screens"}${total > steps.length ? " (the linked path)" : ""}`;
   return `${steps.length} ${steps.length === 1 ? "step" : "steps"} · about ${Math.max(1, Math.round(tourTotal(steps.map((s) => ({ screen: s.screen, dwell_ms: s.dwell_ms }))) / 1000))} s`;
 }
 

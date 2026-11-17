@@ -136,7 +136,7 @@ export function createWalkView(hooks: WalkHooks) {
 
   // --- rail -------------------------------------------------------------------------
   function drawRail() {
-    head.textContent = walkHeader(steps, fromTour);
+    head.textContent = walkHeader(steps, fromTour, detail?.screens.length);
     list.replaceChildren(...steps.map((s, i) => {
       const li = el("li", `wk-step${i === index ? " cur" : ""}`);
       const b = el("button", "wk-step-b");

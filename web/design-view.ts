@@ -38,10 +38,20 @@ export function createDesignScreen(host: HTMLElement, deps: Deps): DesignScreen 
       if (g.key === "colors") {
         const row = el("div", "ds-sws");
         for (const t of g.tokens) {
-          const sw = el("div", "ds-sw");
+          const sw = el("button", "ds-sw");
+          sw.type = "button";
+          sw.title = `Copy ${t.value}`;
+          sw.setAttribute("aria-label", `${t.name} ${t.value}, click to copy`);
           const chip = el("i");
           if (paintable(t.value)) chip.style.background = t.value;
-          sw.append(chip, el("b", undefined, t.name), el("span", undefined, String(t.value)));
+          const val = el("span", undefined, String(t.value));
+          sw.addEventListener("click", () => {
+            void navigator.clipboard?.writeText(String(t.value)).then(() => {
+              val.textContent = "Copied";
+              setTimeout(() => (val.textContent = String(t.value)), 1200);
+            }, () => {});
+          });
+          sw.append(chip, el("b", undefined, t.name), val);
           row.append(sw);
         }
         card.append(row);
@@ -50,6 +60,11 @@ export function createDesignScreen(host: HTMLElement, deps: Deps): DesignScreen 
           const r = el("div", "ds-row");
           const sample = el("div", undefined, t.name);
           if (g.key === "fonts") sample.style.setProperty("font-family", String(t.value));
+          if (g.key === "fonts") {
+            const spec = el("div", "ds-spec", "Aa The quick brown fox jumps over 0123456789");
+            spec.style.setProperty("font-family", String(t.value));
+            r.append(spec);
+          }
           if (g.key === "sizes" && typeof t.value === "number") sample.style.fontSize = `${t.value}px`;
           if (g.key === "space" && typeof t.value === "number") sample.prepend(Object.assign(el("i", "ds-bar"), { style: `width:${t.value}px` }));
           if (g.key === "radius" && typeof t.value === "number") sample.prepend(Object.assign(el("i", "ds-rd"), { style: `border-radius:${t.value}px` }));
@@ -85,8 +100,18 @@ export function createDesignScreen(host: HTMLElement, deps: Deps): DesignScreen 
       parts.push(empty);
     } else {
       const m = model;
-      head.append(el("div", "ld-hmeta", `${name} · updated ${agoText(m.updated_at, Date.now())} · ${designSummary(m)}`));
+      const meta = el("div");
+      meta.append(el("div", "ld-hmeta", `${name} · updated ${agoText(m.updated_at, Date.now())}`), el("div", "ds-sum", designSummary(m)));
+      head.append(meta);
       const tabs = el("div", "ds-tabs glass");
+      tabs.setAttribute("role", "group");
+      tabs.setAttribute("aria-label", "Design system view (← → switch)");
+      tabs.addEventListener("keydown", (ev) => {
+        if (ev.key !== "ArrowLeft" && ev.key !== "ArrowRight") return;
+        tab = tab === "tokens" ? "markdown" : "tokens";
+        draw();
+        host.querySelector<HTMLElement>(".ds-tab.on")?.focus();
+      });
       for (const [key, label] of [["tokens", "Tokens"], ["markdown", "DESIGN.md"]] as const) {
         const b = el("button", key === tab ? "ds-tab on" : "ds-tab", label);
         b.type = "button";

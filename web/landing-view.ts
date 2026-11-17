@@ -4,8 +4,8 @@
 import type { WatchRow } from "../cli/format.ts";
 import { CANVAS_KINDS, describeCanvasDetail, iframeSpec, type CanvasDetail } from "./canvas.ts";
 import {
-  applyFilter, stackVariants, badgeOf, bannerModel, continueModel, describeEntries, FILTER_LABEL, FILTERS, filterCounts, filterByProject, foldSession, LAST_KEY, metaLine, parseLast, PROJECT_KEY, projectItems, projectSummary,
-  rememberRoute, rememberScreen, resolveProject, searchEntries, sortEntries, startScreenOf, thumbFit, type Entry, type Filter, type Last, type Sessions,
+  applyFilter, stackVariants, badgeOf, latestModel, SORTS, SORT_LABEL, countLine, type SortKey, continueModel, describeEntries, FILTER_LABEL, FILTERS, filterCounts, filterByProject, LAST_KEY, metaLine, parseLast, PROJECT_KEY, projectItems, projectSummary,
+  rememberRoute, rememberScreen, resolveProject, searchEntries, sortEntries, startScreenOf, thumbFit, type Entry, type Filter, type Last,
   describeSceneEntries, isScene, POSTER_CONCURRENCY, posterFresh, sceneActions, sceneChips, scenePosterAtKey, scenePosterKey,
 } from "./landing.ts";
 import { hrefVariants, hrefActivity, hrefCanvas, hrefDesign, hrefPlay, hrefScene, hrefWalk, hrefWatch, type ProjectInfo } from "./state.ts";
@@ -55,11 +55,13 @@ function icon(d: string, size: number, fill = false): SVGSVGElement {
 }
 
 export function createLandingView(deps: LandingDeps) {
-  const bannerEl = $("ld-banner");
+  const latestEl = $("ld-latest");
   const continueEl = $("ld-continue");
   const chipsEl = $("ld-chips");
   const galleryEl = $("ld-gallery");
   const searchEl = $("ld-search") as HTMLInputElement;
+  const countEl = $("ld-count");
+  const sortEl = $("ld-sort") as HTMLSelectElement;
   const slot = $("ld-tools");
   const headEl = $("ld-head");
   const projBtn = $("ld-project");
@@ -73,12 +75,14 @@ export function createLandingView(deps: LandingDeps) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let loadSeq = 0;
   let entries: Entry[] = [];
+  let loaded = false; // false until the first list has arrived: no "0 designs" or empty state before that
+  let sortKey: SortKey = "newest";
+  let scrollY = 0;
   let query = "";
   let filter: Filter = "all";
   let project = ""; // the project on show; "" only while Lite knows no project
   let scoped: Entry[] = []; // the entries of that project: nothing from another project is ever drawn
   let savedProject: string | null = null;
-  let sessions: Sessions = {};
   let last: Last | null = null;
   try {
     last = parseLast(localStorage.getItem(LAST_KEY));
@@ -366,6 +370,7 @@ export function createLandingView(deps: LandingDeps) {
     );
     if (mine !== loadSeq) return;
     entries = lists.flat();
+    loaded = true;
     dirty = false;
     render();
   }
@@ -380,11 +385,12 @@ export function createLandingView(deps: LandingDeps) {
   // --- drawing -------------------------------------------------------------
   const now = () => Date.now();
 
-  function drawBanner() {
-    const b = bannerModel(sessions, entries);
-    bannerEl.hidden = !b;
-    if (!b) return bannerEl.replaceChildren();
-    bannerEl.replaceChildren(el("span", "ld-dot"), el("span", "ld-b-t", "Claude is presenting"), el("span", "ld-b-s", b.text), link(hrefPlay(b.pid, b.canvas), "ld-btn blue", "Watch live"));
+  function drawLatest() {
+    const lm = latestModel(scoped, now());
+    const resumed = last && lm && last.project === lm.entry.pid && last.canvas === lm.entry.id; // the Continue card already shows it
+    latestEl.hidden = !lm || !!resumed;
+    if (!lm || resumed) return latestEl.replaceChildren();
+    latestEl.replaceChildren(el("span", "ld-b-t", "Latest design"), el("span", "ld-b-n", lm.entry.name), el("span", "ld-b-s", lm.text), link(hrefCanvas(lm.entry.pid, lm.entry.id), "ld-btn blue", "Open"));
   }
 
   const nameOf = (project: string, canvas: string) => (sid: string) => known.get(`${project}/${canvas}`)?.screens.find((s) => s.id === sid)?.name ?? null;
@@ -445,6 +451,7 @@ export function createLandingView(deps: LandingDeps) {
     const body = el("div", "ld-body");
     const name = link(hrefCanvas(e.pid, e.id), "ld-name", e.name); // its ::after covers the card: a click anywhere opens the canvas
     const meta = el("div", "ld-meta", metaLine(e, now()));
+    meta.title = new Date(e.updated_at).toLocaleString();
     meta.dataset.screens = String(e.screens);
     meta.dataset.ts = String(e.updated_at);
     const badge = el("span", `ld-badge ${b.kind}`, b.text);
@@ -464,7 +471,7 @@ export function createLandingView(deps: LandingDeps) {
     if (!cur) return;
     projName.textContent = cur.name;
     const title = el("div");
-    title.append(el("h1", undefined, cur.name), el("div", "ld-hmeta", projectSummary(scoped)));
+    title.append(el("h1", undefined, cur.name), el("div", "ld-hmeta", loaded ? projectSummary(scoped) : ""));
     headEl.replaceChildren(title, link(hrefDesign(project), "ld-ds glass", "Design system", `The ${cur.name} design system`));
     const add = el("button", "ld-mit new");
     add.type = "button";
@@ -485,15 +492,29 @@ export function createLandingView(deps: LandingDeps) {
   }
 
   function drawGallery() {
-    const shown = sortEntries(applyFilter(searchEntries(stackVariants(scoped), query), filter));
+    const stacked = stackVariants(scoped);
+    const shown = sortEntries(applyFilter(searchEntries(stacked, query), filter), sortKey);
+    countEl.textContent = countLine(shown.length, stacked.length);
     if (scoped.length === 0) {
       const name = projName.textContent ?? "";
       galleryEl.replaceChildren(
-        settled && project ? el("p", "ld-empty", name ? `Nothing yet in ${name}. Ask Claude to design something.` : "Nothing yet. Ask Claude to design something.") : el("p", "ld-empty"),
+        loaded && settled && project ? el("p", "ld-empty", name ? `Nothing yet in ${name}. Ask Claude to design something.` : "Nothing yet. Ask Claude to design something.") : el("p", "ld-empty"),
       );
       return;
     }
-    if (shown.length === 0) return galleryEl.replaceChildren(el("p", "ld-empty", "No designs match."));
+    if (shown.length === 0) {
+      const none = el("p", "ld-empty", query ? `No designs match “${query}”. ` : "No designs match. ");
+      const clear = el("button", "ld-linkbtn", query ? "Clear search" : "Show all");
+      clear.type = "button";
+      clear.addEventListener("click", () => {
+        query = "";
+        filter = "all";
+        searchEl.value = "";
+        render();
+      });
+      none.append(clear);
+      return galleryEl.replaceChildren(none);
+    }
     const grid = el("div", "ld-grid");
     grid.append(...shown.map(card));
     galleryEl.replaceChildren(grid);
@@ -501,7 +522,7 @@ export function createLandingView(deps: LandingDeps) {
 
   function render() {
     if (!visible) return;
-    drawBanner();
+    drawLatest();
     drawProjects(entries);
     drawContinue();
     drawChips(stackVariants(scoped));
@@ -541,6 +562,11 @@ export function createLandingView(deps: LandingDeps) {
     menuEl.style.left = `${r.left}px`;
     menuEl.style.top = `${r.bottom + 6}px`;
   });
+  sortEl.replaceChildren(...SORTS.map((k) => Object.assign(el("option", undefined, SORT_LABEL[k]), { value: k })));
+  sortEl.addEventListener("change", () => {
+    sortKey = SORTS.find((k) => k === sortEl.value) ?? "newest";
+    render();
+  });
   searchEl.addEventListener("input", () => {
     query = searchEl.value;
     render();
@@ -567,20 +593,17 @@ export function createLandingView(deps: LandingDeps) {
     show() {
       visible = true;
       render();
+      requestAnimationFrame(() => window.scrollTo(0, scrollY)); // back from a design: where you were
       pumpPosters();
       if (dirty || entries.length === 0) schedule(0);
     },
     hide() {
+      scrollY = window.scrollY;
       visible = false;
       clearTimeout(timer);
     },
-    /** Every websocket row: presenter sessions fold across projects; project and canvas changes refresh the gallery. */
+    /** Every websocket row: project, canvas and scene changes refresh the gallery. */
     onRow(row: WatchRow) {
-      const next = foldSession(sessions, row);
-      if (next !== sessions) {
-        sessions = next;
-        if (visible) drawBanner();
-      }
       if (row.kind === "project.opened" || row.kind === "project.removed" || CANVAS_KINDS.includes(row.kind) || SCENE_KINDS.includes(row.kind)) schedule(row.kind.startsWith("project.") ? 150 : 400);
     },
     /** The first websocket connection is up: after the backfill settles, an empty gallery may say so. */

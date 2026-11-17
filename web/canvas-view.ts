@@ -3,7 +3,7 @@
 import { hrefLanding } from "./state.ts";
 import { diffScreens, iframeSpec, stepScreen, writingText, type CanvasDetail, type Pending, type Screen, type Shown } from "./canvas.ts";
 import { layoutScreens, type Box } from "./layout.ts";
-import { boundsOf, fitRect, panBy, pct, wheelZoomFactor, zoomAt, zoomTo, ZOOM_STEP, type View } from "./viewport.ts";
+import { boundsOf, fitRect, panBy, pct, stepZoom, wheelZoomFactor, zoomAt, zoomTo, type View } from "./viewport.ts";
 
 /** Fit padding in px: leaves room for the floating islands and the label row above the first screens. */
 const FIT_PADDING = 120;
@@ -76,9 +76,9 @@ export function createCanvasView(select: (id: string | null) => void, play: () =
   }
 
   const fitAll = () => (input?.selected ? select(null) : fit(null, true));
-  const zoomBy = (f: number) => {
+  const zoomBy = (dir: 1 | -1) => {
     const c = centre();
-    view = zoomAt(view, f, c.x, c.y);
+    view = zoomTo(view, stepZoom(view.k, dir), c.x, c.y);
     apply(true);
   };
   const actual = () => {
@@ -94,6 +94,7 @@ export function createCanvasView(select: (id: string | null) => void, play: () =
     root.dataset.id = s.id;
     const lbl = el("div", "lbl");
     const nm = el("span", "nm", s.name);
+    nm.title = s.name;
     const dim = el("span", "dim", dims(s));
     lbl.append(nm, dim);
     const box = el("div", "frame");
@@ -121,9 +122,10 @@ export function createCanvasView(select: (id: string | null) => void, play: () =
     input = next;
     const has = (next.detail?.scenarios.length ?? 0) > 0;
     watchBtn.disabled = !has;
+    watchBtn.hidden = !has; // nothing to watch: no dead button
     watchBtn.title = has ? "Watch a scenario (V)" : "No scenarios yet: ask Claude to add some";
     back.href = hrefLanding;
-    crumb.replaceChildren(el("span", "cn", next.canvasName));
+    crumb.replaceChildren(el("span", "cp", next.projectName), el("span", "cs", "/"), el("span", "cn", next.canvasName));
 
     const screens = next.detail?.screens ?? [];
     const d = diffScreens(new Map([...frames].map(([id, f]) => [id, f.shown])), screens);
@@ -156,6 +158,8 @@ export function createCanvasView(select: (id: string | null) => void, play: () =
       r.style.height = `${b.h}px`;
       r.style.setProperty("--fw", String(b.w));
     }
+    jump.replaceChildren(Object.assign(el("option", undefined, `Go to screen (${screens.length})`), { value: "" }), ...screens.map((sc) => Object.assign(el("option", undefined, sc.name), { value: sc.id })));
+    jump.value = next.selected ?? "";
     classes();
 
     const wtext = writingText(next.pending);
@@ -239,11 +243,14 @@ export function createCanvasView(select: (id: string | null) => void, play: () =
         break;
       case "+":
       case "=":
-        zoomBy(ZOOM_STEP);
+        zoomBy(1);
         break;
       case "-":
       case "_":
-        zoomBy(1 / ZOOM_STEP);
+        zoomBy(-1);
+        break;
+      case "?":
+        helpDlg.open ? helpDlg.close() : helpDlg.show();
         break;
       case "p":
       case "P":
@@ -269,8 +276,16 @@ export function createCanvasView(select: (id: string | null) => void, play: () =
     }
     e.preventDefault();
   });
-  $("cv-out").addEventListener("click", () => zoomBy(1 / ZOOM_STEP));
-  $("cv-in").addEventListener("click", () => zoomBy(ZOOM_STEP));
+  const jump = $("cv-jump") as HTMLSelectElement;
+  jump.addEventListener("change", () => {
+    if (jump.value) goTo(jump.value);
+    jump.blur(); // keep the arrow keys for screen stepping
+  });
+  const helpDlg = $("cv-help") as HTMLDialogElement;
+  $("cv-keys").addEventListener("click", () => helpDlg.showModal());
+  helpDlg.addEventListener("click", (ev) => ev.target === helpDlg && helpDlg.close());
+  $("cv-out").addEventListener("click", () => zoomBy(-1));
+  $("cv-in").addEventListener("click", () => zoomBy(1));
   pctBtn.addEventListener("click", actual);
   $("cv-fit").addEventListener("click", fitAll);
   $("cv-play").addEventListener("click", play);

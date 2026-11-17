@@ -21,6 +21,10 @@ export function resolveTheme(pref: ThemePref, systemDark: boolean): Theme {
   return pref;
 }
 
+const ICON: Record<ThemePref, string> = { auto: "◐", light: "☀", dark: "☾" };
+/** The compact text on the pill: an icon and the choice; `buttonLabel` is the full name for the tooltip and screen readers. */
+export const buttonText = (pref: ThemePref): string => `${ICON[pref]} ${pref[0]!.toUpperCase()}${pref.slice(1)}`;
+
 export function buttonLabel(pref: ThemePref): string {
   return `Theme: ${pref}`;
 }
@@ -58,7 +62,7 @@ export function initTheme(button: ThemeButton, root: ThemeRoot = dom.document!.d
   const apply = () => {
     root.dataset.theme = resolveTheme(pref, mql ? mql.matches : true);
     const label = buttonLabel(pref);
-    button.textContent = label;
+    button.textContent = buttonText(pref);
     button.setAttribute("aria-label", `${label} (click to change)`);
     button.title = label;
   };

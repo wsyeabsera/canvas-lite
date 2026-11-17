@@ -89,3 +89,9 @@ test("walk route: #/project/<id>/canvas/<cid>/walk", () => {
   assert.equal(routeCanvas({ view: "walk", id: "p", canvas: "c" }), "c");
   assert.deepEqual(parseRoute("#/project/p/canvas/C!/walk"), { view: "activity" });
 });
+
+test("walkHeader says how much of the canvas the linked path covers", () => {
+  const d = deriveSteps([S("p", null)], null);
+  assert.equal(walkHeader(d, false, 25), "1 of 25 screens (the linked path)");
+  assert.equal(walkHeader(d, false, 1), "1 screen");
+});

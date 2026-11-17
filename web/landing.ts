@@ -137,9 +137,22 @@ export function searchEntries(entries: readonly Entry[], query: string): Entry[]
 }
 
 /** The flat gallery order: most recently updated first, then name, then project and id so the order is stable. */
-export function sortEntries(entries: readonly Entry[]): Entry[] {
-  return entries.slice().sort((a, b) => b.updated_at - a.updated_at || a.name.localeCompare(b.name) || a.pid.localeCompare(b.pid) || a.id.localeCompare(b.id));
+export function sortEntries(entries: readonly Entry[], by: SortKey = "newest"): Entry[] {
+  const tie = (a: Entry, b: Entry) => a.name.localeCompare(b.name) || a.pid.localeCompare(b.pid) || a.id.localeCompare(b.id);
+  const key: Record<SortKey, (a: Entry, b: Entry) => number> = {
+    newest: (a, b) => b.updated_at - a.updated_at || tie(a, b),
+    name: tie,
+    screens: (a, b) => b.screens - a.screens || b.updated_at - a.updated_at || tie(a, b),
+  };
+  return entries.slice().sort(key[by]);
 }
+
+export type SortKey = "newest" | "name" | "screens";
+export const SORTS: readonly SortKey[] = ["newest", "name", "screens"];
+export const SORT_LABEL: Record<SortKey, string> = { newest: "Newest", name: "Name", screens: "Most screens" };
+
+/** `3 of 8 designs` while a search or filter narrows the gallery, else "". */
+export const countLine = (shown: number, total: number) => (shown === total ? "" : `${shown} of ${total}`);
 
 // --- project switcher: the page shows one project at a time ---------------------------------------
 
@@ -151,7 +164,9 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 /** `8 designs · 3 scenes` (scenes only when there are some); the heading under the project name. */
 export function projectSummary(entries: readonly Entry[]): string {
   const scenes = entries.filter(isScene).length;
-  return plural(entries.length - scenes, "design") + (scenes ? ` · ${plural(scenes, "scene")}` : "");
+  const stacked = stackVariants(entries).filter((e) => !isScene(e)).length; // what the gallery draws: a variant sits under its base
+  const variants = entries.length - scenes - stacked;
+  return plural(stacked, "design") + (variants ? ` · ${plural(variants, "variant")}` : "") + (scenes ? ` · ${plural(scenes, "scene")}` : "");
 }
 
 /** Every project Lite knows (also the empty ones), in the order given, each with its summary or `empty`. */
@@ -175,7 +190,9 @@ export const metaLine = (e: Pick<Entry, "screens" | "updated_at" | "kind" | "dra
 /** Scale and offset that fit a `w` x `h` screen inside a `bw` x `bh` box (contain, centred); the iframe is `w` x `h`, scaled with a CSS transform from the top left. */
 export function thumbFit(w: number, h: number, bw: number, bh: number): { scale: number; left: number; top: number } {
   if (!(w > 0) || !(h > 0) || !(bw > 0) || !(bh > 0)) return { scale: 1, left: 0, top: 0 };
-  const scale = Math.min(bw / w, bh / h);
+  const portrait = h > w * 1.5; // a phone screen: fill the width and show its top, instead of a thin sliver
+  const scale = portrait ? bw / w : Math.min(bw / w, bh / h);
+  if (portrait) return { scale, left: 0, top: 0 };
   return { scale, left: (bw - w * scale) / 2, top: (bh - h * scale) / 2 };
 }
 
@@ -231,41 +248,13 @@ export function continueModel(last: Last | null, entries: readonly Entry[], scre
   return { entry, text: parts.join(" · ") };
 }
 
-// --- Claude presenting banner ---------------------------------------------------------------------
+// --- Latest design strip ----------------------------------------------------------------------------
 
-export type Session = { active: boolean; canvas: string; screen: string; visited: string[]; ts: number };
-export type Sessions = Record<string, Session>; // by project id
+export type Latest = { entry: Entry; text: string };
 
-/** Folds one `presenter.*` event of any project into the sessions. Returns the same object when the row changes nothing. */
-export function foldSession(s: Sessions, row: { kind: string; project: string | null; payload?: unknown; ts: number }): Sessions {
-  if (!row.project || !row.kind.startsWith("presenter.")) return s;
-  const p = (row.payload ?? {}) as Record<string, unknown>;
-  const cur = s[row.project];
-  if (row.kind === "presenter.started" || row.kind === "presenter.goto") {
-    if (typeof p.canvas !== "string" || typeof p.screen !== "string") return s;
-    const started = row.kind === "presenter.started" || !cur || cur.canvas !== p.canvas;
-    const base = started ? [] : cur.visited;
-    const visited = base.includes(p.screen) ? base : [...base, p.screen];
-    return { ...s, [row.project]: { active: true, canvas: p.canvas, screen: p.screen, visited, ts: row.ts } };
-  }
-  if (row.kind === "presenter.stopped") return cur ? { ...s, [row.project]: { ...cur, active: false, ts: row.ts } } : s;
-  return s;
-}
-
-export type Banner = { pid: string; canvas: string; text: string; name: string };
-
-/** The banner for the most recently moved active session whose canvas is known: `<canvas name>, step n of m`, else null. */
-export function bannerModel(s: Sessions, entries: readonly Entry[]): Banner | null {
-  let best: { pid: string; sess: Session; entry: Entry } | null = null;
-  for (const [pid, sess] of Object.entries(s)) {
-    if (!sess.active) continue;
-    const entry = entries.find((e) => !isScene(e) && e.pid === pid && e.id === sess.canvas);
-    if (!entry) continue;
-    if (!best || sess.ts > best.sess.ts) best = { pid, sess, entry };
-  }
-  if (!best) return null;
-  const i = best.sess.visited.indexOf(best.sess.screen);
-  const n = i >= 0 ? i + 1 : best.sess.visited.length;
-  const m = Math.max(best.entry.screens, n);
-  return { pid: best.pid, canvas: best.entry.id, name: best.entry.name, text: `${best.entry.name}, step ${n} of ${m}` };
+/** The most recently updated design (a scene never counts) of the given entries: `12 screens · updated 5 min ago`, else null. */
+export function latestModel(entries: readonly Entry[], now: number): Latest | null {
+  let best: Entry | null = null;
+  for (const e of entries) if (!isScene(e) && (!best || e.updated_at > best.updated_at)) best = e;
+  return best ? { entry: best, text: `${screensLabel(best.screens)} · updated ${agoText(best.updated_at, now)}` } : null;
 }
