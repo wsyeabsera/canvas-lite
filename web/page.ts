@@ -453,10 +453,16 @@ const watchView = createWatchView({
   },
 });
 
+/** The tab title; the design's name comes from the loaded detail when the list was not fetched yet. */
+function setTitle() {
+  document.title = pageTitle(route, (id) => state.projects[id]?.name ?? id, (id, c) => (detail?.canvas.id === c ? detail.canvas.name : canvasLists[id]?.find((x) => x.id === c)?.name) ?? c);
+}
+
 function renderCanvas() {
   if (route.view === "activity" || route.view === "landing" || route.view === "project" || route.view === "scene" || route.view === "scene-page" || route.view === "scene-watch" || route.view === "design" || route.view === "admin") return;
   const pid = route.id;
   const cid = route.canvas;
+  setTitle();
   canvasView.render({
     pid,
     projectName: state.projects[pid]?.name ?? pid,
@@ -556,7 +562,7 @@ function showRoute() {
   const prev = route;
   route = parseRoute(location.hash);
   landing.remember(route);
-  document.title = pageTitle(route, (id) => state.projects[id]?.name ?? id, (id, c) => canvasLists[id]?.find((x) => x.id === c)?.name ?? c);
+  setTitle();
   viewLanding.hidden = route.view !== "landing";
   app.classList.toggle("landing-mode", route.view === "landing" || route.view === "design" || route.view === "admin" || route.view === "variants" || route.view === "tournament" || route.view === "trace");
   viewVariants.hidden = route.view !== "variants";

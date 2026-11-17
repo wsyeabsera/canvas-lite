@@ -24,10 +24,12 @@ Desktop only. Found by hand on the deployed Worker with Claude in Chrome (1512 x
 - Page and rail motion use the transitions.dev tokens (12 px, 250 ms ease-out), off under reduced motion.
 - Covered by hand on the deployed site: Admin, Activity, variants, tournament (empty), a 3D scene in Orbit, the sign-in page and the docs site. Admin, variants, scenes and docs needed no change beyond the shared pieces above.
 
-## Still open
+## Done in the last pass
 
-- A measured contrast pass with a tool (muted text was lightened by eye).
-- A keyboard-only walkthrough of every view.
+- **Contrast, measured.** A script computed the contrast of every visible text node (composited over its backgrounds) in the dark and light themes on the home page, design system, admin, activity, project page and variants. Failures and fixes: white on the blue buttons 4.43:1, now 5.1:1 (`#3660f0`); light-theme green badge text 3.1:1, now 6:1 (`--ok-text`); light-theme variant names 2.4:1, now tinted toward the text colour; the hover scrim behind the card buttons is darker. Everything else already passed 4.5:1 (3:1 for large text).
+- **Keyboard only, with real Tab presses.** Home: Project, Search, Admin, Sign out, docs, Theme, Files and events, Design system, filter chips, Sort, then each card's Play, Walkthrough and Watch (they appear on focus). Canvas: Back, Play, Walkthrough, Watch, Replay, docs, Theme, Go to screen, zoom buttons, Fit. Every stop had a visible ring except two (project menu items, variant cells), now fixed. Found and fixed: the `?` shortcut list opened non-modally and Escape did not close it (now a modal dialog), and the tab title showed the design id instead of its name.
+- **Project page folded in.** The home header has a **Files and events** link next to **Design system**, and the project page links back with **Open gallery**. The page stays as the place for the file list and events (the home page does not show those), now in the same shell.
+- **Checked live:** tournament results with data (the-mailroom, Admin UI), a walk trace, scene Page (its empty state) and Watch (the film picker). The trace had a bright vertical bar (many same-column links stacked) and its right side was cut off with no cue: same-column plain links are no longer drawn and a "Scroll sideways" hint shows when the map is wider than its card.
 
 The original findings follow, unchanged, for reference.
 
@@ -89,4 +91,4 @@ The original findings follow, unchanged, for reference.
 
 ## Not covered
 
-Scene Page and Watch modes, tournament results with data, and a trace view.
+Playing a scene film, and a scene with a page.

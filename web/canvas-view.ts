@@ -279,7 +279,7 @@ export function createCanvasView(select: (id: string | null) => void, play: () =
     if (id) goTo(id);
   });
   window.addEventListener("keydown", (e) => {
-    if (!active || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (!active || e.altKey || e.ctrlKey || e.metaKey || helpDlg.open) return;
     const t = e.target as HTMLElement | null;
     if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
     switch (e.key) {
@@ -299,7 +299,7 @@ export function createCanvasView(select: (id: string | null) => void, play: () =
         zoomBy(-1);
         break;
       case "?":
-        helpDlg.open ? helpDlg.close() : helpDlg.show();
+        if (!helpDlg.open) helpDlg.showModal(); // modal: focus stays inside and Escape closes it
         break;
       case "p":
       case "P":

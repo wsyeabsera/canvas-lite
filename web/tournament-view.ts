@@ -142,6 +142,7 @@ export function createTournamentScreen(host: HTMLElement, deps: Deps): Tournamen
       for (const e of lay.edges) {
         const a = at.get(e.from)!;
         const b = at.get(e.to)!;
+        if (e.kind !== "path" && e.kind !== "wrong" && a.x === b.x) continue; // a plain link inside one column only stacks into a bright bar through the nodes
         const line = document.createElementNS(ns, "line");
         const [ax, ay, bx, by] = a.x < b.x ? [a.x + NODE_W, a.y + NODE_H / 2, b.x, b.y + NODE_H / 2] : [a.x + NODE_W / 2, a.y + NODE_H, b.x + NODE_W / 2, b.y];
         for (const [k, v] of Object.entries({ x1: ax, y1: ay, x2: bx, y2: by })) line.setAttribute(k, String(v));
@@ -165,7 +166,10 @@ export function createTournamentScreen(host: HTMLElement, deps: Deps): Tournamen
       }
       const lower = el("div", "vr-lower");
       lower.append(words, score);
-      parts.push(stage, lower);
+      const hint = el("div", "ld-hmeta vr-scrollhint", "Scroll sideways to follow the whole path.");
+      hint.hidden = true;
+      parts.push(stage, hint, lower);
+      requestAnimationFrame(() => (hint.hidden = stage.scrollWidth <= stage.clientWidth + 1)); // only when the map is wider than its card
       if (!played) {
         played = true;
         rise([stage, lower]);

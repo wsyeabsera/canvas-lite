@@ -9,7 +9,7 @@ import {
   describeSceneEntries, isScene, POSTER_CONCURRENCY, posterFresh, sceneActions, sceneChips, scenePosterAtKey, scenePosterKey,
 } from "./landing.ts";
 import { stateBlock } from "./states-view.ts";
-import { hrefVariants, hrefActivity, hrefCanvas, hrefDesign, hrefPlay, hrefScene, hrefWalk, hrefWatch, type ProjectInfo } from "./state.ts";
+import { hrefVariants, hrefActivity, hrefCanvas, hrefDesign, hrefPlay, hrefProject, hrefScene, hrefWalk, hrefWatch, type ProjectInfo } from "./state.ts";
 import type { Scene } from "../src/scene.ts";
 import { hasWebGL2 } from "./webgl.ts";
 
@@ -474,7 +474,9 @@ export function createLandingView(deps: LandingDeps) {
     projName.textContent = cur.name;
     const title = el("div");
     title.append(el("h1", undefined, cur.name), el("div", "ld-hmeta", loaded ? projectSummary(scoped) : ""));
-    headEl.replaceChildren(title, link(hrefDesign(project), "ld-ds glass", "Design system", `The ${cur.name} design system`));
+    const links = el("div", "ld-hlinks");
+    links.append(link(hrefProject(project), "ld-ds glass", "Files and events", `The files Claude told Lite about and the recent events of ${cur.name}`), link(hrefDesign(project), "ld-ds glass", "Design system", `The ${cur.name} design system`));
+    headEl.replaceChildren(title, links);
     const add = el("button", "ld-mit new");
     add.type = "button";
     add.dataset.new = "1";
