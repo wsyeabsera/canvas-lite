@@ -614,7 +614,7 @@ export function createWatchView(hooks: WatchHooks) {
 
   const signature = (sc: Scenario) => JSON.stringify([sc, sc.steps.map((s) => { const x = screens().find((y) => y.id === s.screen); return x ? [x.id, x.updated_at, x.width, x.height] : null; })]);
 
-  function startScenario(i: number, atMs = 0) {
+  function startScenario(i: number, atMs = 0, playing = true) {
     const sc = scenarios()[i];
     if (!sc) return;
     cancelAnimationFrame(raf);
@@ -640,7 +640,7 @@ export function createWatchView(hooks: WatchHooks) {
     stageSize = { w: first.width, h: first.height };
     for (const st of steps) if (!layers.has(st.screen)) layers.set(st.screen, makeLayer(screens().find((s) => s.id === st.screen)!));
     buildSegs();
-    clock = { ...clock, ms: atMs, playing: true };
+    clock = { ...clock, ms: atMs, playing };
     layout();
     const p = positionAt(tl, atMs)!;
     sync(p, "seek");
@@ -697,7 +697,7 @@ export function createWatchView(hooks: WatchHooks) {
       if (!sc) return draw();
       if (signature(sc) === sig) return;
       const keep = JSON.stringify(sc.steps) === stepsJson ? Math.min(clock.ms, Math.max(0, buildTimeline(playableSteps(sc, ids())).total - 1)) : 0;
-      startScenario(index, keep);
+      startScenario(index, keep, clock.playing || end !== null); // a live edit must not un-pause the viewer
     },
     close() {
       if (!isOpen) return;
