@@ -11,13 +11,13 @@ The users are fresh Claude subagents. Lite has no model of its own and never cal
 
 ## Variants
 
-A variant is an ordinary canvas that also remembers `forked_from {canvas, seq}`. Forking copies the canvas as it was at change `seq` (default now): every screen, its start screen and transition, written as normal events (`screen.set`, `flow.set`, then one `canvas.forked`), so a variant replays and exports like any canvas. The base never changes until a merge. A fork counts toward the 20 canvases per project.
+A variant is an ordinary canvas that also remembers `forked_from {canvas, seq}`. Forking copies the canvas as it was at change `seq` (default now): every screen, its start screen and transition, written as normal events (`screen.set`, `flow.set`, then one `canvas.forked`), so a variant replays and exports like any canvas. The base never changes until a merge. A fork counts toward the 40 canvases per project.
 
 | Tool | Does |
 |---|---|
 | `fork_canvas(project, canvas, name, id?, seq?)` | New variant. The id defaults to the slug of canvas and name; an existing id is an error. |
 | `list_variants(project, canvas)` | `{base, variants: [{id, name, screens, updated_at, forked_from}], tournament}`; give the base or any variant (a variant of a variant belongs to the first base, and is listed with it); `tournament` is the newest tournament id on the base. |
-| `merge_variant(project, variant)` | Makes the base look exactly like the variant: its screens (screens it lacks are removed), start screen and transition, as normal changes, so history stays one line. First the base is kept whole as a new variant `<base>-old` (`-old-2` and so on), so nothing is lost; it counts toward the 20 canvases (archive ones you no longer need with `remove_canvas`) and is a contender in later tournaments unless you list `canvases`. The variant itself stays. Ends with `flow.set` and `variant.merged`. |
+| `merge_variant(project, variant)` | Makes the base look exactly like the variant: its screens (screens it lacks are removed), start screen and transition, as normal changes, so history stays one line. First the base is kept whole as a new variant `<base>-old` (`-old-2` and so on), so nothing is lost; it counts toward the 40 canvases (archive ones you no longer need with `remove_canvas`) and is a contender in later tournaments unless you list `canvases`. The variant itself stays. Ends with `flow.set` and `variant.merged`. |
 
 Only the owner chooses: Claude never merges until told which variant to keep.
 

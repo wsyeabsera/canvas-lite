@@ -8,7 +8,7 @@ import { recordVersion } from "./timeline.ts";
 
 export const SCREEN_HTML_LIMIT = 200_000;
 export const SCREENS_PER_CANVAS = 50;
-export const CANVASES_PER_PROJECT = 20;
+export const CANVASES_PER_PROJECT = 40;
 export const MIN_SIZE = 100;
 export const MAX_SIZE = 8000;
 export const SCREENS_PER_CALL = 20;

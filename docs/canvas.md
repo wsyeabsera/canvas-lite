@@ -14,7 +14,7 @@ A project holds **canvases**; a canvas holds **screens**. Claude writes screens 
 | canvas | `id` (slug, same rule as project ids), `project`, `name` (1 to 100 chars), `created_at`, `updated_at`, `archived_at` |
 | screen | `id` (slug), `canvas`, `name` (1 to 100), `width`, `height` (integers, 100 to 8000, CSS px), `html` (text), `x`, `y` (optional integers; no value = auto layout), `updated_at` |
 
-A canvas id is unique within its project, a screen id within its canvas. Limits: html at most 200,000 bytes per screen, 50 screens per canvas, 20 canvases per project. Over a limit: `screen too large: <n> bytes, limit 200000`, `too many screens: limit 50`, `too many canvases: limit 20`.
+A canvas id is unique within its project, a screen id within its canvas. Limits: html at most 200,000 bytes per screen, 50 screens per canvas, 40 canvases per project. Over a limit: `screen too large: <n> bytes, limit 200000`, `too many screens: limit 50`, `too many canvases: limit 40`.
 
 ## Tools
 

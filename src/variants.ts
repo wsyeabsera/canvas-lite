@@ -11,7 +11,7 @@ export type Variants = { base: { id: string; name: string; screens: number; upda
 
 export const VARIANT_TEXT = {
   fork_canvas:
-    "Fork a canvas into a variant: a new canvas that starts as a copy of the canvas as it was at change `seq` (default: now) and remembers where it came from. Fork several to try different directions at once, then change each variant with the usual tools. The base never changes until merge_variant. Counts toward the 20 canvases per project. Answer {canvas: {id, name, forked_from: {canvas, seq}, screens}}.",
+    `Fork a canvas into a variant: a new canvas that starts as a copy of the canvas as it was at change \`seq\` (default: now) and remembers where it came from. Fork several to try different directions at once, then change each variant with the usual tools. The base never changes until merge_variant. Counts toward the ${CANVASES_PER_PROJECT} canvases per project. Answer {canvas: {id, name, forked_from: {canvas, seq}, screens}}.`,
   list_variants:
     "List a canvas's variants (the canvases forked from its base): {base, variants: [{id, name, screens, updated_at, forked_from}], tournament} where tournament is the id of the newest tournament on the base, or null. Give the base or any variant.",
   merge_variant:

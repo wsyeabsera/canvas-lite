@@ -114,15 +114,15 @@ test("canvas name and id validation", () => {
   assert.throws(() => createCanvas(sql, "tvdash", { name: "!!!" }), /invalid canvas id ""/);
 });
 
-test("canvas limit: 20 live canvases; removed ones free a slot, un-archive respects the limit", () => {
+test("canvas limit: 40 live canvases; removed ones free a slot, un-archive respects the limit", () => {
   const sql = fresh();
   for (let i = 0; i < CANVASES_PER_PROJECT; i++) createCanvas(sql, "tvdash", { name: `c${i}` });
-  assert.throws(() => createCanvas(sql, "tvdash", { name: "extra" }), { message: "too many canvases: limit 20" });
+  assert.throws(() => createCanvas(sql, "tvdash", { name: "extra" }), { message: "too many canvases: limit 40" });
   assert.equal(createCanvas(sql, "tvdash", { name: "c0" }).event, null); // existing: still a no-op at the limit
   removeCanvas(sql, "tvdash", "c0");
   createCanvas(sql, "tvdash", { name: "extra" });
-  assert.throws(() => createCanvas(sql, "tvdash", { name: "c0" }), { message: "too many canvases: limit 20" });
-  assert.equal(listCanvases(sql, "tvdash").canvases.length, 20);
+  assert.throws(() => createCanvas(sql, "tvdash", { name: "c0" }), { message: "too many canvases: limit 40" });
+  assert.equal(listCanvases(sql, "tvdash").canvases.length, CANVASES_PER_PROJECT);
 });
 
 test("set_screen: creates, defaults id to slug, appends screen.set without html", () => {
@@ -291,7 +291,7 @@ test("canvas events interleave with other events in seq order", () => {
 test("tool descriptions mention each limit and the html guidance", () => {
   const d = CANVAS_TEXT.set_screen;
   for (const s of ["200000", "50", "100", "8000", "no scripts", "https URLs or data: URIs", "nothing else is loaded", "inline CSS", "width x height"]) assert.ok(d.includes(s), s);
-  assert.ok(CANVAS_TEXT.create_canvas.includes("20"));
+  assert.ok(CANVAS_TEXT.create_canvas.includes(String(CANVASES_PER_PROJECT)));
   for (const k of ["create_canvas", "list_canvases", "read_canvas", "set_screen", "remove_screen", "remove_canvas"] as const) assert.ok(CANVAS_TEXT[k].length > 20);
 });
 

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createCanvas, listCanvasesForPage, removeScreen, setFlow, setScreens } from "../src/canvases.ts";
+import { CANVASES_PER_PROJECT, createCanvas, listCanvasesForPage, removeScreen, setFlow, setScreens } from "../src/canvases.ts";
 import { forkCanvas, forkedFrom, listVariants, mergeVariant, rootOf } from "../src/variants.ts";
 import { canvasAt } from "../src/timeline.ts";
 import { openProject } from "../src/projects.ts";
@@ -79,9 +79,9 @@ test("the canvas limit stops forking with a clear message and writes nothing", (
   openProject(s2, { name: "p", manifest: { tree: [], files: {} } }, 1);
   createCanvas(s2, "p", { name: "Base", id: "base" });
   setScreens(s2, "p", "base", [{ id: "a", name: "A", ...page("x") }]);
-  for (let i = 0; i < 19; i++) forkCanvas(s2, "p", { canvas: "base", name: `v${i}` });
+  for (let i = 0; i < CANVASES_PER_PROJECT - 1; i++) forkCanvas(s2, "p", { canvas: "base", name: `v${i}` });
   assert.throws(() => forkCanvas(s2, "p", { canvas: "base", name: "one too many" }), /too many canvases/);
-  assert.equal(listVariants(s2, "p", "base").variants.length, 19);
+  assert.equal(listVariants(s2, "p", "base").variants.length, CANVASES_PER_PROJECT - 1);
 });
 
 test("a variant of a variant belongs to the same base, and a long base name does not break the name limit on merge", () => {
