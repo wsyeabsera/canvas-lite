@@ -25,8 +25,7 @@ All tools take `project` (an existing, not archived project id; otherwise `unkno
 | `create_canvas` | `name`, `id?` | `{canvas}`. Idempotent by id; on an archived id it un-archives and writes the event again. |
 | `list_canvases` | | `{canvases:[{id,name,screens,updated_at}]}`, archived hidden |
 | `read_canvas` | `canvas`, `include_html?` (default false) | `{canvas, screens:[{id,name,width,height,x,y,layout:{x,y},updated_at,bytes,html?}]}` |
-| `set_screen` | `canvas`, `name`, `width`, `height`, `html`, `id?`, `x?`, `y?` | `{screen, created, bytes, warnings}`. Upsert; `id` defaults to the slug of `name`, truncated at 40 characters. |
-| `set_screens` | `canvas`, `screens` (1 to 20 of the `set_screen` fields) | `{screens:[{id,name,width,height,x,y,updated_at,bytes,created,warnings}]}`. All or nothing. |
+| `set_screens` | `canvas`, `screens` (1 to 20 of `{name, width, height, html, id?, x?, y?}`) | `{screens:[{id,name,width,height,x,y,updated_at,bytes,created,warnings}]}`. Upsert; `id` defaults to the slug of `name`, truncated at 40 characters. All or nothing. One screen is a list of one; there is no separate `set_screen` tool (the pure `setScreen` stays in `src/canvases.ts`). |
 | `remove_screen` | `canvas`, `id` | `{screen}`; idempotent no-op if already gone; the html is gone but the event log keeps the removal |
 | `remove_canvas` | `canvas` | archives it, keeps the log; idempotent |
 

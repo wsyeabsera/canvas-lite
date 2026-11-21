@@ -71,6 +71,8 @@ The answer also carries `floor`: the oldest seq whose canvas state can still be 
 
 The variants, tournament and walk endpoints are listed in [Variants](variants.md) (they need the token or a session too; the fork is the one POST).
 
+The other POST is `/api/projects/<id>/shots/<request>` with body `{"png": "<base64>"}`: the watch page's answer to a `screen_image` request ([Prototype tools](prototype-tools.md)). Same auth and same-origin rule as the fork. 200 `{ok:true}`; 400 for a body that is not a PNG within 1.5 MB of base64; 404 when nobody is waiting for that request (expired or already answered); 405 for any other method.
+
 `GET /api/projects/<id>/design` returns 200 with the project's design system (see [Design system](design-system.md)), or `{"design": null}` when it has none:
 
 ```json

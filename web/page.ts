@@ -1,4 +1,6 @@
 // The read-only watch page: the CLI's Watcher and formatter, drawn into views. It only reads; the one message it sends is the Watcher's hello.
+import { shotIsFresh } from "./screen-shot.ts";
+import { renderScreenPng } from "./screen-shot-view.ts";
 import { clock, detail as eventDetail, type WatchRow } from "../cli/format.ts";
 import { Watcher, normalizeUrl } from "../cli/watch-core.ts";
 import { addRow, describeProject, hrefCanvas, hrefLanding, hrefPlay, pageTitle, hrefScene, hrefSceneWatch, hrefWalk, hrefWatch, hrefScreen, initialState, MAX_ROWS, parseRoute, routeCanvas, routeProject, sceneEventHits, sortedProjects, visibleRows, type Route, type State } from "./state.ts";
@@ -210,6 +212,22 @@ let refetchTimer: ReturnType<typeof setTimeout> | undefined;
 let want = { list: false, detail: false };
 const cvLive = $("cv-live");
 const headers = (): Record<string, string> => (token ? { Authorization: `Bearer ${token}` } : {});
+
+/** A live screen_image request from Claude: render the screen and post the PNG back. Quiet on failure; Claude's call times out and says to open a watch page. */
+async function answerShot(pid: string, row: { ts: number; payload: unknown }) {
+  const p = row.payload as { request?: unknown; canvas?: unknown; screen?: unknown } | null;
+  if (!shotIsFresh(row.ts, Date.now()) || typeof p?.request !== "string" || typeof p.canvas !== "string" || typeof p.screen !== "string") return;
+  try {
+    const res = await fetch(`/api/projects/${pid}/canvases/${p.canvas}`, { headers: headers() });
+    if (!res.ok) return;
+    const screen = ((await res.json()) as { screens?: { id: string; width: number; height: number; html?: string }[] }).screens?.find((x) => x.id === p.screen);
+    if (!screen?.html) return;
+    const png = await renderScreenPng(screen.html, screen.width, screen.height);
+    await fetch(`/api/projects/${pid}/shots/${p.request}`, { method: "POST", headers: { ...headers(), "Content-Type": "application/json" }, body: JSON.stringify({ png }) });
+  } catch {
+    /* another page may answer; otherwise the tool call times out */
+  }
+}
 
 async function loadList(pid: string) {
   const mine = ++listSeq;
@@ -719,6 +737,7 @@ const watcher = new Watcher({
       else if (route.view === "scene-watch") sceneWatch?.refetch();
       else sceneScreen?.refetch();
     }
+    if (row.kind === "shot.requested" && row.project) void answerShot(row.project, row);
     const ce = canvasEvent(row);
     if (ce && row.project) {
       if (ce.kind === "canvas.removed") canvasLists[row.project] = dropCanvas(canvasLists[row.project] ?? [], ce.canvas);

@@ -4,7 +4,7 @@ import { DurableObject } from "cloudflare:workers";
 import { tokenOk } from "./auth.ts";
 import { SESSION_HEADER } from "./session.ts";
 import { parseHello, replay } from "./events.ts";
-import { createCanvas, listCanvases, listCanvasesForPage, readCanvas, removeCanvas, removeScreen, setFlow, setScreen, setScreens, type ScreenFields, type ScreenInput } from "./canvases.ts";
+import { createCanvas, listCanvases, listCanvasesForPage, readCanvas, removeCanvas, requireProject, removeScreen, setFlow, setScreens, type ScreenFields } from "./canvases.ts";
 import { canvasAt, canvasTimeline } from "./timeline.ts";
 import { patchScreen, readCanvasForPage, readFlow, reviewFlow, setTour, validateFlow, type PatchEdit } from "./flow.ts";
 import { setScenarios } from "./scenarios.ts";
@@ -17,6 +17,8 @@ import { extractLinks } from "./canvases.ts";
 import { getDesignSystem, patchDesignSystem, setDesignSystem } from "./design-store.ts";
 import { createScene, listScenes, patchScene, readScene, reviewStoredScene, setFilms, setPage, setScene, validateStoredScene, type SceneEdit } from "./scene-store.ts";
 import { goto, present, stopPresent } from "./present.ts";
+import { presentBlock } from "./present-gate.ts";
+import { checkPng, checkShotId, ShotBroker } from "./screen-image.ts";
 import { listProjects, openProject, readProject, removeProject, type OpenInput, type ProjectSummary } from "./projects.ts";
 import { appendEvent,migrate, type LiteEvent, type Sql } from "./store.ts";
 
@@ -95,12 +97,6 @@ export class Hub extends DurableObject<Env> {
 
   canvasAt(project: string, canvas: string, seq: number) {
     return canvasAt(this.sql, project, canvas, seq);
-  }
-
-  setScreen(project: string, input: ScreenInput) {
-    const { event, ...result } = setScreen(this.sql, project, input);
-    this.broadcast(event);
-    return result;
   }
 
   setScreens(project: string, canvas: string, screens: ScreenFields[]) {
@@ -274,10 +270,34 @@ export class Hub extends DurableObject<Env> {
     return reviewStoredScene(this.sql, project, scene);
   }
 
-  present(project: string, input: { canvas: string; screen?: string }) {
-    const { event, ...result } = present(this.sql, project, input);
+  present(project: string, input: { canvas: string; screen?: string; force?: boolean }) {
+    const { force, ...rest } = input;
+    if (!force) {
+      const block = presentBlock(reviewFlow(this.sql, project, input.canvas));
+      if (block !== null) throw new Error(block);
+    }
+    const { event, ...result } = present(this.sql, project, rest);
     this.broadcast(event);
     return result;
+  }
+
+  private shots = new ShotBroker();
+
+  /** Asks the open watch pages to render a screen and waits for the PNG (base64). Errors tell Claude to open a watch page. */
+  async screenImage(project: string, canvas: string, screen: string): Promise<{ screen: string; width: number; height: number; png: string }> {
+    const { screens } = readCanvas(this.sql, project, canvas);
+    const row = screens.find((r) => r.id === screen);
+    if (!row) throw new Error(`unknown screen "${screen}" on canvas "${canvas}"`);
+    const request = crypto.randomUUID();
+    const answer = this.shots.wait(request);
+    this.record({ project, kind: "shot.requested", payload: { request, canvas, screen } });
+    return { screen, width: row.width, height: row.height, png: await answer };
+  }
+
+  /** The watch page's answer to a `shot.requested`. False when nobody is waiting (expired or answered). */
+  deliverShot(project: string, request: unknown, png: unknown): boolean {
+    requireProject(this.sql, project);
+    return this.shots.deliver(checkShotId(request), checkPng(png));
   }
 
   goto(project: string, input: { screen: string; transition?: string }) {

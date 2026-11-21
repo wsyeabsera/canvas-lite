@@ -5,6 +5,8 @@ import { env } from "cloudflare:workers";
 import { z } from "zod";
 import { hub } from "./hub.ts";
 import { CANVAS_TEXT, MAX_SIZE, MIN_SIZE, SCREENS_PER_CALL, TRANSITIONS } from "./canvases.ts";
+import { SHOT_WAIT_MS } from "./screen-image.ts";
+import { SKILLS_HASH } from "./skills-hash.ts";
 import { FLOW_TEXT, PATCH_EDITS_MAX, TOUR_DWELL_MAX, TOUR_DWELL_MIN, TOUR_NOTE_MAX, TOUR_STEPS_MAX } from "./flow.ts";
 import {
   SCENARIOS_MAX, SCENARIO_CAPTION_MAX, SCENARIO_DESCRIPTION_MAX, SCENARIO_DWELL_MAX, SCENARIO_DWELL_MIN, SCENARIO_NAME_MAX, SCENARIO_STEPS_MAX, SCENARIO_VIA_MAX,
@@ -22,10 +24,10 @@ function createServer(): McpServer {
     "ping",
     {
       title: "Ping Lite",
-      description: "Append a ping event and return it. Use it to check that Lite is reachable and recording.",
+      description: "Append a ping event and return it, plus skills_hash: the hash of the Lite skills this server was deployed with. Use it to check that Lite is reachable and recording. If .claude/lite-skills.json in the project has a different hash, tell the user to run `lite init` there to update the skills.",
       inputSchema: z.object({ note: z.string().max(200).optional().describe("Optional short note stored with the event.") }),
     },
-    async ({ note }) => ({ content: [{ type: "text" as const, text: JSON.stringify(await hub(env).ping(note)) }] }),
+    async ({ note }) => ({ content: [{ type: "text" as const, text: JSON.stringify(Object.assign({}, await hub(env).ping(note), { skills_hash: SKILLS_HASH })) }] }),
   );
   const text = (v: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(v) }] });
   // Hub errors cross the RPC boundary as exceptions; surface them as tool errors Claude can read and fix.
@@ -126,11 +128,6 @@ function createServer(): McpServer {
     x: z.number().int().optional().describe("Canvas x position in pixels. Leave out for automatic layout."),
     y: z.number().int().optional().describe("Canvas y position in pixels. Leave out for automatic layout."),
   };
-  server.registerTool(
-    "set_screen",
-    { title: "Set a screen", description: CANVAS_TEXT.set_screen, inputSchema: z.object({ project, canvas, ...screenFields }) },
-    ({ project, ...input }) => guard(async () => hub(env).setScreen(project, input)),
-  );
   server.registerTool(
     "set_screens",
     {
@@ -265,9 +262,25 @@ function createServer(): McpServer {
     {
       title: "Start presenting",
       description: FLOW_TEXT.present,
-      inputSchema: z.object({ project, canvas, screen: z.string().optional().describe("Screen id to open on. Default: the start screen, else the first.") }),
+      inputSchema: z.object({ project, canvas, screen: z.string().optional().describe("Screen id to open on. Default: the start screen, else the first."), force: z.boolean().optional().describe("Present although the review does not pass. Only for a deliberate rough draft.") }),
     },
     ({ project, ...input }) => guard(async () => hub(env).present(project, input)),
+  );
+  server.registerTool(
+    "screen_image",
+    {
+      title: "See a screen as an image",
+      description: `Render one screen of a canvas as a PNG and return it as an image, so you can LOOK at what you built (spacing, overflow, contrast, wrong text) after review_prototype passes and before present. An open watch page for the project renders it, so open the watch page first; with none open the call fails after ${SHOT_WAIT_MS / 1000} s and says so. Fix what you see with patch_screen, then call it again. Answer: the image plus {screen, width, height}.`,
+      inputSchema: z.object({ project, canvas, screen: z.string().describe("Screen id on the canvas.") }),
+    },
+    async ({ project, canvas, screen }) => {
+      try {
+        const { png, ...info } = await hub(env).screenImage(project, canvas, screen);
+        return { content: [{ type: "image" as const, data: png, mimeType: "image/png" }, { type: "text" as const, text: JSON.stringify(info) }] };
+      } catch (e) {
+        return { isError: true, content: [{ type: "text" as const, text: e instanceof Error ? e.message : String(e) }] };
+      }
+    },
   );
   server.registerTool(
     "goto",

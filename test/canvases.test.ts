@@ -289,10 +289,10 @@ test("canvas events interleave with other events in seq order", () => {
 });
 
 test("tool descriptions mention each limit and the html guidance", () => {
-  const d = CANVAS_TEXT.set_screen;
+  const d = CANVAS_TEXT.set_screens;
   for (const s of ["200000", "50", "100", "8000", "no scripts", "https URLs or data: URIs", "nothing else is loaded", "inline CSS", "width x height"]) assert.ok(d.includes(s), s);
   assert.ok(CANVAS_TEXT.create_canvas.includes(String(CANVASES_PER_PROJECT)));
-  for (const k of ["create_canvas", "list_canvases", "read_canvas", "set_screen", "remove_screen", "remove_canvas"] as const) assert.ok(CANVAS_TEXT[k].length > 20);
+  for (const k of ["create_canvas", "list_canvases", "read_canvas", "set_screens", "remove_screen", "remove_canvas"] as const) assert.ok(CANVAS_TEXT[k].length > 20);
 });
 
 const fields = (o: Partial<ScreenInput> = {}) => {
@@ -378,8 +378,8 @@ test("read_canvas layout equals web/layout.ts on the same inputs; x and y stay a
 test("tool texts: set_screens guidance, id truncation, remove_screen keeps the log, bytes", () => {
   const t = CANVAS_TEXT.set_screens;
   for (const s of ["20", "ALL OR NOTHING", "screen <index> (<name>)", "truncated at 40", "explicitly"]) assert.ok(t.includes(s), s);
-  const d = CANVAS_TEXT.set_screen;
-  for (const s of ["truncated at 40", "same name replaces", "different name makes a second", "explicitly", "bytes", "warnings", "set_screens"]) assert.ok(d.includes(s), s);
+  const d = CANVAS_TEXT.set_screens;
+  for (const s of ["truncated at 40", "same name replaces", "different name makes another", "explicitly", "bytes", "warnings", "validate_flow"]) assert.ok(d.includes(s), s);
   assert.ok(CANVAS_TEXT.remove_screen.includes("log"));
   assert.ok(CANVAS_TEXT.read_canvas.includes("layout") && CANVAS_TEXT.read_canvas.includes("bytes"));
 });

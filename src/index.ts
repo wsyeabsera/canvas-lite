@@ -5,6 +5,7 @@ import { bearerToken, misconfigured, tokenOk } from "./auth.ts";
 import { siteDecision } from "./site-gate.ts";
 import { hub } from "./hub.ts";
 import { mcpHandler } from "./mcp.ts";
+import { checkPng, SHOT_B64_MAX } from "./screen-image.ts";
 
 export { Hub } from "./hub.ts";
 
@@ -61,6 +62,22 @@ export default {
           }
           if (typeof body !== "object" || body === null || typeof body.name !== "string") return json(400, { error: 'invalid body: expected {"name": "...", "seq"?: number}' });
           return json(200, await h.forkCanvas(route.id, { canvas: route.canvas, name: body.name, ...(typeof body.seq === "number" && { seq: body.seq }) }));
+        }
+        if (route.kind === "shot") {
+          const text = await request.text();
+          let body: { png?: unknown } = {};
+          try {
+            body = text.length <= SHOT_B64_MAX + 64 ? JSON.parse(text) : {};
+          } catch {
+            /* a bad body is a 400 below */
+          }
+          if (typeof body !== "object" || body === null || typeof body.png !== "string") return json(400, { error: 'invalid body: expected {"png": "<base64>"}' });
+          try {
+            checkPng(body.png);
+          } catch (e) {
+            return json(400, { error: (e as Error).message });
+          }
+          return (await h.deliverShot(route.id, route.request, body.png)) ? json(200, { ok: true }) : json(404, { error: "nobody is waiting for that request" });
         }
         if (route.kind === "admin-overview") return json(200, await h.adminOverview());
         if (route.kind === "archive") return json(200, await h.archiveProject(route.id));

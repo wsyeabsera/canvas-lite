@@ -1,5 +1,6 @@
 // Read-only JSON API for the watch page (docs/api.md). Pure: routing, auth gate and response shaping; the Worker calls the Hub.
 import { bearerToken, misconfigured, tokenOk } from "./auth.ts";
+import { SHOT_ID_RE } from "./screen-image.ts";
 
 export type ApiRoute =
   | { kind: "list" }
@@ -17,6 +18,7 @@ export type ApiRoute =
   | { kind: "tournament"; id: string; tournament: string }
   | { kind: "walk"; id: string; walk: string }
   | { kind: "archive"; id: string }
+  | { kind: "shot"; id: string; request: string }
   | { kind: "error"; status: 400 | 404 | 405; message: string; headers?: Record<string, string> };
 
 const ID_RE = /^[a-z0-9][a-z0-9-]*$/;
@@ -34,6 +36,7 @@ export function routeApi(method: string, pathname: string): ApiRoute {
   if (parts[0] === "projects" && ((parts[2] === "canvases" && parts.length === 5 && (parts[4] === "variants" || parts[4] === "fork")) || ((parts[2] === "tournaments" || parts[2] === "walks") && parts.length === 4)))
     return routeVariants(method, parts);
   if (parts[0] !== "projects") return { kind: "error", status: 404, message: "not found" };
+  if (parts[2] === "shots") return routeShot(method, parts);
   const sub = parts[4];
   if (parts[2] === "scenes") return routeScenes(method, parts);
   if (parts[2] === "design" && parts.length === 3) return routeDesign(method, parts[1]);
@@ -95,6 +98,15 @@ function routeAdmin(method: string, parts: string[]): ApiRoute {
     return { kind: "archive", id };
   }
   return { kind: "error", status: 404, message: "not found" };
+}
+
+/** /api/projects/<id>/shots/<request> (POST): the watch page's rendered PNG for a screen_image request (src/screen-image.ts). */
+function routeShot(method: string, parts: string[]): ApiRoute {
+  if (method !== "POST") return { kind: "error", status: 405, message: "method not allowed", headers: { Allow: "POST" } };
+  const id = parts[1];
+  if (parts.length !== 4 || id.length > 40 || !ID_RE.test(id)) return { kind: "error", status: 400, message: "invalid path: expected /api/projects/<id>/shots/<request>" };
+  if (!SHOT_ID_RE.test(parts[3])) return { kind: "error", status: 400, message: "invalid request id" };
+  return { kind: "shot", id, request: parts[3] };
 }
 
 /** /api/projects/<id>/design: the project's design system, `{design}` (null when none). */
