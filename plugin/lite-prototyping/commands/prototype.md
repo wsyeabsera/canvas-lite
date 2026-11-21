@@ -11,7 +11,7 @@ Use the `lite-prototyping` skill and run its process in order, without skipping 
 2. Inventory every screen including states (empty, loading, error, success, confirm) and the navigation model, before writing any html.
 3. Write all screens in one `set_screens` pass with the same nav on every app screen; every control wired with `data-to` or `data-back`, or deliberately `data-inert`.
 4. `set_flow` with the start screen.
-5. `validate_flow`, then `review_prototype`; fix with `patch_screen` or `set_screens` and repeat until validate is ok and review is ok with score >= 90.
+5. `validate_flow`, then `review_prototype`; fix with `patch_screen` or `set_screens` and repeat until validate is ok and review is ok with score >= 90; then look at the key screens with `screen_image` and fix what you see.
 6. `set_tour` per journey, covering every screen.
 7. Only then `present`. Never present a half-finished prototype.
 
